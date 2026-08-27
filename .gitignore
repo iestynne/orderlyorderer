@@ -1,0 +1,8 @@
+# Second line of defence. The real guarantee is that the game archive lives in
+# ../local/, outside this repository. See docs/DECISIONS.md D14d.
+game/
+assets/game/
+*.love
+v0.*-*.zip
+node_modules/
+dist/

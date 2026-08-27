@@ -1,0 +1,404 @@
+{
+ "_meta": {
+  "app_version": "v0.7-455",
+  "hash": "md5 of cell[2:11, :] of the 16x16 cell, greyscale",
+  "source": "map_2-1_tower_of_loot.png (10 overlay-free floors); tier row from 2-1 floor 4; Pop-Up Wall from 1-3 floor 3",
+  "coords": "(floor_ordinal, x, y), all 1-based, floor 1 = lowest"
+ },
+ "sprites": {
+  "c1ea65ea74ccf43202ae21dd98d9c2ec": {
+   "name": "Regular Wall",
+   "count": 728,
+   "example": [
+    1,
+    1,
+    1
+   ]
+  },
+  "45971d4e3a47775bb5a7260bb5ea3c36": {
+   "name": "Empty",
+   "count": 461,
+   "example": [
+    1,
+    9,
+    5
+   ]
+  },
+  "71f425806ea768c4fc0049bb4874a524": {
+   "name": "Weak Wall",
+   "count": 302,
+   "example": [
+    1,
+    8,
+    8
+   ]
+  },
+  "beec128cc3334d617f03b767e806a30e": {
+   "name": "Scorpion",
+   "count": 132,
+   "example": [
+    7,
+    1,
+    1
+   ]
+  },
+  "87186777880b6ac360d972ee30e00a93": {
+   "name": "Gem Gate",
+   "count": 60,
+   "example": [
+    1,
+    3,
+    1
+   ]
+  },
+  "a442d578e3adbef2ce7e0e8095288833": {
+   "name": "Slime",
+   "count": 60,
+   "example": [
+    1,
+    8,
+    1
+   ]
+  },
+  "baf93f585d99b667838280df8c9b2149": {
+   "name": "Gold Gate",
+   "count": 59,
+   "example": [
+    5,
+    1,
+    2
+   ]
+  },
+  "4ed96188e8ff3b7e719e045245be36ee": {
+   "name": "Serpent (negative)",
+   "count": 53,
+   "example": [
+    7,
+    4,
+    1
+   ]
+  },
+  "4c50e7ebf9bd58e6cacfe38150cdb9aa": {
+   "name": "Light Gate",
+   "count": 42,
+   "example": [
+    7,
+    2,
+    6
+   ]
+  },
+  "3218ffff009d3cc63f386f73df9c5468": {
+   "name": "Scorpion (negative)",
+   "count": 42,
+   "example": [
+    8,
+    10,
+    4
+   ]
+  },
+  "92d3988dec06e90ecff57525f01d20db": {
+   "name": "Light Key",
+   "count": 40,
+   "example": [
+    2,
+    2,
+    3
+   ]
+  },
+  "d195c59c81db8940258e2aba17ad1fbb": {
+   "name": "Gold Bag",
+   "count": 39,
+   "example": [
+    1,
+    2,
+    1
+   ]
+  },
+  "2f935afe1bec187bd60e87ed8c69f153": {
+   "name": "Skeleton",
+   "count": 38,
+   "example": [
+    10,
+    9,
+    1
+   ]
+  },
+  "70ba217637223ae176367dffe06512c5": {
+   "name": "Skeleton (negative)",
+   "count": 31,
+   "example": [
+    11,
+    2,
+    1
+   ]
+  },
+  "8ef2e730ccd3f65e6db4262e777d1e8e": {
+   "name": "Bat",
+   "count": 26,
+   "example": [
+    7,
+    3,
+    1
+   ]
+  },
+  "6e317e1e2001db52d4e93b6f3e3ae26c": {
+   "name": "Slime (negative)",
+   "count": 26,
+   "example": [
+    7,
+    7,
+    2
+   ]
+  },
+  "bd907404aaa73ef6afe0eb128031f694": {
+   "name": "Dark Gate",
+   "count": 14,
+   "example": [
+    7,
+    3,
+    5
+   ]
+  },
+  "6ba3280698448f57b195ee9802196f7f": {
+   "name": "Pickaxe",
+   "count": 11,
+   "example": [
+    2,
+    2,
+    12
+   ]
+  },
+  "818a1341c02d8c6b72a5deeba7d9b9d1": {
+   "name": "Serpent",
+   "count": 10,
+   "example": [
+    7,
+    2,
+    5
+   ]
+  },
+  "bdcdbb4aa31e5d54b2fd49a1c0e281db": {
+   "name": "Stairs Up",
+   "count": 9,
+   "example": [
+    1,
+    6,
+    10
+   ]
+  },
+  "90885f0ff84acf248788184b7e88b8a2": {
+   "name": "Dark Key",
+   "count": 9,
+   "example": [
+    2,
+    1,
+    6
+   ]
+  },
+  "323d68e8b20a2905dab2f1051cf40fe1": {
+   "name": "Stairs Down",
+   "count": 9,
+   "example": [
+    2,
+    6,
+    10
+   ]
+  },
+  "5607379c6171ee1ac3853dcb318f0ad1": {
+   "name": "Dark Rod",
+   "count": 7,
+   "example": [
+    5,
+    15,
+    1
+   ]
+  },
+  "53a19b07d3e4c564c71bec442807f48a": {
+   "name": "Elixir",
+   "count": 6,
+   "example": [
+    7,
+    2,
+    8
+   ]
+  },
+  "06d6322b63322c6258636f1ea6b8aa50": {
+   "name": "Zombie",
+   "count": 6,
+   "example": [
+    14,
+    7,
+    3
+   ]
+  },
+  "d03b2663e775c23f8be654626ab6e2d2": {
+   "name": "One-Way Wall (N)",
+   "count": 5,
+   "example": [
+    8,
+    15,
+    2
+   ]
+  },
+  "3197625958c556fa80c271f51b187f12": {
+   "name": "Vorpal Blade",
+   "count": 4,
+   "example": [
+    2,
+    1,
+    2
+   ]
+  },
+  "588abe2e0840c5bc6ac0375caf7b0811": {
+   "name": "One-Way Wall (S)",
+   "count": 4,
+   "example": [
+    8,
+    1,
+    2
+   ]
+  },
+  "c0a13933995c1d48f5c771e2f58c8fcc": {
+   "name": "Zombie (negative)",
+   "count": 4,
+   "example": [
+    11,
+    7,
+    10
+   ]
+  },
+  "73831dfb7df0b0e4510b3c63c9bf1839": {
+   "name": "Light Rod",
+   "count": 3,
+   "example": [
+    5,
+    1,
+    1
+   ]
+  },
+  "a584efa1ede0255d1c39f81b8f4a88a7": {
+   "name": "Half Gate",
+   "count": 3,
+   "example": [
+    8,
+    7,
+    8
+   ]
+  },
+  "5f00069c14cb9ab71b67d521c7ae2756": {
+   "name": "One-Way Wall (W)",
+   "count": 2,
+   "example": [
+    8,
+    7,
+    1
+   ]
+  },
+  "54eedaf5178ac2b9ebab1b64477678ac": {
+   "name": "One-Way Wall (E)",
+   "count": 2,
+   "example": [
+    8,
+    7,
+    15
+   ]
+  },
+  "e2c51d3ea9f7098f919d56c4baa389df": {
+   "name": "Crown",
+   "count": 1,
+   "example": [
+    10,
+    8,
+    8
+   ]
+  },
+  "2e303fbdb1eaf19427bf65eacc623316": {
+   "name": "S. Warrior (negative)",
+   "count": 1,
+   "example": [
+    13,
+    1,
+    10
+   ]
+  },
+  "1b56fb436977df6c6374361ea5aa388d": {
+   "name": "Dark Crown",
+   "count": 1,
+   "example": [
+    14,
+    8,
+    8
+   ]
+  },
+  "4217a1b22e2f74dde2d127cc1c128cae": {
+   "name": "S. Warrior",
+   "count": 0,
+   "example": [
+    4,
+    9,
+    14
+   ],
+   "note": "from the 2F tier reference row"
+  },
+  "517a897b0ee79708a2508bca1425b375": {
+   "name": "Armor",
+   "count": 0,
+   "example": [
+    4,
+    10,
+    14
+   ],
+   "note": "from the 2F tier reference row"
+  },
+  "95c7567e1aa250bf6243ee63be6ee120": {
+   "name": "Warlock",
+   "count": 0,
+   "example": [
+    4,
+    11,
+    14
+   ],
+   "note": "from the 2F tier reference row"
+  },
+  "b03a14edb76439bb8b9fca80e1c51053": {
+   "name": "Demon",
+   "count": 0,
+   "example": [
+    4,
+    14,
+    14
+   ],
+   "note": "from the 2F tier reference row"
+  },
+  "3becbe7399a542c5edab4adebd8d1bd1": {
+   "name": "Pop-Up Wall",
+   "count": 0,
+   "example": [
+    3,
+    4,
+    11
+   ],
+   "note": "from map_1-3_tower_of_traps.png; absent from 2-1"
+  },
+  "2833481c35e18415e7667aabcd22b8c6": {
+   "name": "Spikes",
+   "count": 0,
+   "example": [
+    1,
+    3,
+    13
+   ],
+   "note": "from map_1-5_tiny_tower.png floor 1; absent from 2-1"
+  },
+  "ff113d4ee38bb242270cbf6745f9355d": {
+   "name": "Player",
+   "count": 0,
+   "example": [
+    1,
+    8,
+    14
+   ],
+   "note": "the player marker, not a tile. Always present in an export; hides whatever is beneath it."
+  }
+ }
+}
