@@ -59,6 +59,14 @@ IDs are `"2-1"`, `"EX-3"` etc. The hash detects "this route was made for an
 older version of this tower", which will happen — the developer is still editing
 towers and adding new ones.
 
+**`content_hash` is the SHA-256 of the source `res/maps/<id>` file's exact
+bytes**, lowercase hex — not a hash of our own tower JSON. The JSON shape is
+deliberately unstable until a simulator exists (SPEC-002 §5), so hashing it
+would change the hash on every schema edit and report a tower-content change
+that did not happen. Hashing the input makes the hash track the game's data,
+which is what version detection needs. Expected values for v0.7-455 are pinned
+in SPEC-002 §8.2.
+
 **D10. The UI is pixel-exact: integer scale factors only,
 `imageSmoothingEnabled = false`, the game's own keyboard shortcuts.**
 Fractional scaling is what makes pixel art look wrong.

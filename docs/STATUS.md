@@ -97,32 +97,27 @@ Consequences:
 
 ## Next
 
-**SPEC-002: parse `res/maps/*` into tower JSON.** Not yet written.
+**Implement SPEC-002: parse `res/maps/*` into tower JSON.** The spec is written
+and ready; it carries the file format, so it is not repeated here.
 
-The format, from `leveldata.lua`:
+Settled while writing it, by reading the source:
 
-```
-name                      e.g. "1-1: Training Tower"
-crowns_needed
-challenge                 e.g. "*"
-size                      e.g. "**"
-flags                     bit 1 negative_keys, 2 uncapped_elixirs,
-                          4 non_persistent_items_ex_4
-start_power
-start_floor start_x start_y
-grades C, B, A, S, star, overscore     (6 lines)
-floor_count
-  per floor:
-    name                  e.g. "B5F: Dark Crown"
-    bgm
-    15 lines x 15 tokens  walls[x][y]
-    entity_count
-      "x y type value_str"   1-based (x, y); value_str e.g. "10k", "1M"
-    textbox_count
-      "x y w h text"         "||" encodes a newline
-```
+- **Wall values** `0/1/2/3` = Empty / Weak / Regular / Strong, confirmed against
+  the draw code. The file is stored row-major (`walls[y][x]`) even though the
+  game indexes `walls[x][y]` — transposing it is the likeliest defect.
+- **41 entity types** in `entitydef.lua`, of which **36** appear in shipped maps.
+- **`convert_value_str` has no rounding.** It is exact integer arithmetic; the
+  lossy step is in the display direction only.
+- **Enemy tier is derived** from `value` by decade, identically for `enemy` and
+  `enemy_neg`; the sign lives in the type, so values are always stored positive.
+- **Textbox `x y w h` are pixels**, not cells — unlike entities.
+- **Floor order is bottom-to-top**, so file index == floor number (D1). The
+  floor *label* is not the index: 2-1 starts at `B2F`, so its `1F` is floor 3.
+- **A byte-exact round trip holds on all 16 towers**, because the shipped files
+  were themselves written by `LevelData:save()`. This is the primary oracle,
+  matching how the savegame codec was validated.
 
-After that: the tower JSON schema, then the simulator.
+After that: the simulator.
 
 ## Known blockers
 

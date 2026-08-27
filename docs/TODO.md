@@ -6,21 +6,22 @@ Outstanding actions. App version **v0.7-455**.
 
 ## A. Next action
 
-**Write SPEC-002: parse `res/maps/*` into tower JSON.** SPEC-001 is cancelled —
-see `STATUS.md`.
+**Implement SPEC-002: parse `res/maps/*` into tower JSON.** The spec is written.
+SPEC-001 is cancelled — see `STATUS.md`.
 
-Design questions to settle first:
+Design questions 1–4 are settled in SPEC-002 §3 and §5, by reading the source.
+Note question 3 was answered in the negative: `convert_value_str` contains **no
+rounding**, so there is none to reproduce.
 
-1. **Wall grid encoding.** `walls[x][y]` holds small integers. Confirm the
-   mapping against `leveldata.lua` (0 empty, and wall / reinforced_wall /
-   iron_wall for the three wall tiers).
-2. **Entity type vocabulary.** 72 sprite names in `res/sprite/`, not all of them
-   tiles. Extract the authoritative set from `entitydef.lua` (1240 lines) rather
-   than from filenames.
-3. **`util.convert_value_str`** parses "10k", "1M". Reproduce it exactly,
-   including any rounding.
-4. **Tower JSON schema**, including the content hash for version detection (D9).
-5. Whether to embed all towers in the app bundle or fetch per tower.
+Still open, and deliberately left out of SPEC-002:
+
+1. **Whether to embed all towers in the app bundle or fetch per tower.** Not a
+   parser concern; decide when the app exists. Total shipped data is 16 towers /
+   325 floors / 24,468 entities, so the whole set is small enough that bundling
+   is likely to win.
+2. **Whether publishing tower JSON is acceptable to the developer** — see C2.
+   The parser output is derived from `res/maps/*`, so this gates committing
+   `data/towers/`, not writing the parser.
 
 ## B. Savegame experiments — remaining
 
