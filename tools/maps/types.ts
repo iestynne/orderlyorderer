@@ -10,6 +10,25 @@ export interface TowerJSON {
   floors: TowerFloor[];
 }
 
+// One merged grid per floor, not a wall grid plus a coordinate-keyed entity
+// list (SPEC-002 §5). A cell is either a wall value or the entity standing
+// there; it can never be both, which is what licenses the merge and is
+// asserted per cell in mergeFloor().
+export type Cell = WallValue | CellEntity;
+
+/** 0 empty, 1 Weak, 2 Reinforced, 3 Iron. Confirmed against game.lua:1421-1509. */
+export type WallValue = 0 | 1 | 2 | 3;
+
+export interface CellEntity {
+  type: string;
+  value_str: string; // what the game prints on the tile; "999G" not "999000000000"
+  value: number; // util.convert_value_str(value_str)
+}
+
+export function isCellEntity(c: Cell): c is CellEntity {
+  return typeof c === "object";
+}
+
 export interface TowerMetadata {
   name: string;
   crowns_needed: number;
@@ -50,7 +69,11 @@ export interface TowerTextbox {
   str: string; // "||" in the source decodes to "\n" here
 }
 
-export interface TowerFloor {
+// The parser's own shape: a faithful, order-preserving mirror of the source
+// file. This is what the byte-exact round-trip oracle runs over (SPEC-002
+// §8.1), so entity file order must survive here even though the emitted
+// TowerJSON discards it.
+export interface ParsedFloor {
   name: string;
   bgm: string;
   // Row-major, matching the source file's own line order: walls[y][x],
@@ -59,6 +82,15 @@ export interface TowerFloor {
   // maps directly to walls[y][x] here.
   walls: number[][];
   entities: TowerEntity[];
+  textboxes: TowerTextbox[];
+}
+
+// The emitted shape: one merged 15x15 grid, addressed cells[y - 1][x - 1] for
+// the 1-based (x, y) the game and the save format use.
+export interface TowerFloor {
+  name: string;
+  bgm: string;
+  cells: Cell[][];
   textboxes: TowerTextbox[];
 }
 

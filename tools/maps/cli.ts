@@ -8,6 +8,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { parseTower } from "./parser";
+import { mergeFloor } from "./merge";
 import { toReviewableJson, type JSONValue } from "./format";
 import { TOWER_IDS, type TowerJSON } from "./types";
 
@@ -41,7 +42,7 @@ function main(): void {
       content_hash: contentHash,
       generator,
       metadata: parsed.metadata,
-      floors: parsed.floors,
+      floors: parsed.floors.map((f, i) => mergeFloor(towerId, i + 1, f)),
     };
 
     writeFileSync(join(outDir, `${towerId}.json`), toReviewableJson(tower as unknown as JSONValue));

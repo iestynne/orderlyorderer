@@ -209,8 +209,8 @@ floor_count
 
 ## 5. Output
 
-Keep the JSON close to the source structure. Do not invent abstractions — the
-schema is deliberately open until a simulator exists and shows what it needs.
+Keep the JSON close to the source structure. Do not invent abstractions — with
+one exception, §5.2, which the simulator asked for once it existed on paper.
 
 ```ts
 export interface TowerJSON {
@@ -226,6 +226,7 @@ export interface TowerJSON {
     computed_flags: {          // decoded from flags, omitted when false
       negative_keys?: true; uncapped_elixirs?: true;
       non_persistent_items_ex_4?: true;
+      money_system?: true; orbs_exist?: true;   // set by the entity scan
     };
     start_power: number;
     start_floor: number; start_x: number; start_y: number;
@@ -234,21 +235,61 @@ export interface TowerJSON {
 
   floors: Array<{
     name: string; bgm: string;
-    walls: number[][];        // walls[y][x], 0-based arrays, 15x15, values 0..3
-    entities: Array<{ x: number; y: number; type: string;
-                      value_str: string; value: number }>;
+    cells: Cell[][];          // cells[y-1][x-1] for the 1-based (x, y); 15x15
     textboxes: Array<{ x: number; y: number; w: number; h: number; str: string }>;
   }>;
 }
+
+type Cell = WallValue | CellEntity;
+type WallValue = 0 | 1 | 2 | 3;   // empty, Weak, Reinforced, Iron
+interface CellEntity { type: string; value_str: string; value: number }
 ```
 
 Retain `value_str` alongside `value`. It is the source of truth for round-trip
 (§8.1) and it is what the game prints on the tile.
 
-`walls` is stored `[y][x]` — the file's own row-major order — with the `[x][y]`
+### 5.2 One merged grid, not a grid plus a list
+
+`[D]` **The emitted floor is a single grid of values.** A consumer reads a cell
+by indexing it, and never by scanning a separate list for a matching `(x, y)`.
+
+The original design emitted `walls[y][x]` plus an `entities[]` list carrying its
+own coordinates. That is a faithful mirror of the source file, which was the
+right instinct while nothing consumed it — but SPEC-004 §3 turned out to want
+`tower.floors[z].cells[y][x]` and to describe it as "literally the file you can
+open and read", which it was not. Given a choice between open-coding the merge
+in the simulator and doing it once here, it belongs here: the merge needs a
+correctness argument (below), and a correctness argument belongs next to the
+data it is about.
+
+**What licenses the merge.** No cell may hold two things at once. `[F]` Measured
+over all 16 towers: **0** cells carry both a wall and an entity, and **0** carry
+two entities. `mergeFloor` asserts it per cell and throws `CellCollisionError`
+rather than overwriting, so a future game version that broke the assumption
+fails loudly at parse time instead of silently losing an entity.
+
+**What the merge costs.** Entity **file order** is not recoverable from the
+grid, so `TowerJSON` can no longer regenerate the source file. This is
+deliberate and costs nothing: the round-trip oracle (§8.1) runs over the
+parser's own `ParsedFloor`, which keeps `walls`, `entities` and their order
+exactly as read. Two shapes, one parser:
+
+- `ParsedFloor` — order-preserving mirror of the source. The emitter's input and
+  the round-trip oracle's subject. Never leaves the tool.
+- `TowerFloor` — the merged grid. The committed artifact and the simulator's
+  input.
+
+**What the merge buys, measured.** The committed JSON got **30% smaller** (2-6:
+471 KB → 332 KB) and dropped from ~34 000 lines to ~7 700, because `x` and `y`
+stopped being stored per entity and empty cells became a bare `0`. Diffs stay
+row-granular: one changed cell is a one-line diff, which is what D9 and D14e
+want from a reviewable artifact.
+
+`cells` is stored `[y][x]` — the file's own row-major order — with the `[x][y]`
 transpose done at the boundary if the simulator wants it. Document the order at
 the type. Getting this backwards is the single most likely defect in this spec,
-and a 15x15 grid is not self-evidently transposed by inspection.
+and a 15x15 grid is not self-evidently transposed by inspection. §8.3's named
+cells are the detector, and they are now asserted through the merged grid too.
 
 ### 5.1 `content_hash`
 
@@ -321,6 +362,13 @@ Report:
 
 An emitter mirroring `LevelData:save()` must reproduce **all 16 source files
 byte for byte**. This has been verified to hold: 16/16.
+
+`[D]` The oracle runs `source -> ParsedFloor -> source`, **not** through the
+emitted `TowerJSON`. The merged grid (§5.2) deliberately discards entity file
+order, so it could not reproduce the source; `ParsedFloor` keeps everything the
+file had, which is what makes it the right subject for a check whose whole
+purpose is "nothing was dropped, reordered, or coerced". §8.5 invariant 6 is the
+separate check that the merge itself loses nothing.
 
 This works because the shipped files were themselves written by that function.
 Note its exact quirks: every wall token is followed by a space, **including the
@@ -409,6 +457,14 @@ Every case below is a form that actually occurs in shipped data (§3.3).
    longer than three digits. This is the invariant that makes the narrow
    implementation in §3.3 safe; if it ever fails on new game data, §3.3 must be
    revisited before the parser is trusted.
+6. **The merge is sound and lossless** (§5.2). Across all 16 towers:
+   **0** cells carrying both a wall and an entity, **0** cells carrying two
+   entities, and all **325** floors merge without a `CellCollisionError`. Every
+   one of the **24468** entities is recoverable from `cells[y-1][x-1]` with
+   `type`, `value_str` and `value` intact, and every one of the remaining
+   **48657** cells holds its original wall value. Invariant 3's start-cell check
+   is repeated through the merged grid, since the merge is a second place the
+   transpose could go wrong.
 
 ### 8.6 Acceptance
 

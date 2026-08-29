@@ -2,7 +2,7 @@
 // access here (SPEC-002 §2, D7). A line-oriented reader over a sequential
 // cursor, per D11 — not a class hierarchy, not a streaming parser.
 
-import { ENTITY_TYPES, type TowerEntity, type TowerFloor, type TowerMetadata, type TowerTextbox } from "./types";
+import { ENTITY_TYPES, type ParsedFloor, type TowerEntity, type TowerMetadata, type TowerTextbox } from "./types";
 
 export class MapParseError extends Error {
   constructor(towerId: string, floor: number | null, line: number, detail: string) {
@@ -34,7 +34,7 @@ export function convertValueStr(str: string): number {
 
 export interface ParsedTower {
   metadata: TowerMetadata;
-  floors: TowerFloor[];
+  floors: ParsedFloor[];
 }
 
 export function parseTower(towerId: string, content: string): ParsedTower {
@@ -108,7 +108,7 @@ export function parseTower(towerId: string, content: string): ParsedTower {
 
   // --- floors ---
   const floorCount = readInt("floor_count");
-  const floors: TowerFloor[] = [];
+  const floors: ParsedFloor[] = [];
 
   for (let f = 1; f <= floorCount; f++) {
     floor = f;
