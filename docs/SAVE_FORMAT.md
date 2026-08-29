@@ -165,7 +165,7 @@ Verified: all 16 records in `1-5.sav` have odd length (579, 549, 263, 569, 467,
 - **The tower's starting position.** Implicit; the first entry is already the
   result of the first recorded transition.
 - **The tower's initial state.** Nothing about map contents is in the file. Map
-  content must come from the map export (see `EXTRACTION.md`).
+  content must come from the map export (see `NOTES_map_extraction_deferred.md`).
 - **Non-state-changing movement.** Reconstructed on load by the auto-pather.
 - **Redo history.** Only undo history is persisted.
 - **Which state changed.** Derivable by replay; see §5.

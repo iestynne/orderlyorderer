@@ -46,18 +46,33 @@ moves.
 
 ## 2. Combat
 
-The player defeats an enemy **only if `player.power > enemy.power`**. Strictly
-greater — equal power fails.
+The player defeats an enemy **only if `player.power > ent.value`**. Strictly
+greater — equal power fails. `[F]` `_enemy_can_interact`, `entitydef.lua:109`.
 
-On defeat:
+`ent.value` is **always stored positive**; the sign lives in the entity type.
+So a **−25 enemy also requires power > 25** to attack, even though beating it
+costs power. This is not obvious in play and is easy to get wrong.
 
-- **Positive enemy:** `power += enemy.power`
-- **Negative enemy:** `power -= enemy.power`
-- **Gold:** `gold += tier` (the tier index, 1–10), modified by held items (§5)
+On defeat (`_enemy_interact`, `entitydef.lua:128`):
+
+- `base = ent.value`, negated when `type == "enemy_neg"`.
+- Held items form a **single `elseif` chain**, so they are mutually exclusive
+  and their order is unreachable — see §5 for the full table.
+- **Gold:** `gold += tier(ent.value)`, the tier index 1–10, then modified by
+  Golden Dagger / Golden Claymore (§5).
 - The player moves onto the enemy's cell, which becomes Empty.
+- Every Battle Gate **on the player's floor** is decremented by 1; each that
+  reaches exactly 0 opens. Already-open gates are skipped, so values never go
+  below 0.
+
+`[F]` **`modify_player_power` does not clamp.** The only clamp is
+`power = min(power, MAX_POWER)` applied once per move in `Game:move_dir`
+(`game.lua:1545`), after the interaction. There is no lower clamp — power stays
+≥ 1 only because every entry rule requires strictly-greater power first.
 
 Every tier has a positive and a negative variant. The negative sprite is the
-positive one inverted with a white outline; see `EXTRACTION.md`.
+positive one inverted with a white outline; see
+`NOTES_map_extraction_deferred.md`.
 
 ### Enemy tiers
 
@@ -79,10 +94,19 @@ the badge value — a useful cross-check when extracting a map.
 
 ## 3. Terrain
 
-Wall grid values in `res/maps/*` (to confirm against the draw code):
-**0 = empty, 1 = Weak Wall (`wall.png`), 2 = Regular Wall
-(`reinforced_wall.png`), 3 = Strong Wall (`iron_wall.png`)**. A converted Pop-Up
-Wall is written as `2`, which matches "becomes a Regular Wall".
+Wall grid values in `res/maps/*`, **confirmed against the movement code**
+(`game.lua:1421-1509`, which tests `3`, then `2`, then `1` in that order):
+**0 = empty, 1 = Weak Wall (`wall.png`), 2 = Regular / Reinforced Wall
+(`reinforced_wall.png`), 3 = Strong / Iron Wall (`iron_wall.png`)**. A converted
+Pop-Up Wall is written as `2` (`entitydef.lua:938`, `game.lua:1569`), which
+matches "becomes a Regular Wall".
+
+**Digging precedence.** On a Weak Wall the game spends an ordinary Pickaxe
+*first*; the Hyper Pickaxe branch is an `elseif` reached only when
+`pickaxes == 0`. So a player carrying both loses the ordinary one. On a
+Reinforced Wall only the Hyper Pickaxe works, and it is consumed
+(`held_item = nil`) in both cases. A blocked dig moves nobody and consumes
+nothing.
 
 
 | Tile | Behaviour |
@@ -92,7 +116,7 @@ Wall is written as `2`, which matches "becomes a Regular Wall".
 | **Weak Wall** | Impassable. Breakable by **Pickaxe** or **Hyper Pickaxe**. |
 | **Strong Wall** | Impassable. Indestructible by any means. |
 | **One-Way Wall** (N/E/S/W) | Walkable. The rule is **positional, not directional**: `barrier_u` admits entry only when `player.y >= ent.y`, and mirrored for the other three. Moving in from the same row/column is therefore allowed. |
-| **Pop-Up Wall** | Walkable. Stepping on removes the entity and marks it pending; it becomes a **Regular Wall** (`walls = 2`) once the player leaves. Negated entirely by a Levitation Feather. Only **one** pop-up is pending at a time — `entitydef.popup.interact` converts the previous one when a new one is entered. |
+| **Pop-Up Wall** | Walkable. Stepping on removes the entity and marks it pending; it becomes a **Regular Wall** (`walls = 2`) once the player leaves. Negated entirely by a Levitation Feather. Only **one** pop-up is pending at a time — `entitydef.popup.interact` converts the previous one when a new one is entered, and `Game:popup_check` (`game.lua:1560`) converts it on any other move away. `popup_check` compares **floor as well as x/y**, so taking stairs off a pop-up converts it too. It is called from every exit path of `Game:move_dir`, including the blocked ones, where it is a no-op because the player has not moved. |
 | **Spikes** | Walkable trap, indestructible. Entering costs the shown power, every time. **Entry requires `power > value`** (strictly greater, exactly as for combat) unless holding a Levitation Feather. Confirmed in `entitydef.spikes.can_interact`. |
 | **Stairs Up** / **Stairs Down** | Move the player to the **same `(x, y)`** on the adjacent floor. Always. What varies is whether a matching staircase exists there to come back — see §7. |
 
@@ -103,21 +127,47 @@ becomes Empty.
 
 | Gate | Cost |
 |---|---|
-| **Gold Gate** | The shown amount of gold. |
-| **Gem Gate** | The shown number of gems (§6). **Master Key does not work.** |
-| **Light Gate** | One Light Key. |
-| **Dark Gate** | One Dark Key. |
-| **Half Gate** | Halves the player's power, **rounding up**. 10 -> 5, 5 -> 3. |
+| **Gold Gate** (`money_door`) | The shown amount of gold. `gold >= value` to enter. |
+| **Gem Gate** (`gem_door`) | The shown number of gems (§6). **Master Key does not work.** |
+| **Light Gate** (`door`) | One Light Key. |
+| **Dark Gate** (`dark_door`) | One Dark Key. |
+| **Half Gate** (`gate`) | `power -= floor(power/2)`, i.e. halves **rounding up**. 10 -> 5, 7 -> 4. |
 | **Battle Gate** | Carries a counter that decrements each time an enemy is defeated **on the same floor**. When it would reach zero it opens (disappears) instead. |
+
+`[F]` A **Master Key** substitutes for every gate above **except the Gem Gate**,
+and is consumed. On a Half Gate it opens the gate with **no power loss** at all.
 
 Pickups accumulate without limit:
 
 | Item | Effect |
 |---|---|
-| **Gold Bag** | `gold += shown amount` |
-| **Light Key** / **Dark Key** | `+1` to the respective count |
-| **Elixir** | `power *= 2` |
-| **Pickaxe** | Adds one Pickaxe to the inventory. Each is later consumed to break one Weak Wall. |
+| **Gold Bag** (`money`) | `gold += ent.value` — the only pickup that reads `value` |
+| **Light Key** / **Dark Key** | **`+1`**, always. `[F]` The tile's `value` is ignored. |
+| **Elixir** | `power += min(power, 1_000_000_000)`. `[F]` **Not** `power *= 2` — the gain has its own cap, separate from `MAX_POWER`. At 3e9 power an Elixir yields 4e9. With the tower's `uncapped_elixirs` flag it is `power += power`. |
+| **Pickaxe** | **`+1`**, always. Each is later consumed to break one Weak Wall. |
+
+### 4.1 `negative_keys` rewrites the whole key system
+
+`[F]` Tower flag bit 0, used only by **EX-3**. It is far more than the
+Keysmasher formula change previously recorded. With it set, there is **one**
+key counter, `player.keys`, and **it may go negative**:
+
+| | normal | `negative_keys` |
+|---|---|---|
+| Pick up Light Key | `keys += 1` | `keys += 1` |
+| Pick up Dark Key | `dark_keys += 1` | **`keys -= 1`** |
+| Light Gate needs | `keys > 0` | `keys > 0` |
+| Light Gate pays | `keys -= 1` | `keys -= 1` |
+| Dark Gate needs | `dark_keys > 0` | **`keys < 0`** |
+| Dark Gate pays | `dark_keys -= 1` | **`keys += 1`** |
+| Keysmasher bonus | `keys * dark_keys` | **`keys * keys`** |
+
+`dark_keys` is dead under the flag — permanently 0, which is exactly why the
+Keysmasher needs a squared special case rather than the usual product.
+
+**Consequence for the simulator:** the invariant "keys are non-negative" is
+false on EX-3, and a model with two independent counters cannot replay it at
+all. Carry the flag into the key rules, not just into the Keysmasher.
 
 ## 5. Held items
 
@@ -135,7 +185,7 @@ Once used, the slot is empty.
 | **Vorpal Blade** | Defeats **any** enemy regardless of power. No power gained or lost; gold is still gained. **Expended on the next enemy attacked, whatever it is** — attacking a Slime you could have beaten wastes it. |
 | **Dark Rod** | Doubles the power gained from the next **positive** enemy defeated. Does not change the power required to win. **Ignores negative enemies entirely** — no trigger, no effect, stays held. |
 | **Light Rod** | The next **negative** enemy's power is **added** instead of subtracted, swinging the delta from −X to +X. **Ignores positive enemies entirely** — no trigger, no effect, stays held. |
-| **Hyper Pickaxe** | Breaks **Weak and Regular** Walls. Not Strong Walls. **UNVERIFIED** whether single-use or persistent. |
+| **Hyper Pickaxe** | Breaks **Weak and Regular** Walls. Not Strong Walls. `[F]` **Single-use** — `held_item = nil` on both branches. On a Weak Wall it is only reached when `pickaxes == 0`, so an ordinary Pickaxe is always spent first. |
 
 The two rods are the cleanest illustration of the class: because they ignore the
 wrong enemy sign rather than being wasted on it, a held rod survives arbitrarily
@@ -150,9 +200,9 @@ item**, which replaces them.
 |---|---|
 | **Golden Dagger** | `+2` gold for every enemy defeated. |
 | **Golden Claymore** | Doubles gold obtained from every defeated enemy. |
-| **Keysmasher** | On defeating an enemy, gain power equal to `lightKeys * darkKeys`. **Keys are not consumed.** |
+| **Keysmasher** | On defeating an enemy, the bonus `lightKeys * darkKeys` (or `lightKeys²` under `negative_keys`, §4.1) is **added to the enemy's signed base value**, not applied instead of it. **Keys are not consumed.** On a negative enemy the bonus offsets the loss and can turn it into a gain. |
 | **Levitation Feather** | Walk over Spikes and Pop-Up Walls with no effect in either direction, indefinitely. |
-| **Adamantine Shield** | Halves the power gained *and* lost from every enemy, **rounding up**. **UNVERIFIED** — rounding believed correct but untested. |
+| **Adamantine Shield** | Halves the power gained *and* lost from every enemy. `[F]` **Signed floor**, not round-up: `modify_player_power(math.floor(base/2))`. +5 -> +2, +25 -> +12, **-25 -> -13**. It never changes the power *required* to win. |
 
 **Why the Shield is worth holding.** Halving gains looks purely bad, but it
 lowers the entry cost of a blocked pair. An area guarded by a `-N` then a `+N`
@@ -160,11 +210,45 @@ enemy normally needs power `> 2N` to pass. With the Shield it needs only
 `> 1.5N`: `N` to beat the first, which costs `0.5N`, leaving `N` to beat the
 second. Rare, but decisive where it applies.
 
-### 5.3 Pickup is mandatory
+### 5.3 Combat resolution, exactly as the game does it
 
-Moving onto a tile containing a held item **always** picks it up, and doing so
-**discards whatever was held**, passive or consumable. There is no way to walk
-over a held item while carrying one.
+`[F]` `_enemy_interact`, `entitydef.lua:128-215`. One `elseif` chain, evaluated
+in this order. `base` is `ent.value`, negated for `enemy_neg`.
+
+| Branch | Guard | Power delta | Consumed |
+|---|---|---|---|
+| Vorpal Blade | held | **none at all** — `modify_player_power` is not called | yes |
+| Dark Rod | held **and `type == "enemy"`** | `+ent.value * 2` (= `base*2`) | yes |
+| Light Rod | held **and `type == "enemy_neg"`** | `+ent.value` (= `-base`) | yes |
+| Adamantine Shield | held | `floor(base / 2)` | no |
+| Keysmasher | held | `base + bonus` (§5.2) | no |
+| Rapier of the Rulers | held | `base + total_crowns * tier` | no |
+| — | otherwise | `base` | — |
+
+**The rod guards test the entity type, not the sign of `base`.** Equivalent in
+practice, because values are always stored positive — but it is what makes a
+rod fall through to the plain `else` branch on the wrong enemy sign, taking the
+ordinary delta and **staying held**. That is the "ignores it entirely"
+behaviour of §5.1, and it needs no experiment to confirm.
+
+Gold is computed after the chain and is independent of it:
+`gold += tier(ent.value)`, then `+2` for a Golden Dagger or `×2` for a Golden
+Claymore (also an `elseif` — they cannot combine).
+
+`[F]` The Rapier's tier loop is `while val >= 10 and tier <= 10`, which lets
+tier reach **11** for values ≥ 1e10 — unlike the gold loop's `money_gain < 10`,
+which caps at 10. Almost certainly a slip in the game, and moot while the
+Rapier is out of scope, but do not share one `tier()` between them without
+noticing it.
+
+### 5.4 Pickup is mandatory
+
+`[F]` Confirmed in the source, and it was the highest-priority open mechanic.
+Every held-item entity's `can_interact` is `function() return true end` and its
+`interact` assigns `game.player.held_item = "<name>"` unconditionally. There is
+no branch that can decline. So moving onto a tile containing a held item
+**always** picks it up, and doing so **discards whatever was held**, passive or
+consumable. There is no way to walk over a held item while carrying one.
 
 **Consequences for routing:**
 
@@ -195,8 +279,47 @@ extra gems for an equal or worse score. Gems accumulate across all towers and
 the player begins every run with their full stock available to spend on Gem
 Gates.
 
-**Score thresholds are out of scope** by decision — a later nicety, not needed
-by the simulator.
+### 6.1 The exact gem derivation — read from the source
+
+`util.get_total_gems()` (`util.lua:61-82`):
+
+```
+gems = 0
+for each map file:
+    if score_file has an entry for metadata.name:
+        _, top_gems = calculate_grade(metadata.grades, score)
+        gems += top_gems
+if unlock flag royal_boon1: gems += get_total_crowns()
+```
+
+`util.calculate_grade(grades, score)` (`util.lua:33-59`) returns the **gem count
+as the grade index**: `D`/`E` → 0, `C` → 1, `B` → 2, `A` → 3, `S` → 4, `★` → 5,
+and `★+N` → `5+N`. Overscores step by `grades[6]`, and past 100 overscores the
+step widens to `floor(grades[6]*overscores/100)`. `grades` is the six-value
+metadata array `[C, B, A, S, ★, overscore]` that SPEC-002 already parses.
+
+`util.get_total_crowns()` sums `crown_data[name]` over all maps, where the tier
+is `1` for a Crown and `2` for a Dark Crown.
+
+**The two player files.** `scores.lua` reads two files from the game's save
+directory, named `score` and `crown` (no extension, and note the **singular**
+names). Each is plain alternating lines: tower name, then value.
+
+### 6.2 What a Crown submits
+
+`entitydef.crown.interact` → `scores:submit(name, player.power, 1)`.
+`entitydef.dark_crown.interact` → `scores:submit(name, min(player.power*2,
+MAX_POWER), 2)` (`entitydef.lua:860-901`).
+
+`Scores:submit` keeps the **maximum** in each file independently: it overwrites
+`score_data[level]` only when `score > ` the stored value, and
+`crown_data[level]` only when `crown_tier > ` the stored tier. Neither crown
+ends the run, so one run can submit both; the file keeps the larger.
+
+**Score thresholds are no longer out of scope** — the derivation above is
+cheap, exact, and is what turns `gemsOwned` from a UI input into a computed
+value. It is still not on the critical path: the simulator takes `gemsOwned`
+as an input either way.
 
 ## 7. Floor connectivity
 
@@ -244,20 +367,25 @@ a crossing. It must travel with any shared route. Confirmation pending
   constrained to be locally invertible.
 - Blocked moves must leave state completely unchanged.
 
-## 10. Account meta-state affects towers
+## 9. Account meta-state affects towers
 
 Discovered in `entitydef.lua`; not previously known.
 
 **Royal Boon 1 — "Wealth of the Kings".** Every crown collected counts as an
 additional gem. Changes the gem budget, and therefore which Gem Gates are
-affordable.
+affordable. **Gem budget only** — it does not change tower contents. Verified in
+the source: `royal_boon1.interact` sets one unlock flag and recomputes
+`total_gems`, and the only consumer of that flag is the
+`gems += get_total_crowns()` line in `util.get_total_gems` (§6.1). Nothing else
+reads it.
 
 **Royal Boon 2 — "Piercing Noble Sword".** A **Rapier of the Rulers** held item
 **spawns** on every stage where the player has obtained a Dark Crown.
 
-The second is structural: **a tower's contents are not fully determined by its
-map file.** An entity is injected based on account progress. And the Rapier's own
-strength scales with progress — `get_held_value` returns `total_crowns.."x"`.
+The second is the structural one: **a tower's contents are not fully determined
+by its map file.** An entity is injected based on account progress. And the
+Rapier's own strength scales with progress — `get_held_value` returns
+`total_crowns.."x"`.
 
 So a route is a function of `(tower, account state)`, not of the tower alone. The
 app must model at least `total_crowns`, `total_gems` and the royal boon flags as
@@ -271,24 +399,28 @@ are not yet read.
 Minor: `entitydef.orb_change.compendium_header` reads "Warp orb", duplicating
 `orb_warp`. Looks like a copy-paste slip worth reporting to the developer.
 
-## 9. Open questions
+## 10. Open questions
 
 Ordered by how badly the simulator needs them.
 
 1. **Orb effects** — read `game.lua`. Also what the two extra values in a
    5-tuple mean.
 2. **Rapier of the Rulers** — effect, not just its `total_crowns` scaling.
-3. **Hyper Pickaxe**: single-use consumable or persistent passive?
-4. **Adamantine Shield**: confirm the round-up.
-5. Where the general "step off a Pop-Up Wall" conversion happens — `entitydef`
-   only handles popup-to-popup; the rest is in the movement code.
-3. **Three unidentified sprites** on 1-5 floor 1. The most common occurs at
-   `(3,13)`, `(5,2)`, `(2,5)`, `(7,6)` and symmetric partners — **probably
-   Spikes**, since the pair `(3,14) -> (3,13)` is recorded *twice* in one route,
-   which only makes sense for a tile whose cost applies on every entry. A second
-   appears at `(1,4)` and `(15,4)`; a third, unique, at `(8,14)`.
-4. **Spikes**: the exact entry threshold. Given power may never go negative and
-   combat requires *strictly greater*, entry is probably refused when
-   `power - spikeCost < 1`, but this is inference.
-5. **One-way pathing setting**: is it fallback-only? Low priority — editor
+3. **Keysmasher: total or bonus?** `keysmasherBonus()` is added **to** the
+   enemy's base value in the Lua, but the HUD shows only the bonus. This is the
+   one open mechanic that moves every downstream power number, and it is
+   settled by a single in-game test — see `TODO.md` B8.
+4. **One-way pathing setting**: is it fallback-only? Low priority — editor
    fidelity only, not replay correctness. See §7.
+5. **One unidentified sprite** on 1-5 floor 1, at `(1,4)` and `(15,4)`.
+
+**Answered since this list was written** (do not re-ask):
+
+- *Hyper Pickaxe: consumable or passive?* **Consumable.** `held_item = nil` on
+  both the Weak-Wall and Reinforced-Wall branches — §3.
+- *Adamantine Shield rounding.* **Signed floor**, not round-up:
+  `math.floor(base/2)`, so −25 → −13. Measured in game and read in source.
+- *Where the general pop-up step-off conversion happens.* `Game:popup_check`
+  (`game.lua:1560`), called from every movement exit path.
+- *Spikes entry threshold.* `power > value`, strictly, exactly as for combat.
+- *The Spikes sprite on 1-5 floor 1.* Confirmed; in `SPRITES.json`.

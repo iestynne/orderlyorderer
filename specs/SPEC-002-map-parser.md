@@ -2,7 +2,7 @@
 
 **Status:** ready to implement
 **Docs to load:** `STATUS.md`, `DECISIONS.md`. Load `GAME_MECHANICS.md` only for
-§3.5. Do **not** load `EXTRACTION.md` or `SPRITES.json` — the image pipeline is
+§3.5. Do **not** load `NOTES_map_extraction_deferred.md` or `SPRITES.json` — the image pipeline is
 superseded and is not an input here.
 **Scope:** `tools/maps/**`, `test/tools/maps/**`, and the generated output
 `data/towers/v0.7-455/**`. Touching anything else is a contract violation and
