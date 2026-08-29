@@ -22,6 +22,71 @@ with it. So the next action is no longer a correctness question:
    point of the tool. The simulator can now answer it and nothing depends on
    further reverse-engineering.
 
+## A2. Next session — the interactive UI begins
+
+`[D]` First deliverable is deliberately small: a **save-file visualiser**. Load a
+`.sav`, pick a record, and scrub back and forth through the undo history. No
+editing, no analysis, no route construction. That is the whole scope, and it is
+the right first slice because everything under it already exists and is
+validated — the codec reads the file, the simulator produces the timeline, and
+`Cursor.seekTo` is specified for exactly this (SPEC-004 §8).
+
+To discuss when it starts: framework setup (Vite + React per `STATUS.md`), how a
+floor is drawn, and whether the scrubber moves by **step** or by **waypoint** —
+the timeline is at move granularity and the route at waypoint granularity, and
+`Step.waypointIndex` maps between them.
+
+`DESIGN_ROUTE_EDITING.md` is the deferred sketch for the *editing* work that
+comes after; it is not in scope for the visualiser.
+
+## A3. Map export collateral to capture
+
+For SPEC-005's golden oracle. **The longest save in each tower by undo-history
+entries** — entries, not simulated steps, because an entry is a recorded state
+change and passive walking alters no tower state.
+
+Name each PNG `<tower-id>.<save record>.png` and drop it in
+`data/reference/maps/tests/`; the test suite finds it with no code change.
+
+| Tower | Floors | Entries | Cells changed | Save record |
+|---|---|---|---|---|
+| 1-1 | 13 | 931 | 464 | `AUTOSAVE2` |
+| 1-2 | 14 | 1241 | 589 | `25.6m win` |
+| 1-3 | 15 | 1501 | 663 | `B 38.2M win` |
+| 1-4 | 17 | 1753 | 875 | `AUTOSAVE_HISCORE` |
+| 1-5 | 3 | 579 | 232 | `AUTOSAVE_HISCORE` |
+| 1-6 | 25 | 2577 | 1156 | `528M B return strat` |
+| 2-1 | 14 | 1367 | 682 | `16.1m win` |
+| 2-2 | 19 | 1997 | 975 | `AUTOSAVE_HISCORE` |
+| 2-3 | 18 | 1517 | 757 | `AUTOSAVE_HISCORE` |
+| 2-4 | 30 | 2443 | 1212 | `A2 54.8M win` |
+| 2-5 | 32 | 3545 | 1776 | `F 211g 98.3M win H [A]` |
+| EX-1 | 10 | 657 | 327 | `16.6G win` |
+| EX-2 | 10 | 611 | 304 | `40k win` |
+| EX-3 | 15 | 1575 | 793 | `29.5m win` |
+
+All fourteen would put **52 875 cells** under the oracle, against the 12 622
+already confirmed.
+
+**Two of these are near-misses against exports we already have**, and both are
+easy to mis-transcribe:
+
+- **2-5** — we hold `F 211g 98.0M win H[A]` (3517 entries); the longest is
+  `F 211g 98.3M win H [A]` (3545). Note **98.3 not 98.0**, and a **space before
+  `[A]`**.
+- **1-6** — we hold `747M C2 win` (2559); the longest is `528M B return strat`
+  (2577), only 18 entries more.
+
+`[P]` Neither is worth redoing for its own sake — 18 and 28 extra entries change
+little — but if the tower is being reloaded anyway, take the longer one. The
+existing two stay as fixtures regardless.
+
+Regenerate the table any time with:
+
+```
+npx tsx tools/sav/longest-per-tower.ts data/saves/iestyn.2026.08.28
+```
+
 ## B. Loose ends from the oracle work
 
 | # | What | Why it matters |
