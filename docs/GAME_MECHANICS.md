@@ -250,6 +250,26 @@ no branch that can decline. So moving onto a tile containing a held item
 **always** picks it up, and doing so **discards whatever was held**, passive or
 consumable. There is no way to walk over a held item while carrying one.
 
+**Worked example — Joker's Gate, tower 2-5 floor 13.** `[I]` iestyn's reading,
+confirmed against the map data. Row 8 of that floor runs:
+
+```
+x:  1 2 3 4  5   6 7 8 9 10 11   12
+    . . . . [>]  w w w w w  w   [Keysmasher]
+```
+
+A one-way wall, then **six Weak Walls in a row**, then a **Keysmasher** sitting
+immediately beyond them. The six walls separate the tower's first tranche of
+floors from the second, and the natural reading is "a Hyper Pickaxe is not meant
+to be smuggled across". But the Weak Walls do not enforce that — a Hyper Pickaxe
+opens one, and ordinary Pickaxes open the rest.
+
+**The Keysmasher is what enforces it.** Pickup is mandatory, so crossing the gate
+and continuing means picking it up, which destroys whatever was held. The
+level design uses the *item-replacement* rule, not the wall rule, to do the
+gating — which is why the wall-precedence question (`§3`) turns out not to
+change the gate at all, only what you spend on it.
+
 **Consequences for routing:**
 
 - A tile containing a held item is effectively **one-way for value**: crossing
@@ -300,6 +320,18 @@ metadata array `[C, B, A, S, ★, overscore]` that SPEC-002 already parses.
 
 `util.get_total_crowns()` sums `crown_data[name]` over all maps, where the tier
 is `1` for a Crown and `2` for a Dark Crown.
+
+**So the `crown` file matters, and `royal_boon1` is obtainable.** The boon is
+injected into 1-6 floor 25 directly beneath that tower's Dark Crown (§9.1), so
+any player who has taken the 1-6 Dark Crown has it. With it set, a tower holding
+a Dark Crown contributes **2** extra gems and a Crown-only tower **1**, on top of
+its grade gems. Without it, crowns contribute nothing.
+
+**Therefore computing `gemsOwned` needs three inputs**: the tower `grades` (in
+the map data), the player's `score` file, and the player's `crown` file. The
+`unlocks` file supplies the `royal_boon1` flag — but that flag is derivable, since
+holding a Dark Crown in 1-6 is exactly the condition for having been able to
+collect it.
 
 **The two player files.** `scores.lua` reads two files from the game's save
 directory, named `score` and `crown` (no extension, and note the **singular**
@@ -386,6 +418,51 @@ The second is the structural one: **a tower's contents are not fully determined
 by its map file.** An entity is injected based on account progress. And the
 Rapier's own strength scales with progress — `get_held_value` returns
 `total_crowns.."x"`.
+
+### 9.1 `level_scripts.lua` — the map file is not the initial state
+
+`[F]` `game.lua:525-527` runs a per-tower script immediately after loading the
+level data, and **13 of the 16 towers have one**. This was missed entirely until
+2026-08-28; it is the mechanism behind both royal boons and it does more than
+add entities.
+
+**The two boon pickups**, each present only while not yet unlocked:
+
+| Boon | Where |
+|---|---|
+| `royal_boon1` | **1-6 floor 25 "Diploma", cell (8,8)** — directly below the Dark Crown at (8,7), so it is collected as part of reaching it |
+| `royal_boon2` | **2-6 floor 75 "The Champion", cell (5,8)** — the last floor of the largest tower |
+
+Both cells are plain empty floor in the shipped map data, so a tower JSON gives
+no hint they exist.
+
+**The Rapier injections.** Every other script body is the same shape:
+
+```lua
+if unlocks.flags["royal_boon2"] and scores.crown_data[thisTower] == 2 then
+    -- add a `rapier` entity at a fixed cell
+    -- then edit walls to open a route to it
+end
+```
+
+Two conditions, both account state: the boon must be unlocked **and** the player
+must already hold a **Dark Crown in that specific tower**.
+
+`[F]` **The wall edits are not merely additive.** Most scripts set walls to `0`
+to carve a passage — 2-2 opens 15 cells, 1-1 opens 14 — but **2-1 also sets ten
+walls to `2`**, raising new Reinforced Walls. So the boon can make a tower
+*harder* to traverse as well as easier, and a diff against the shipped map is
+not a subset relation.
+
+**Consequences for this tool:**
+
+1. A tower's initial state is a function of `(map file, unlock flags,
+   per-tower crown tier)`. `data/towers/` holds only the first.
+2. **A shared route must carry the account state it was built under**, or it may
+   not reproduce. This is the concrete case `§9` warns about in the abstract.
+3. Our replay sweep (`RESULTS.md`) is valid *for an account without
+   `royal_boon2`*. Once that boon is obtained, 13 towers change shape and old
+   routes may replay differently.
 
 So a route is a function of `(tower, account state)`, not of the tower alone. The
 app must model at least `total_crowns`, `total_gems` and the royal boon flags as

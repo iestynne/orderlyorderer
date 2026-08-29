@@ -33,9 +33,21 @@ starting player stats, and an ordered list of **waypoints**, produce a
 step-by-step timeline of tower and player state, or the first point at which
 the route becomes invalid.
 
-**Deliberate omissions.** `[F]` Counted over all 16 shipped towers: none of
-these appear at all, except orbs, which occur only in tower **3-1** (60
-entities). So `UNSUPPORTED_ENTITY` is a 3-1-only concern.
+**Deliberate omissions.** `[F]` Counted over all 16 shipped tower **files**:
+none of these appear, except orbs, which occur only in tower **3-1** (60
+entities).
+
+`[F]` **But "not in the file" is not "not in the game."** `level_scripts.lua`
+injects `royal_boon1`, `royal_boon2` and `rapier` entities at load time, and
+edits walls around them, in 13 of the 16 towers — see `GAME_MECHANICS.md` §9.1.
+The injections are gated on account state, so:
+
+- `UNSUPPORTED_ENTITY` is a 3-1-only concern **for an account without
+  `royal_boon2`**. With it, a Rapier appears in every tower where the player
+  holds a Dark Crown, and the walls around it move.
+- `SimInput` will eventually need the account state — the two boon flags and the
+  per-tower crown tier — as an input alongside `gemsOwned`. It is deliberately
+  not added yet: nothing can be validated against it until someone has the boon.
 
 | Entity | Reason |
 |---|---|
