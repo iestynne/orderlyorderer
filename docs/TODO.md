@@ -2,145 +2,93 @@
 
 Outstanding actions. App version **v0.7-455**.
 
+Aggressively pruned: anything the game source has answered is deleted from
+here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
+
 ---
 
 ## A. Next action
 
-**Implement SPEC-002: parse `res/maps/*` into tower JSON.** The spec is written.
-SPEC-001 is cancelled — see `STATUS.md`.
+**Implement SPEC-004: the simulation engine.** Draft 6 is ready and every open
+item it had is closed. It carries its own §11 Verification Contract with the
+expected values already measured, so nothing here repeats it.
 
-Design questions 1–4 are settled in SPEC-002 §3 and §5, by reading the source.
-Note question 3 was answered in the negative: `convert_value_str` contains **no
-rounding**, so there is none to reproduce.
+One thing SPEC-004 needs that does not exist yet:
 
-Still open, and deliberately left out of SPEC-002:
+- **A TypeScript `.sav` codec.** `tools/luajit_buffer.py` is Python, so
+  `npm test` cannot run SPEC-004's two primary oracles at all. Needs its own
+  small spec. `SAVE_FORMAT.md` is complete and the Python codec becomes the
+  differential test. See SPEC-004 §11.
 
-1. **Whether to embed all towers in the app bundle or fetch per tower.** Not a
-   parser concern; decide when the app exists. Total shipped data is 16 towers /
-   325 floors / 24,468 entities, so the whole set is small enough that bundling
-   is likely to win.
-2. **Whether publishing tower JSON is acceptable to the developer** — see C2.
-   The parser output is derived from `res/maps/*`, so this gates committing
-   `data/towers/`, not writing the parser.
+Then: SPEC-005 (map diff), which is SPEC-004's oracle 3 and is written.
 
-## B. Savegame experiments — remaining
+## B. What iestyn needs to provide
 
-| # | Test | Why |
+Not tests — collateral. This is the whole critical path for the oracles.
+
+| # | What | Why |
 |---|---|---|
-| B1 | `1-5.SUFFICIENT-POWER.sav` — two Slimes beaten by raw power | Positive control, isolates the power comparison |
-| B2 | `1-5.VORPAL-BLADE.sav` | Held item defeats an enemy power could not |
-| B3 | One-way wall traversal, checkbox ON then loaded with it OFF | `SAVE_FORMAT.md` 3 predicts a pair **is** recorded. If not, the setting is route metadata that must travel with shared routes. |
-| B4 | Battle Gate opened at a distance by a kill | Confirms one transition changes multiple tiles |
-| B5 | ~~Hand-play a one-way traversal~~ | **Half done.** Step-ON is confirmed *not* recorded. See `SAVE_FORMAT.md` 5.2. |
-| B5a | ~~One-way traversal onto an empty tile~~ | **Done.** Not recorded at all. See `SAVE_FORMAT.md` 5.2. |
-| B5b | **Load `1-5_ONE-WAY-ENCODING-2.sav` with the one-way pathing checkbox OFF** | Highest priority, and free — the save already exists. Its replay requires crossing a one-way. If it fails to load, the setting is confirmed as route metadata that must travel with shared routes. If it loads, replay ignores the setting and only the editor needs to care. |
-| B6 | **Verify the Adamantine Shield rounds up**, and whether it halves gains too | `GAME_MECHANICS.md` 9.3 |
-| B7 | **Pather fallback test** — needs a pickaxe to open an alternate route first, since by design no such choice exists until the player creates one | **Low priority.** Outcome near-certain (the pather takes the unobstructed route), and moot if B5 shows traversal is always recorded. |
+| B1 | **All `.sav` files** | SPEC-004 oracle 1, the zero-error replay sweep. The primary regression net. Stays outside git; tests take a path (D14b). |
+| B2 | **The `score` and `crown` files** | SPEC-004 oracle 2, the hi-score check. Both live in the game's save folder, have **no extension**, and are named **singular** — not `scores`. |
 
-Deferred by decision until all towers are scanned.
+## C. Experiments still worth running
 
-## B2. Read before writing the simulator
+Short list, and it is short because reading the source answered the rest. Each
+of these confirms we are reading the *right* code path, which reading cannot
+do for itself.
 
-- `game.lua` (2142 lines) — orb effects, movement, the Pop-Up step-off
-  conversion, held-item precedence.
-- `util.convert_value_str` — port exactly.
-- The draw code — confirm the wall-value mapping 0/1/2/3.
+| # | Test | Why it survives |
+|---|---|---|
+| C1 | **Load `1-5.SUFFICIENT-POWER.sav`** | The one fixture in `data/saves/tests/` never actually run (`RESULTS.md`). Free — the file exists. Positive control isolating the power comparison. |
+| C2 | **Keysmasher, 2 Light + 3 Dark keys, kill a 5-power enemy** | Expect power **+11**, not +6. Every downstream power number depends on the bonus being *added to* the base, and the HUD shows only the bonus, so this is the one number worth seeing with your own eyes. |
+| C3 | **An EX-3 run touching a Dark Key, then a Dark Gate, then a Keysmasher kill** | `negative_keys` was only just discovered (`GAME_MECHANICS.md` §4.1) and rewrites the whole key system. Nothing in the corpus exercises it. Expect the Dark Key to *decrease* the single key counter below zero. Highest value of the three. |
+| C4 | **Weak Wall while holding both a Pickaxe and a Hyper Pickaxe** | Expect the **ordinary** Pickaxe to be spent and the Hyper Pickaxe retained. Reading an `elseif` the wrong way round would invert this and silently over-spend the scarce item. |
 
-## C. New mechanics found in the source, now partly documented
+Everything else previously listed here is **answered by the source** and needs
+no play:
 
-Sprite names reveal entities never discussed:
+- ~~One-way traversal recording, and whether the pathing checkbox must travel
+  with a shared route.~~ **No.** The loader detects a barrier at the target cell
+  and places the player there directly, skipping validation entirely
+  (`save_manager.lua:629-654`). Replay never consults the setting, so it is
+  editor-only. This retires the former "highest priority, and free" item.
+- ~~Battle Gate opened at a distance by a kill.~~ One kill decrements **every**
+  gate on the floor, wherever it is, and opens each that reaches 0.
+- ~~Verify the Adamantine Shield rounds up.~~ It does not; it is signed floor.
+- ~~Pather fallback test.~~ Moot: the loader has no fallback to test.
+- ~~Is picking up a held item optional?~~ No. Pickup is unconditional.
+- ~~Hyper Pickaxe: consumable or passive?~~ Consumable.
 
-- **Orbs** are counters, not held items. Pickup is a normal recorded
-  interaction; *using* one produces a 5-tuple. Effects still unread.
-- **Royal boons** change tower contents and gem budgets — see
-  `GAME_MECHANICS.md` 10. This is the significant one.
-- **`gate`** = Half Gate, **`door2`** = Dark Gate, **`gem`** = UI only.
-  **`rapier`**, **`time`** still open.
-- Tower flags: **`negative_keys`**, **`uncapped_elixirs`**,
-  **`non_persistent_items_ex_4`** — per-tower rule variations we did not know
-  existed. These affect the simulator directly.
-
-`GAME_MECHANICS.md` is therefore **incomplete**, not merely uncertain. Read
-`entitydef.lua` (1240 lines) and `game.lua` (2142) before writing the simulator.
-
-## D. Answer from the source, not by experiment
-
-The game source is available (see `STATUS.md`). Read it for:
-
-- The mechanics questions in `GAME_MECHANICS.md` 9 — Hyper Pickaxe class,
-  Adamantine Shield rounding, Spikes entry threshold.
-- The meaning of the two extra values in an **orb** 5-tuple (tower 3-1).
-- Whether the pather's one-way handling is fallback-only (B7 becomes trivial).
-- The exact tile-state model, which settles the Pop-Up vs one-way asymmetry.
-- Sprite identification, from the texture atlas, replacing the hash corpus.
-
-## C2. Ask the developer
+## D. Ask the developer
 
 - **Agree the wording of the "unofficial" notice.** He has asked for one and
   said he needs to research what it should look like. A draft is in
   `DECISIONS.md` D14b-1 to give him something concrete to react to.
-- **Would a public repo containing the sprite files be acceptable**, or should
-  assets stay outside the repo with the build pulling from them? The second is
-  the safe default and is what we are doing regardless.
 - **Confirm that publishing tower JSON is fine.** It is a text dump of every
   level's contents, derived from `res/maps/*`. Our position is that it is
   equivalent to what any player sees in game and carries no secret, but it is
   his level design in machine-readable form, so worth asking as a courtesy.
+  **This gates `data/towers/`, which is already committed** — the one item here
+  with a live consequence.
+- **Would a public repo containing the sprite files be acceptable**, or should
+  assets stay outside the repo with the build pulling from them? The second is
+  the safe default and is what we are doing regardless.
+- Minor: `entitydef.orb_change.compendium_header` reads "Warp orb", duplicating
+  `orb_warp`. Looks like a copy-paste slip.
 
-Also worth mentioning: `entitydef.orb_change.compendium_header` reads "Warp orb",
-duplicating `orb_warp`. Looks like a copy-paste slip.
+## E. Still unread in the source
 
-## D. Questions for the developer — mostly answered
+Deliberately deferred, not forgotten. All are out of scope for v1 (SPEC-004 §1).
 
-Answered: saves are move history only, replayed and validated on load; Pop-Up
-tiles are queued on step-**onto**; there is no tower versioning; entries can be
-5-tuples for orbs; serialization is the LuaJIT string buffer library. All match
-our reverse-engineering.
+- **Orb effects** — `game.lua`. Also the meaning of the two extra values in an
+  orb 5-tuple. Orbs occur in tower **3-1** only, 60 entities.
+- **Rapier of the Rulers** — the combat formula is read
+  (`GAME_MECHANICS.md` §5.3); what remains is how `royal_boon2` injects it.
+- One unidentified sprite on 1-5 floor 1, at `(1,4)` and `(15,4)`.
 
-Still open:
-
-- **Is there an in-game screenshot key?** Love2D exposes
-  `love.graphics.captureScreenshot`. Less urgent now the atlas is available.
-- **Is picking up a held item optional?** Highest-priority mechanics question:
-  if not, a tile holding an item is impassable while carrying a passive.
-- **Hyper Pickaxe**: consumable or passive?
-- **Identify one remaining sprite on 1-5 floor 1**, at `(1,4)` and `(15,4)`.
-  Spikes `(3,13)` and Player `(8,14)` are now in `SPRITES.json`.
-- Remaining mechanics questions — see `GAME_MECHANICS.md` 9.
-
-## D. Data still needed
-
-- Compendium pages covering **Held Items** and **special tiles**.
-- Sprite names for cell types that appear only on tutorial-overlay floors of 2-1
-  (**Master Key** is one). Blocked on SPEC-001.
-- Sidebar UI screenshot — needed for the exact player-power display.
-- A clean integer-scaled UI capture, or the atlas from the developer.
-
-## E. Standing habits
+## F. Standing habits
 
 - **State the app version with every new batch of game data.** Main menu, bottom
   left. Steam auto-updates in the background.
 - Claude asks for it if you forget.
 - Send images inside a **ZIP** — bare `.png` uploads get transcoded to JPEG.
-
----
-
-## Done
-
-- Savegame container, count encoding and payload fully decoded; byte-exact round
-  trip on all four `.sav` files.
-- Savegame writing verified: nine variants generated, all loaded, one
-  byte-identical to a hand-played save.
-- Loader confirmed to validate by re-simulation (power, gold, keys all refused).
-- Pop-Up Wall encoding settled: the move **onto** the tile is recorded.
-- The `2S+1` rule reframed: recorded pairs are the moves the auto-pather cannot
-  reproduce, not the moves that change state.
-- Map geometry, hash band and overlay contamination understood.
-- All 36 cell types in 2-1 named; all 10 enemy tiers identified; Pop-Up Wall
-  added. `SPRITES.json` at 41 entries.
-- Negative-variant derivation rule validated as a candidate generator (exact for
-  some tiers, off by 1–3 px for others — never use it to invent an unseen
-  sprite).
-- Floor counts, panel ordering and unused-slot placement confirmed.
-- Tower names confirmed; score thresholds deferred by decision.
-- File naming and organisation conventions agreed (`DECISIONS.md` D14–D17).
