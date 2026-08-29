@@ -16,6 +16,24 @@ Outcomes of savegame validation experiments. App version v0.7-455 unless noted.
 | `SUFFICIENT-GOLD` | 2-1 | positive control | loads | **Loads fine** | 2026-08-26 |
 | `SUFFICIENT-LIGHT-KEYS` | 2-3 | positive control | loads | **Loads fine** (reachability caveat resolved) | 2026-08-26 |
 
+## Established by reading the loader, not by experiment
+
+**One-way walls are never validated on load, so the one-way pathing setting is
+editor-only.** `save_manager.lua:629-654`: before replaying a move, the loader
+scans the target cell for a `barrier_*` entity; if it finds one it sets
+`success = true` and places the player there directly, skipping `Game:step`
+entirely. The `pathfind_oneways` setting is not consulted anywhere in the replay
+path.
+
+This retires what was previously the highest-priority remaining experiment
+("load `1-5_ONE-WAY-ENCODING-2.sav` with the checkbox OFF"). The setting does
+**not** need to travel with a shared route.
+
+**The loader sets `player.floor` directly and never traverses stairs.** Same
+loop, line 619. So it performs no cross-floor reachability check at all, which
+makes our simulator strictly stricter than the game's own loader — triage a
+cross-floor `NO_PATH` before assuming it is our bug (SPEC-004 §5.3).
+
 ## Established
 
 **The loader validates by re-simulation, not geometry.** All three

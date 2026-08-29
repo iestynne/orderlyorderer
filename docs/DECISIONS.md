@@ -67,6 +67,33 @@ that did not happen. Hashing the input makes the hash track the game's data,
 which is what version detection needs. Expected values for v0.7-455 are pinned
 in SPEC-002 §8.2.
 
+**Vindicated in practice.** The tower JSON schema was then rewritten wholesale
+(D9a) and **not one `content_hash` changed**, across all 16 towers. Had the hash
+covered our own JSON, that commit would have reported 16 towers as
+content-changed and invalidated every route made against them.
+
+**D9a. The tower JSON is one merged cell grid per floor, not a wall grid plus a
+coordinate-keyed entity list.**
+A consumer reads a cell by indexing it — `cells[y-1][x-1]` — and never by
+scanning a list for a matching `(x, y)`. SPEC-002 §5.2.
+
+The merge is sound only because no cell holds two things at once: 0 cells across
+all 16 towers carry both a wall and an entity, and 0 carry two entities. That is
+asserted per cell at parse time, throwing rather than overwriting, so a future
+game version that broke the assumption fails loudly instead of silently losing
+an entity.
+
+The cost is that entity *file order* is not recoverable from the grid, so the
+emitted JSON can no longer regenerate the source file. This is deliberate: the
+byte-exact round-trip oracle runs over the parser's internal `ParsedFloor`,
+which keeps order exactly as read, and losslessness of the merge itself is a
+separate, explicit invariant. Two shapes, one parser — the faithful mirror never
+leaves the tool, and the merged grid is what gets committed.
+
+Consistent with D11: the alternative was open-coding the same merge inside the
+simulator, where the correctness argument would have sat further from the data
+it is about. It also made the committed artifact 30% smaller.
+
 **D10. The UI is pixel-exact: integer scale factors only,
 `imageSmoothingEnabled = false`, the game's own keyboard shortcuts.**
 Fractional scaling is what makes pixel art look wrong.
