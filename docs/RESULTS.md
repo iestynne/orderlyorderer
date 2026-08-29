@@ -67,28 +67,51 @@ Pickaxe still in hand. The hand-played test then agreed. Worth recording as a
 method: **a large corpus of real routes is itself a discriminating oracle** — a
 wrong rule that any recorded run depends on will break that run.
 
-## Every tile confirmed against the game — 2026-08-28
+## Every tile confirmed against the game — 2026-08-28, extended 2026-08-29
 
 SPEC-004's oracle 3, the fiercest check in the project. The hi-score oracle
 compares one number per tower; this compares **every tile**.
 
-Two final-state map exports, each replayed in the simulator and compared cell
-for cell:
+Started with two final-state map exports; **completed on 2026-08-29 to all
+fourteen towers that have saves**, per the capture list in `TODO.md` §A3. Each
+export is replayed in the simulator and compared cell for cell:
 
-| Tower | Route | Steps | Cells compared | Differences |
-|---|---|---|---|---|
-| 2-5 The Orderly Order, 32 floors | `F 211g 98.0M win H[A]` | 6 327 | **7 199** | **0** |
-| 1-6 Adventurer's Exam, 25 floors | `747M C2 win` | 10 632 | **5 423** | **0** |
+| Tower | Route | Steps | Cells compared | Masked | Differences |
+|---|---|---|---|---|---|
+| 1-1: Training Tower, 13 floors | `AUTOSAVE2` | 4 119 | **2 158** | 767 | **0** |
+| 1-2: Tower of Might, 14 floors | `25.6m win` | 6 272 | **2 818** | 332 | **0** |
+| 1-3: Tower of Traps, 15 floors | `B 38.2M win` | 4 595 | **2 999** | 376 | **0** |
+| 1-4: Miner's Obelisk, 17 floors | `AUTOSAVE_HISCORE` | 6 843 | **3 698** | 127 | **0** |
+| 1-5: Tiny Tower, 3 floors | `AUTOSAVE_HISCORE` | 1 942 | **674** | 1 | **0** |
+| 1-6: Adventurer's Exam, 25 floors | `528M B return strat` | 8 845 | **5 423** | 202 | **0** |
+| 1-6: Adventurer's Exam, 25 floors | `747M C2 win` | 10 631 | **5 423** | 202 | **0** |
+| 2-1: Tower of Loot, 14 floors | `16.1m win` | 8 228 | **2 819** | 331 | **0** |
+| 2-2: Artificer's Task, 19 floors | `AUTOSAVE_HISCORE` | 8 732 | **4 079** | 196 | **0** |
+| 2-3: Thieves' Guild, 18 floors | `AUTOSAVE_HISCORE` | 9 266 | **3 859** | 191 | **0** |
+| 2-4: Descent into Abyss, 30 floors | `A2 54.8M win` | 6 960 | **6 716** | 34 | **0** |
+| 2-5: The Orderly Order, 32 floors | `F 211g 98.0M win H[A]` | 6 326 | **7 199** | 1 | **0** |
+| 2-5: The Orderly Order, 32 floors | `F 211g 98.3M win H [A]` | 6 070 | **7 199** | 1 | **0** |
+| EX-1: Jam Tower, 10 floors | `16.6G win` | 4 232 | **1 707** | 543 | **0** |
+| EX-2: Sorcerer's Tribute, 10 floors | `40k win` | 5 519 | **2 069** | 181 | **0** |
+| EX-3: Lockpick Battle, 15 floors | `29.5m win` | 6 468 | **3 200** | 175 | **0** |
 
-**12 622 cells, zero disagreements.** Masked: 1 cell in 2-5 (the player, whose
-marker composites over whatever is beneath it) and 202 in 1-6 (the player plus
-five tutorial textboxes).
+**62 040 cells across 16 exports, 14 towers and 292 floors — zero
+disagreements.** 3 660 cells masked: the player (whose marker composites over
+whatever is beneath it) plus every tutorial textbox. Masking is heaviest in the
+tutorial towers — 767 cells in 1-1, 543 in EX-1 — and reaches its floor in 1-5
+and both 2-5 exports, where the player's own cell is the only thing hidden.
+
+`[F]` The extension found **nothing**. Every check that passed on two exports
+passed unchanged on sixteen, with no new masking rule, no new sprite and no
+code change — the fixtures were dropped in and the suite picked them up. That
+is the result: the sim's disagreement with the game is not merely small on the
+towers we happened to look at first, it is zero everywhere we can look.
 
 Run two ways, both passing:
 
 1. **Partition check.** Group the image's cells by what the sim says each should
-   be, and assert every group is byte-identical. 47 distinct kinds in 2-5, 40 in
-   1-6, each with exactly one rendering.
+   be, and assert every group is byte-identical. Between 13 distinct kinds
+   (1-5) and 47 (2-5) per export, each with exactly one rendering.
 2. **Two tower JSONs, structurally diffed** — the shape SPEC-004 §11 asked for.
    The simulator emits a final-state tower JSON; the PNG extractor emits one
    independently; they are compared cell for cell. **The extractor consults the
