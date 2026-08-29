@@ -1,7 +1,12 @@
 # SPEC: Game Simulation Engine
 
-Status: **draft 5 — ready for implementation**, 2026-08-28.
-Game source verified against: `v0.7455` Lua dump.
+Status: **draft 6 — ready for implementation**, 2026-08-28.
+Game source verified against: `v0.7-455` Lua dump.
+
+Draft 6 closes every `[O]` in draft 5 by reading the Lua rather than running
+experiments, and corrects the rules that reading found wrong. The corrections
+are load-bearing — see `GAME_MECHANICS.md` §4.1, §5.3 and §6.1, which this spec
+now defers to for the *why*; what follows is the *what to build*.
 
 Provenance legend used throughout:
 - `[F]` **fact — empirically validated**: inspected save files, exported map
@@ -28,13 +33,15 @@ starting player stats, and an ordered list of **waypoints**, produce a
 step-by-step timeline of tower and player state, or the first point at which
 the route becomes invalid.
 
-**Deliberate omissions.** `[I]` None appear in any current test save:
+**Deliberate omissions.** `[F]` Counted over all 16 shipped towers: none of
+these appear at all, except orbs, which occur only in tower **3-1** (60
+entities). So `UNSUPPORTED_ENTITY` is a 3-1-only concern.
 
 | Entity | Reason |
 |---|---|
 | `orb_force`, `orb_change`, `orb_warp` | not yet understood |
 | `rapier` | not yet understood |
-| `royal_boon1` | affects gem gain only, which we don't model |
+| `royal_boon1` | `[F]` gem budget only; `GAME_MECHANICS.md` §9 |
 | `royal_boon2` | not yet encountered in play |
 | `stairs_up_ex_4`, `stairs_down_ex_4` | tower EX-4 not yet in the game |
 
@@ -54,8 +61,38 @@ interface SimInput {
   gemsOwned: number       // total gems owned entering the tower; see §10.1
   route: Waypoint[]
 }
-type Waypoint = { z: number; x: number; y: number }   // absolute target cell
+type Waypoint = { z: number; x: number; y: number }   // absolute target cell, 1-based
 ```
+
+`[D]` **Coordinate basis — the recommendation, settled.** Two rules, no third:
+
+1. **Every coordinate a human or a file can see is 1-based**, matching D1, the
+   game's Lua, and the save format. That covers `Waypoint`, `Player.{z,x,y}`,
+   `tower.metadata.start_*`, everything in an error message, and everything you
+   would check by eye against a save.
+2. **`Addr` is an opaque 0-based index** and the *only* 0-based thing in the
+   module. It is produced solely by `addr()` and consumed solely as an index
+   into the state arrays.
+
+```ts
+const D = tower.floors.length
+function addr(z: number, x: number, y: number): Addr {   // 1-based in
+  assert(1 <= z && z <= D && 1 <= x && x <= 15 && 1 <= y && y <= 15)
+  return ((z - 1) * 15 + (y - 1)) * 15 + (x - 1)
+}
+function coords(a: Addr): { z: number; x: number; y: number }   // 1-based out
+```
+
+`[D]` **Never do arithmetic on an `Addr`.** The neighbour to the east is
+`addr(z, x+1, y)`, not `a + 1` — the latter wraps a row and then a floor with
+no error, which is exactly the aliasing bug D1 exists to prevent. The bounds
+assert inside `addr()` is what makes that unreachable, so it is not a debug-only
+assert.
+
+This resolves the tension directly: TypeScript arrays are 0-based and stay
+0-based, but the 0-based region is one function wide and has one test. A
+0-based *domain* would instead put a `-1` at every point where the module meets
+a save file, a map file or a person, which is where the bugs would actually be.
 
 `[D]` **A route is a list of state-changing actions, not a list of moves.**
 This mirrors the game exactly and radically shortens the history: passive
@@ -82,33 +119,76 @@ one-way wall predicates (§6).
 
 | Bit | Flag | Effect |
 |---|---|---|
-| 0 | `negative_keys` | Keysmasher bonus becomes `keys²` (§6) |
+| 0 | `negative_keys` | **rewrites the entire key system** — see below |
 | 1 | `uncapped_elixirs` | removes the Elixir gain cap (§6) |
 | 2 | — | an EX-4-only flag, deliberately unmodelled |
 
-`[I]` `negative_keys` is used only by tower EX-3.
+`[F]` `negative_keys` is used only by tower EX-3, `uncapped_elixirs` only by
+EX-1, and bit 2 by nothing shipped. Counted over all 16 committed tower JSONs.
+
+`[F]` **`negative_keys` is not a Keysmasher tweak — draft 5 had this wrong.**
+Full derivation in `GAME_MECHANICS.md` §4.1; the rules the sim must implement:
+
+| | normal | `negative_keys` |
+|---|---|---|
+| pick up `key` | `lightKeys += 1` | `lightKeys += 1` |
+| pick up `dark_key` | `darkKeys += 1` | **`lightKeys -= 1`** |
+| `door` needs / pays | `lightKeys > 0` / `-= 1` | same |
+| `dark_door` needs / pays | `darkKeys > 0` / `-= 1` | **`lightKeys < 0`** / **`+= 1`** |
+| Keysmasher bonus | `lightKeys * darkKeys` | **`lightKeys * lightKeys`** |
+
+Under the flag `darkKeys` is permanently 0 and unused — which is the whole
+reason the Keysmasher needs a squared special case. **`lightKeys` may be
+negative**, so invariant 2 (§9) is conditional on the flag.
+
+EX-3 is therefore the hardest replay target in the set: it is the only tower
+that combines `negative_keys`, a Keysmasher and Battle Gates. Treat a clean
+EX-3 replay as the acceptance bar, not a bonus.
 
 `[F]` Metadata also carries `crowns_needed`, `start_power`,
 `start_floor/x/y`, and `grades` — the six score thresholds
 `[C, B, A, S, ★, overscore]` that determine gem awards. Parse and retain them;
-`grades` is the eventual route to computing `gemsOwned` (§10.1).
+`grades` is the route to computing `gemsOwned`, and the derivation is now fully
+read (`GAME_MECHANICS.md` §6.1) rather than pending (§10.1).
+
+### 2.1 Starting player state
+
+`[F]` `game.lua:473-480`. `simulate()`'s first line, stated so it is not
+guessed:
+
+| Field | Initial value |
+|---|---|
+| `z, x, y` | `metadata.start_floor`, `start_x`, `start_y` |
+| `power` | `metadata.start_power` |
+| `gold`, `lightKeys`, `darkKeys`, `pickaxes`, `gemsSpent` | `0` |
+| `held` | `null` |
+| `pendingPopup` | `null` |
+| `win` | `0` |
+| `submittedScore` | `0` |
+
+`[F]` The game's own `player` record is exactly `{held_item, keys, dark_keys,
+pickaxes, win, gold, popup, orbs, power, floor, x, y, gems_spent, total_gems,
+total_crowns}` plus a `stats` table. `total_gems` / `total_crowns` are account
+meta-state, not run state; `orbs` is out of scope (§1); `stats` is display-only.
+Everything else has a field above, which is the check that this list is
+complete.
 
 ---
 
 ## 3. Core types
 
 ```ts
-type Addr = number   // flattened: (z*15 + y)*15 + x
+type Addr = number   // opaque 0-based index; build only with addr(), §2
 
 interface Player {
-  z: number; x: number; y: number
+  z: number; x: number; y: number   // 1-based
   power: number; gold: number
   lightKeys: number; darkKeys: number; pickaxes: number
   gemsSpent: number                 // remaining = gemsOwned - gemsSpent
   held: HeldItem | null
-  pendingPopup: Addr | null         // see §4.1
-  killsOnFloor: Int32Array          // per-floor kill counts, for Battle Gates
-  score: number
+  pendingPopup: Addr | null         // see §4.2
+  win: 0 | 1 | 2                    // 0 none, 1 Crown, 2 Dark Crown
+  submittedScore: number            // max of all crown submissions, §6
 }
 
 const enum CellState {
@@ -121,8 +201,9 @@ interface CellEdit { addr: Addr; before: CellState; after: CellState }
 
 interface Step {
   waypointIndex: number   // which route entry produced this move
-  from: Addr; to: Addr
+  from: Addr; to: Addr    // to = the cell ENTERED, never the stairs arrival cell
   edits: CellEdit[]
+  killedOn: number | null // floor an enemy died on this step, else null
   player: Player          // state AFTER this move
   requirement: number     // power this move demanded; 0 if none. See §8.
 }
@@ -137,22 +218,48 @@ interface Timeline {
 
 `[D]` **Two parallel grids.**
 
-- `tower.cells[z][y][x]` — the parsed tower JSON, **immutable**, holding the
-  full readable record (kind, value, direction). This is the debuggable
-  artifact: it is literally the file you can open and read.
-- `state: Uint8Array` of length `15*15*D` — one `CellState` byte per cell.
+- `tower.floors[z].cells[y][x]` — the parsed tower JSON, **immutable**, holding
+  the full readable record (kind, value, direction) in **one merged grid**.
+  This is the debuggable artifact: it is literally the file you can open and
+  read. `[D]` SPEC-002 emits this shape as of the merged-grid revision — draft
+  5 of this spec described a grid that did not exist, and the fix was to move
+  the merge into the parser rather than to open-code it here. The merge is
+  licensed by §11 step 0, which proves no cell carries two things at once.
+- `state: Uint8Array` of length `15*15*D` — one `CellState` byte per cell,
+  indexed by `Addr`.
 
 Tile *parameters* — enemy power, gate cost, spike value, gold-bag amount — are
-immutable for the whole run and are always read from `tower.cells`. The mutable
+immutable for the whole run and are always read from the tower grid. The mutable
 part of a cell is one small enum, and every rule reduces to setting it.
 
 `[D]` A byte per cell, not a bit vector: three states are needed (pop-ups reach
-`Reinforced` and can then be destroyed by a Hyper Pickaxe), and at 15×15×~25
-floors the grid is ~5.6 KB — bit-packing saves nothing and costs readability.
+`Reinforced` and can then be destroyed by a Hyper Pickaxe), and at 15×15 with
+the largest tower's **75** floors the grid is ~17 KB — bit-packing saves nothing
+and costs readability. (Draft 5 said 25 floors / 5.6 KB, which was 3× low: 2-6
+has 75.)
+
+`[D]` **Plain `number` throughout; no BigInt.** `[F]` The largest entity in the
+game is a 999G `enemy_neg` in tower 1-2 — 999 000 000 000 — against
+`MAX_POWER` 999 999 999 999. Even a Dark Crown's `power*2` (~2e12) is far inside
+float64's exact-integer range of 2^53. Stated once so nobody reaches for BigInt.
 
 `[D]` Player state is separate from cell state and is snapshotted whole per
 step. `[F]` The game does the same: `Game:undo` restores a per-move player
 record including `p_popup` (`game.lua:1397`).
+
+`[D]` **`Player` holds scalars only.** Draft 5 put a `killsOnFloor: Int32Array`
+inside it, which every per-step snapshot would have aliased — invariant 9 exists
+to catch exactly that, so the type should not create it in the first place. The
+game's own player record has no such field either (§2.1); it is our device for
+Battle Gates, so it belongs with the other run state:
+
+- `Step.killedOn` records the floor of a kill, or `null`. One number, trivially
+  reversible, journalled alongside `edits`.
+- `Cursor` maintains `kills: Int32Array` the same way it maintains `cells`,
+  incrementing on seek-forward and decrementing on seek-back.
+
+A `Player` snapshot is then a flat record of numbers and one string, and
+copying it is a spread. No deep-copy rule to remember and no way to violate it.
 
 `[D]` **Journal, not snapshots.** Each step records its cell edits plus the new
 `Player`. Scrubbing from step *j* to *k* applies or undoes the edits between
@@ -180,6 +287,24 @@ A waypoint means "get the player onto this cell". Resolution:
 **waypoint** granularity. `Step.waypointIndex` maps back, so the UI can scrub
 by move and edit by waypoint.
 
+`[D]` **`Step.to` is the cell entered, never the stairs arrival cell.** Phase 1
+checks `from`/`to` adjacency and that check must stay literally true; the
+post-teleport position lives in `Step.player.{z,x,y}`, where the rest of the
+after-state already is. So on a stairs move `to` names the staircase and
+`player` names the floor above or below, and nothing is ambiguous.
+
+`[D]` **A *waypoint*, by contrast, may never be a staircase — assert it.**
+`[F]` `entitydef.stairs_up` has no `undo_store`, so stairs never enter the undo
+history and never reach a `.sav` file. A waypoint on a staircase therefore means
+the route came from somewhere other than the game, or the parser mis-applied the
+save format's ±1-floor offset on the trailing live-position entry. Both are bugs
+worth failing loudly on, and the assertion is free: it runs over every real save
+in the replay sweep (§11 oracle 1) and is a genuine diagnostic (D18).
+
+Note the asymmetry is not an inconsistency: a `Step` is a move we generated and
+may legitimately step onto stairs; a `Waypoint` is an action the game recorded,
+and the game records no stairs.
+
 ### 4.1 The step pipeline
 
 Strict order. Phases 1–2 are pure predicates; nothing mutates until phase 3.
@@ -192,12 +317,28 @@ Strict order. Phases 1–2 are pure predicates; nothing mutates until phase 3.
    if the rule says so.
 4. **Enter effect.** Apply the on-entry effect (§6): power change, pickup,
    score, cell edits — including any Battle Gates this kill opens, and
-   `killsOnFloor` increment.
+   `Step.killedOn`.
 5. **Power cap.** `[F]` `power = min(power, MAX_POWER)`,
    `MAX_POWER = 999_999_999_999` (`game.lua:42, 1545`). Once per move, after
-   effects, before the position commits.
+   effects, before the position commits. `[F]` `modify_player_power` itself
+   never clamps — this is the only clamp, and there is **no lower one**.
 6. **Position.** Set position to `to`. If the entered cell is Stairs Up/Down,
    set position to `(z±1, x, y)`.
+
+   `[D]` **Phase 6 is non-recursive. Exactly one teleport per move, and the
+   arrival cell is never run through phases 1–5.** Draft 5 said the opposite —
+   that a failed assertion here should make phase 6 recurse into phase 2 — and
+   that would spin: `[F]` **478 of the game's 581 staircases land on the paired
+   opposite staircase**, so recursion would bounce `z` between two floors
+   forever. Say it as a rule and give it a named test (§11), because it is the
+   kind of thing a later tidy-up reintroduces.
+
+   `[F]` The assumption underneath is sound, and it is now measured rather than
+   assumed: across all 581 stairs in all 16 towers, **0 land on a wall and 0
+   land on any non-stairs entity**. 478 land on the paired staircase and 103 on
+   empty floor — the latter are one-way stairs, and tower **2-6 has no
+   `stairs_down` at all**: 75 floors, strictly one-way upward. So the arrival
+   cell is always enterable terrain, and §10 open item 3 is closed `[F]`.
 7. **Pop-up commit** (§4.2).
 8. **Assert** `1 <= power <= MAX_POWER`.
 
@@ -338,46 +479,82 @@ repeated division or string length — **never** `Math.log10`, which returns
 
 ### Enemies
 
-Entry requires `power > |enemy.power|` (strict), unless a Vorpal Blade is held,
-which always succeeds. `[I]`
+`[F]` Entry requires `power > ent.value` (strict), unless a Vorpal Blade is
+held, which always succeeds (`_enemy_can_interact`, `entitydef.lua:109`).
+
+`[F]` **`ent.value` is always stored positive; the sign lives in the entity
+type.** So a −25 enemy also requires `power > 25`, even though beating it costs
+power. Draft 5 wrote `base = enemy.power // signed`, which the tower JSON never
+provides. Route it through one helper so the rule documents itself and has its
+own test:
+
+```ts
+// The ONLY place an enemy's value acquires a sign.
+function signedBase(ent: Cell): number {
+  return ent.kind === 'enemy_neg' ? -ent.value : ent.value
+}
+```
 
 `[F]` The held-item branches are a single `elseif` chain in the game's enemy
 `interact`, which formally confirms mutual exclusivity and makes ordering
 between them unreachable.
 
 ```
-base = enemy.power                                  // signed; negative for enemy_neg
-if held == VorpalBlade:              delta = 0;                    consume
-elif held == BlackRod && base > 0:   delta = base * 2;             consume
-elif held == WhiteRod && base < 0:   delta = -base;                consume
-elif held == AdamantineShield:       delta = Math.floor(base / 2)
-elif held == Keysmasher:             delta = base + keysmasherBonus()
-else:                                delta = base
+base = signedBase(ent)
+if   held == VorpalBlade:                     delta = 0;             consume
+elif held == BlackRod  && kind == enemy:      delta = base * 2;      consume
+elif held == WhiteRod  && kind == enemy_neg:  delta = -base;         consume
+elif held == AdamantineShield:                delta = floor(base/2)
+elif held == Keysmasher:                      delta = base + keysmasherBonus()
+else:                                         delta = base
 power += delta
 
-goldGain = tier(|enemy.power|)
-if held == GoldDagger:      goldGain += 2
-if held == GoldenClaymore:  goldGain *= 2
+goldGain = tier(ent.value)
+if   held == GoldDagger:     goldGain += 2
+elif held == GoldenClaymore: goldGain *= 2      // elseif: they cannot combine
 gold += goldGain
 
-cell -> Gone;  killsOnFloor[z] += 1
+cell -> Gone;  step.killedOn = z
 // then: every Battle Gate on this floor re-evaluates (below)
 ```
+
+`[F]` **The rod guards test the entity type, not the sign of `base`.**
+Equivalent in practice, but it is what makes a rod on the wrong enemy sign fall
+through to the bare `else` — taking the ordinary delta and **staying held**.
+Draft 5 flagged that as plausible-but-unvalidated; it is now read, so it needs
+a named test rather than an experiment.
+
+`[F]` **Black Rod / White Rod are `dark_rod` / `light_rod`** in `entitydef.lua`.
+Keep both names in view: the entity vocabulary uses one and the compendium the
+other, and confusing them inverts the sign rule.
 
 `[F]` The Adamantine Shield applies **signed floor**, not round-toward-zero:
 +5 → +2, +25 → +12, **−25 → −13**. Confirmed twice — measured in-game on tower
 2-2 floors 8 and 9, and read as `modify_player_power(math.floor(base/2))`.
 
-`[F]` **Keysmasher:** `keysmasherBonus() = negative_keys ? lightKeys²
-: lightKeys * darkKeys`. The Lua adds this **to** the enemy's base value.
-`[O]` The HUD's `get_held_value` displays only the bonus, which is likely why
-it reads as bonus-only in play. **Testable:** with 2 Light and 3 Dark Keys,
-kill a 5-power enemy — power should rise by **11**, not 6. Settle before
-relying on any power numbers downstream.
+`[F]` **Keysmasher — settled, no longer `[O]`.**
+`keysmasherBonus() = negative_keys ? lightKeys² : lightKeys * darkKeys`, and
+the Lua adds it **to** the enemy's signed base:
+`modify_player_power(base_change + bonus)` (`entitydef.lua:178-186`). The HUD's
+`get_held_value` displays only the bonus, which is why it reads as bonus-only
+in play. Keys are not consumed.
+
+On a **negative** enemy this offsets the loss and can invert it: `−5` with a
+bonus of `+11` is a net `+6`. `[I]` iestyn reports exactly this in play, which
+is independent confirmation of the additive reading.
+
+`[F]` **Adamantine Shield** is `math.floor(base/2)` — signed floor, not
+round-toward-zero and not round-up: +5 → +2, +25 → +12, **−25 → −13**.
+Confirmed twice: measured in game on tower 2-2 floors 8 and 9, and read as
+`modify_player_power(math.floor(base_change/2))`.
 
 `[I]` Vorpal Blade is consumed on the next attack of any kind, not only on
-attacks the player would otherwise lose. `[I]` The Shield halves the power
-*change* but never the power *required* to win.
+attacks the player would otherwise lose. `[F]` Its branch never calls
+`modify_player_power` at all, so the delta is genuinely absent rather than
+zero — the distinction matters only for the power-change animation, but it is
+why `requirement` for a Vorpal kill is 0, not `ent.value`.
+`[F]` The Shield halves the power *change* but never the power *required* to
+win: `can_interact` is evaluated before any held item is consulted.
 
 ### Battle Gates
 
@@ -388,8 +565,16 @@ gate reaching 0 opens. A Master Key also opens one directly (`can_interact` is
 
 `[D]` Cell state stays uniform — an open gate is `Gone` in the mask like
 everything else, so tile queries need no special case. Only the kill step does
-the arithmetic, using `killsOnFloor[z]` against each gate's initial value, and
-emits one `CellEdit` per gate that opens.
+the arithmetic, using `kills[z]` against each gate's initial value, and emits
+one `CellEdit` per gate that opens.
+
+`[F]` The game does this destructively — it decrements every still-closed gate
+on the floor and opens the ones hitting exactly 0 — while we compare a running
+count against the immutable initial value. The two agree because an opened gate
+stops being decremented (`if type == "battle_gate"` excludes it), so values
+never pass below 0, and because a Master-Key opening also removes the gate.
+Worth stating: it is the one place where "immutable parameters, mutable enum"
+diverges structurally from the game and still has to match it exactly.
 
 ### Gates
 
@@ -397,8 +582,8 @@ All become `Gone` when opened. `[I]`
 
 | Cell | Cost | Master Key |
 |---|---|---|
-| Light Gate (`door`) | 1 Light Key | substitutes, consumed |
-| Dark Gate (`dark_door`) | 1 Dark Key | substitutes, consumed |
+| Light Gate (`door`) | 1 Light Key (`lightKeys > 0`) | substitutes, consumed |
+| Dark Gate (`dark_door`) | 1 Dark Key — but see `negative_keys`, §2 | substitutes, consumed |
 | Gold Gate (`money_door`) | `value` Gold | substitutes, consumed |
 | Half Gate (`gate`) | `power = ceil(power / 2)` | substitutes, consumed, power unchanged |
 | Battle Gate | see above | `[F]` opens it, consumed |
@@ -416,13 +601,32 @@ elsewhere, and gems are never lost.
 
 ### Walls
 
-| Cell | Entry |
-|---|---|
-| Weak Wall | 1 Pickaxe, or Hyper Pickaxe (consumed) → Gone |
-| Reinforced Wall | Hyper Pickaxe only (consumed) → Gone |
-| Iron Wall | never |
-| Pop-Up Wall | always enterable; §4.2 |
-| One-Way Wall | below |
+`[F]` Wall grid values, confirmed against the movement code's own precedence
+(`game.lua:1421-1509` tests `3`, then `2`, then `1`, in that order):
+
+| Value | Cell | Entry |
+|---|---|---|
+| 0 | empty floor | free |
+| 1 | Weak Wall | 1 Pickaxe if `pickaxes > 0`, **else** Hyper Pickaxe (consumed) → Gone |
+| 2 | Reinforced Wall | Hyper Pickaxe only (consumed) → Gone |
+| 3 | Iron Wall | never — `BLOCKED_IRON` |
+| — | Pop-Up Wall (entity) | always enterable; §4.2 |
+| — | One-Way Wall (entity) | below |
+
+`[F]` **The ordinary Pickaxe is always spent first.** The Hyper Pickaxe branch
+on a Weak Wall is an `elseif` reached only when `pickaxes == 0`, so a player
+holding both loses the ordinary one. Getting this backwards silently over-counts
+Hyper Pickaxes, which are far scarcer.
+
+`[F]` **The Hyper Pickaxe is single-use** — `held_item = nil` on both branches.
+This closes an open question in `GAME_MECHANICS.md`.
+
+`[F]` A converted pop-up becomes value **2**, so an ex-pop-up needs a Hyper
+Pickaxe, not a Pickaxe (`entitydef.lua:938`, `game.lua:1569`).
+
+`[F]` Getting 2 and 3 the wrong way round would be quiet and widespread — the
+shipped distribution is 6 473 Weak / 23 468 Reinforced / 5 634 Iron — so §11
+carries a named case for each of the three.
 
 `[F]` **One-way walls** (`entitydef.lua:954-1000`). The direction letter names
 the **blocked side**:
@@ -442,15 +646,29 @@ restriction — `can_interact` gates entry only.
 
 | Cell | Effect on entry | Cell after |
 |---|---|---|
-| Light Key / Dark Key / Gold / Pickaxe | increment counter by `value` | Gone |
+| Light Key (`key`) | `lightKeys += 1` | Gone |
+| Dark Key (`dark_key`) | `darkKeys += 1`, or `lightKeys -= 1` under `negative_keys` | Gone |
+| Pickaxe | `pickaxes += 1` | Gone |
 | Gold Bag (`money`) | `gold += value` | Gone |
 | Elixir | below | Gone |
-| Held Item | previous held item **destroyed** `[I]`, new one held | Gone |
-| Crown | `score = max(score, power)` | **persists** `[I]` |
-| Dark Crown | `score = max(score, min(power*2, MAX_POWER))` | **persists** `[I]` |
+| Held Item | previous held item **destroyed** `[F]`, new one held | Gone |
+| Crown | `win = 1`; `submittedScore = max(submittedScore, power)` | **persists** `[I]` |
+| Dark Crown | `win = 2`; `submittedScore = max(submittedScore, min(power*2, MAX_POWER))` | **persists** `[I]` |
 | Spike (`spikes`) | below | **persists** `[I]` |
 | Stairs Up / Down | teleport (§4.1 phase 6) | unchanged |
 | Empty / floor | none | unchanged |
+
+`[F]` **Keys and Pickaxes increment by 1. The tile's `value` is ignored** —
+`game.player.keys = game.player.keys + 1`, with no reference to `ent.value`
+(`entitydef.lua:527, 552, 665`). Draft 5 said "increment counter by `value`",
+which would be wrong on any tile whose value is not 1. `money` is the only
+pickup that reads `value`.
+
+`[F]` **Pickup is mandatory**, not merely conventional: every held-item entity's
+`can_interact` is a bare `return true` and its `interact` overwrites `held_item`
+unconditionally. There is no branch that can decline, so a tile holding an item
+is impassable-without-cost while carrying a passive. This was the highest-
+priority open mechanics question and it is now closed by reading.
 
 `[F]` **Elixir:** the gain is capped independently of the global power cap —
 `power += min(power, 1_000_000_000)`, unless the tower's `uncapped_elixirs`
@@ -465,6 +683,18 @@ not consumed — the power check is skipped entirely. Without it, entry requires
 (win = 1), Dark Crown `min(power*2, MAX_POWER)` (win = 2)
 (`entitydef.lua:855-901`). `[I]` Neither ends the run — the player may rewind,
 change things, and reach the other — so both cells persist.
+
+`[F]` **`max`, and the question draft 5 asked badly.** `Scores:submit` writes
+`score_data[level]` only when `score >` the stored value, and `crown_data[level]`
+only when `crown_tier >` the stored tier — two independent maxima, and both are
+*across all runs ever*, held in the player's `score` and `crown` files.
+
+Since one run can submit twice (take the Crown, rewind, take the Dark Crown),
+the sim needs a per-run answer too, and it should be **`max` within the run**,
+for the same reason the game uses `max` across runs: a later, worse submission
+must not erase a better one. Hence `submittedScore = max(...)` above. The
+hi-score oracle cannot tell the two apart — it only reads the final value — so
+this is settled by matching the game's structure, not by a test.
 
 `[P]` Track prospective score every step (`power` and `min(power*2,
 MAX_POWER)`) so the UI can show anticipated Crown / Dark Crown value without
@@ -492,10 +722,17 @@ interface SimError {
 type ErrorCode =
   | 'NO_PATH' | 'OFF_MAP' | 'NOT_ADJACENT'
   | 'BLOCKED_IRON' | 'BLOCKED_ONE_WAY' | 'BLOCKED_BATTLE_GATE'
-  | 'NEED_LIGHT_KEY' | 'NEED_DARK_KEY' | 'NEED_GEMS' | 'NEED_GOLD' | 'NEED_PICKAXE'
+  | 'NEED_LIGHT_KEY' | 'NEED_DARK_KEY' | 'NEED_GEMS' | 'NEED_GOLD'
+  | 'NEED_PICKAXE' | 'NEED_HYPER_PICKAXE'
   | 'ENEMY_TOO_STRONG' | 'SPIKE_TOO_STRONG'
   | 'UNSUPPORTED_ENTITY'
 ```
+
+`[D]` `NEED_PICKAXE` is the Weak Wall with no Pickaxe **and** no Hyper Pickaxe;
+`NEED_HYPER_PICKAXE` is the Reinforced Wall with no Hyper Pickaxe. Distinct
+codes because the remedies are entirely different — Pickaxes are common pickups,
+Hyper Pickaxes are scarce held items — and a UI that says "find a pickaxe" for
+a Reinforced Wall is actively misleading.
 
 `[D]` Simulation stops at the first failure. State afterwards is undefined, so
 "collect all errors" is not offered; the UI points at the first break and the
@@ -516,6 +753,7 @@ class Cursor {
   readonly index: number
   seekTo(k: number): void            // applies/undoes edits, O(|k - index|)
   readonly cells: Uint8Array
+  readonly kills: Int32Array         // per-floor kill counts, for Battle Gates
   readonly player: Player
 }
 ```
@@ -530,7 +768,7 @@ question.
 `[P]` Derived metrics split in two:
 - **Running scalars** — enemies remaining, total enemy power remaining, keys —
   are O(1) to maintain and may live in the step record if profiling wants them.
-  `killsOnFloor` is already one of these.
+  `kills[z]` is already one of these.
 - **Derived queries** — reachable gold, which enemies are now passable, with or
   without Dagger/Claymore — are graph searches computed on demand from the
   cursor. Keep them out of the step record.
@@ -546,19 +784,27 @@ Assert in debug builds; test as properties (§11).
    under the Shield's floor (`power − ceil(|e|/2) ≥ |e|+1 − ceil(|e|/2) ≥ 1`);
    Half Gate ceils; Spike requires `power > value`. `[F]` The upper bound *is*
    clamped (`game.lua:1545`).
-2. `gold, lightKeys, darkKeys, pickaxes >= 0` and `0 <= gemsSpent <= gemsOwned`.
+2. `gold, pickaxes >= 0` and `0 <= gemsSpent <= gemsOwned`. **Keys are
+   conditional:** without `negative_keys`, `lightKeys >= 0 && darkKeys >= 0`;
+   with it, `darkKeys == 0` and `lightKeys` is unconstrained in sign. `[F]`
+   Asserting keys non-negative unconditionally would fail on EX-3 by design,
+   not by bug — see §2.
 3. Every `CellEdit` is a legal transition. `[D]` A two-line function, not a
    table: `Original → Gone` for everything, plus `Original → Reinforced` and
    `Reinforced → Gone` for pop-ups only. `[I]` The pop-up chain is real and was
    load-bearing in a best Orderly Order run.
-4. Each step moves the player to an orthogonally adjacent cell, or a stairs
-   teleport (same `x,y`, `z ± 1`).
+4. `to` is orthogonally adjacent to `from` and on the same floor. The player's
+   position after the step equals `to`, **except** on a stairs entry, where it
+   is `(z±1, to.x, to.y)` — exactly one teleport, never two.
 5. `pendingPopup` is null, or refers to a `Gone` cell the player stands on.
-6. Battle Gate consistency: a gate is `Gone` iff `killsOnFloor[z] >=
-   initialValue`, or it was opened by a Master Key.
+6. Battle Gate consistency: a gate is `Gone` iff `kills[z] >= initialValue`, or
+   it was opened by a Master Key.
 7. Intermediate (non-final) steps of a waypoint's path produce **zero** cell
    edits and change no player field but position. This is the pathfinder's
    passivity, stated as an assertion.
+7a. No `Waypoint` names a `stairs_up` or `stairs_down` cell (§4). Diagnostic:
+   it would fail if the save parser mishandled the trailing live-position
+   entry's ±1-floor offset.
 8. **Journal fidelity:** for any `k`, `Cursor.seekTo(k)` yields cells identical
    to a fresh `simulate` truncated at `k`. This is what makes the cheap journal
    trustworthy in place of per-step snapshots.
@@ -571,16 +817,31 @@ Assert in debug builds; test as properties (§11).
 
 ## 10. Open items
 
-1. `[O]` **Gems.** The save records `gemsSpent`; total owned derives from best
-   score per tower against the metadata `grades` thresholds. Until the scores
-   table is modelled, `gemsOwned` is a required `SimInput` field surfaced as a
-   UI input.
-2. `[O]` **Keysmasher total vs bonus** — §6. Resolve empirically first.
-3. `[O]` **Stairs arrival cell.** Assumed always enterable terrain; the sim
-   asserts this rather than re-running the arrival cell through the entry
-   rules. If the assertion fires, phase 6 must recurse into phase 2.
-4. `[O]` Does any cell in any tower carry both a wall and an entity? §11 step 0.
-5. Orbs, Rapier, royal boons, EX-4 stairs: deliberately unmodelled (§1).
+Draft 5 had four. All four are closed; one new one takes their place.
+
+1. **Gems — closed `[F]`, and deliberately still an input.** The derivation is
+   fully read (`GAME_MECHANICS.md` §6.1): gems per tower are the grade index
+   from `util.calculate_grade(metadata.grades, score)`, summed over towers, plus
+   `total_crowns` if the `royal_boon1` unlock is set. `gemsOwned` nevertheless
+   **stays a required `SimInput` field surfaced as a UI input**, because the
+   player wants to ask "does this route work once I hit 400 gems?" — a
+   hypothetical the derived value cannot express. Computing it from the `score`
+   and `crown` files is a convenience that prefills the box, not a replacement.
+   `[D]` For the replay sweep (§11 oracle 1), pass `Infinity`.
+2. **Keysmasher total vs bonus — closed `[F]`.** It is `base + bonus`; §6.
+3. **Stairs arrival cell — closed `[F]`.** Always enterable terrain, measured
+   over all 581 stairs. Phase 6 is explicitly non-recursive; §4.1.
+4. **Wall-and-entity on one cell — closed `[F]`.** Zero, over all 16 towers.
+   It stays in §11 as step 0, now a regression test rather than a gate.
+5. `[O]` **Reading `.sav` files from TypeScript.** The only codec is
+   `tools/luajit_buffer.py`, so `npm test` currently cannot run oracles 1 and 2
+   at all — the primary regression net is unreachable from the test runner. See
+   §11 for the three options and the recommendation.
+6. Orbs, Rapier, royal boons, EX-4 stairs: deliberately unmodelled (§1). `[F]`
+   The cost of that is now measured, not guessed: `rapier`, `royal_boon1`,
+   `royal_boon2` and `stairs_up/down_ex_4` occur in **zero** shipped maps, and
+   orbs only in **3-1** (60 entities). So `UNSUPPORTED_ENTITY` is a 3-1-only
+   concern and the replay sweep covers 15 towers of 16 unaffected.
 
 **Implementation aid** `[F]`: the `undo_store` / `undo_perform` pairs in
 `entitydef.lua` are an exhaustive enumeration of the game's per-move mutable
@@ -599,12 +860,34 @@ Report: test summary; PASS/FAIL + actual value per named case;
         invariant results; diff stat; any file touched outside src/sim/
 ```
 
-**Step 0 — pre-verification, before writing any sim logic.** Against the
-original map data files and their JSON conversion, assert that **no cell in any
-tower carries both a wall and an entity**. `[I]` iestyn is ~99.999% confident
-from play; `[F]` the game keeps them as separate layers, so the merged grid of
-§3 is only safe if this holds. Report towers and cells checked, and any
-violation with coordinates. If it fails, stop and revisit §3.
+**Step 0 — pre-verification. Already run; keep it as a regression test.**
+Against the original map data files and their JSON conversion, assert that **no
+cell in any tower carries both a wall and an entity**. `[F]` The game keeps them
+as separate layers, so the merged grid of §3 is only safe if this holds — and it
+does. Measured over all 16 towers / 325 floors, with these as the expected
+values:
+
+| Assertion | Expected |
+|---|---|
+| Cells carrying both a wall and an entity | **0** |
+| Cells carrying two entities | **0** |
+| Floors that are not exactly 15×15 | **0** (so the `Addr` stride of 15 is sound) |
+| Stairs landing on a wall or a non-stairs entity | **0** of 581 |
+| Stairs landing on the paired opposite staircase | **478** of 581 |
+| Stairs landing on empty floor (one-way) | **103** of 581 |
+| Towers with `negative_keys` | **1** — EX-3 only |
+| Towers with `uncapped_elixirs` | **1** — EX-1 only |
+| Towers with the EX-4 flag (bit 2) | **0** |
+| Towers containing Battle Gates | **4** — 2-4, 2-5, 2-6, EX-3 |
+| `rapier` / `royal_boon1` / `royal_boon2` / `stairs_*_ex_4` entities | **0** |
+| Orb entities | **60**, all in tower 3-1 |
+| Wall values: Weak / Reinforced / Iron | **6473 / 23468 / 5634** |
+| Largest entity value in the game | **999 000 000 000** (`enemy_neg`, tower 1-2) |
+| `stairs_down` entities in tower 2-6 | **0** — 75 floors, one-way upward |
+
+Report towers and cells checked, and any violation with coordinates. A failure
+here is a changed game version, not a code bug — check the tower `content_hash`
+set first.
 
 **Named cases with exact expected values**
 
@@ -618,8 +901,11 @@ violation with coordinates. If it fails, stop and revisit §3.
 | Shield, enemy +25 | delta **+12** |
 | Shield, enemy −25 | delta **−13** |
 | No shield, enemy +25 | delta **+25** |
-| Keysmasher, 2 light + 3 dark keys, enemy +5 | delta **+11** (§6 `[O]`) |
+| Keysmasher, 2 light + 3 dark keys, enemy +5 | delta **+11** |
+| Keysmasher, 2 light + 3 dark keys, enemy −5 | delta **+1** (bonus outweighs the loss) |
 | Keysmasher, `negative_keys`, 3 light keys, enemy +5 | delta **+14** |
+| Keysmasher, `negative_keys`, −3 light keys, enemy +5 | delta **+14** (squared, so sign-blind) |
+| Keysmasher, 2 light + 0 dark keys, enemy +5 | delta **+5**, bonus 0 |
 | Elixir at power 3e9 | power **4e9** |
 | Elixir at power 3e9, `uncapped_elixirs` | power **6e9** |
 | Power cap | never exceeds **999999999999** |
@@ -634,10 +920,12 @@ violation with coordinates. If it fails, stop and revisit §3.
 | Battle Gate, Master Key held | **Gone**, held **null** |
 | One kill opening two Battle Gates | step records **2** gate edits |
 | Vorpal vs enemy +50, power 10 | power **10**, gold **+2**, held **null** |
-| Gold Dagger vs enemy +25 | gold **+4** |
-| Golden Claymore vs enemy +25 | gold **+4** |
-| Black Rod vs enemy +25 | power **+50**, held **null** |
-| White Rod vs enemy −25, power 26 | power **51**, held **null** |
+| Gold Dagger vs enemy **+5** | gold **+3** (tier 1, `1+2`) |
+| Golden Claymore vs enemy **+5** | gold **+2** (tier 1, `1×2`) |
+| Black Rod (`dark_rod`) vs enemy +25, power 26 | power **76**, held **null** |
+| Black Rod vs enemy **−25**, power 26 | power **1**, held **Black Rod** — falls through, not consumed |
+| White Rod (`light_rod`) vs enemy −25, power 26 | power **51**, held **null** |
+| White Rod vs enemy **+25**, power 26 | power **51**, held **White Rod** — falls through, not consumed |
 | Spike 40, power 10, Feather | legal, power **10**, held **Feather** |
 | Spike 40, power 10, no Feather | `SPIKE_TOO_STRONG` |
 | Spike re-entered | damage applied again, cell still Spike |
@@ -647,6 +935,24 @@ violation with coordinates. If it fails, stop and revisit §3.
 | Stairs off a pop-up | cell → **Reinforced** (floor differs) |
 | Step onto pop-up with Feather | cell **unchanged**, pending **null** |
 | Reinforced (ex-pop-up) + Hyper Pickaxe | **Gone**, held **null** |
+| Wall value 1, 2 Pickaxes, no Hyper | **Gone**, pickaxes **1** |
+| Wall value 1, 0 Pickaxes, Hyper held | **Gone**, held **null** |
+| Wall value 1, **2 Pickaxes and Hyper held** | **Gone**, pickaxes **1**, held **still Hyper** |
+| Wall value 1, 0 Pickaxes, no Hyper | `NEED_PICKAXE` |
+| Wall value 2, 5 Pickaxes, no Hyper | `NEED_HYPER_PICKAXE` |
+| Wall value 3, Hyper held | `BLOCKED_IRON`, held **unchanged** |
+| Light Key tile with `value` 7 | lightKeys **+1**, not +7 |
+| Pickaxe tile with `value` 7 | pickaxes **+1**, not +7 |
+| Gold Bag tile with `value` 7 | gold **+7** |
+| `negative_keys`: pick up Dark Key at lightKeys 0 | lightKeys **−1**, darkKeys **0** |
+| `negative_keys`: Dark Gate at lightKeys −1 | opens, lightKeys **0** |
+| `negative_keys`: Dark Gate at lightKeys 0 | `NEED_DARK_KEY` |
+| `negative_keys`: Light Gate at lightKeys −1 | `NEED_LIGHT_KEY` |
+| Held item tile entered while holding a Feather | Feather **destroyed**, new item held |
+| Stairs Up onto the paired Stairs Down | one teleport; `Step.to` = the stairs cell, player `z+1`, **no second teleport** |
+| Stairs Up onto empty floor (one-way) | one teleport; player on empty cell |
+| Enemy −25, power 25 | `ENEMY_TOO_STRONG` — strict, and positive-valued |
+| Enemy −25, power 26, no item | power **1** |
 | Crown entry, power 900 | score **900**, cell still Crown |
 | Dark Crown entry, power 900 | score **1800**, cell still Dark Crown |
 | `barrier_u` entered from above | `BLOCKED_ONE_WAY` |
@@ -657,6 +963,34 @@ violation with coordinates. If it fails, stop and revisit §3.
 | Pathfind across a spike, Feather held | route found, power unchanged |
 | Pathfind across two floors via stairs | route found, floors traversed |
 | Route touching an Orb or Rapier | `UNSUPPORTED_ENTITY` |
+
+**Prerequisite for oracles 1 and 2: reading `.sav` from TypeScript**
+
+`[O]` Both primary oracles need to read save files, and the only codec is
+`tools/luajit_buffer.py` — Python. As written, `npm test` cannot run the primary
+regression net at all. Three options:
+
+| Option | Cost | Consequence |
+|---|---|---|
+| **Port the codec to TypeScript** | one focused spec; the format is fully documented in `SAVE_FORMAT.md` and the Python version is a verified reference to differential-test against | `npm test` self-contained; no Python in the test path |
+| Shell out to Python from the test | small | adds a Python runtime to `npm test`, and a second language to every CI story |
+| Pre-convert saves to committed JSON waypoint fixtures | small | oracles run on a clean clone, but the fixtures drift from the saves and hide codec bugs |
+
+`[P]` **Recommend the port.** It is the only option that leaves the sim's
+primary oracle runnable by the ordinary test command, the format is small and
+already reverse-engineered, and the Python codec becomes the differential test
+rather than a dependency. It should be its own spec, not smuggled into this one.
+
+`[D]` **Save files stay outside git and are passed in by path.** Only two people
+run these tests, so there is no clean-clone requirement to satisfy; the saves
+live in the archive alongside the game data and the test reads a path from
+configuration. Oracles 1 and 2 are therefore **local-only tests that skip, not
+fail, when the path is unset** — say so in the runner, or CI will look green
+while testing nothing.
+
+`[F]` The score data lives in two extension-less files in the game's save
+folder, named **`score`** and **`crown`** — singular. `scores.lua` is the game's
+source and holds no data.
 
 **Oracles, cheapest first**
 
@@ -669,7 +1003,7 @@ violation with coordinates. If it fails, stop and revisit §3.
    mis-modelled rule usually kills an entire replay rather than hiding.
    `[F]` Remember our sim is stricter than the game's loader (§5.3): triage a
    cross-floor `NO_PATH` before assuming it is our bug.
-2. **Hi-score oracle.** `[F]` The game's `score` file is plain alternating
+2. **Hi-score oracle.** `[F]` The `score` file is plain alternating
    lines of tower name and best score. `[I]` iestyn's hi-scores are all Dark
    Crown runs, so for each `AUTOSAVE_HISCORE` save, assert
    `finalScore == score-file value`, i.e. final power `== value / 2`.
@@ -677,7 +1011,7 @@ violation with coordinates. If it fails, stop and revisit §3.
    (EX-1, 1.66e10) is far below `MAX_POWER`, so none are clamped and the
    halving is exact. This is a genuine end-state check requiring **no PNG
    work**.
-3. **Final map golden** (once the PNG-extraction spec exists). `[D]` The
+3. **Final map golden** — this is SPEC-005's job. `[D]` The
    extractor emits the **same JSON schema as the tower initial-state files**,
    fully populated, so one structural differ serves initial state, sim output
    and extractor output. Bonus test: extract a PNG of a tower's *starting*
