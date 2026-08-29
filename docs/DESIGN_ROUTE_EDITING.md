@@ -1,7 +1,7 @@
 # DESIGN DRAFT: Route Segmentation, Editing, and the Power Graph
 
 Status: draft 2, 2026-08-28. Exploratory — not yet a spec, no Verification
-Contract. Depends on SPEC_SIM.md.
+Contract. Depends on `specs/SPEC-004-simulation.md`.
 
 Provenance legend:
 - `[F]` fact — empirically validated (save files, map PNGs, screenshots, Lua).
@@ -20,7 +20,7 @@ and if it doesn't, exactly where and why it breaks.
 
 `[I]` Segments are a **UI convenience** for making bulk edits. They carry no
 validation semantics. Reachability and resource checks apply at every step in
-every segment, identically. Errors are reported per step (SPEC_SIM.md §6),
+every segment, identically. Errors are reported per step (SPEC-004 §7),
 because failures routinely land mid-segment — most often "player power is now
 slightly too low for this attack".
 
@@ -151,11 +151,18 @@ after the Keysmasher pivoting when a single upstream key purchase changes.
 
 ### 4.5 Implementation note
 
-The graph needs `power` per step as a cheap contiguous read. SPEC_SIM.md §7
-notes that an extra per-step `Int32Array` of power is acceptable alongside the
-journal. Margin per step requires the *requirement* of each step as well, which
-the sim computes during phase 2 of resolution and currently discards — it
-should be retained in the `Step` record once this feature is specified.
+The graph needs `power` per step as a cheap contiguous read. SPEC-004 §8 allows
+an extra per-step typed array of power alongside the journal.
+
+**It must be a `Float64Array`, not an `Int32Array`.** Power routinely reaches
+1e12 and `MAX_POWER` is 999 999 999 999; Int32 caps at ~2.1e9, so the draft's
+original suggestion would have silently wrapped on almost every real run.
+Float64 holds every value in range exactly — see SPEC-004 §3 on why plain
+`number` suffices throughout.
+
+Margin per step requires the *requirement* of each step as well. That is now
+retained as `Step.requirement` (SPEC-004 §8), so this note is satisfied rather
+than pending.
 
 ---
 
@@ -170,7 +177,7 @@ interface Route {
 
 `[D]` The canonical route is a list of **state-changing actions** (waypoints),
 not moves — the same representation the game's save format uses. Passive
-walking between them is reconstructed by the pathfinder (SPEC_SIM.md §5), which
+walking between them is reconstructed by the pathfinder (SPEC-004 §5), which
 also validates reachability. This radically shortens the history and makes the
 editing operations below manipulate exactly the units the player thinks in.
 
