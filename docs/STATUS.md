@@ -85,7 +85,7 @@ down from a page.
 | SPEC-002 map parser | **implemented**, tests green |
 | SPEC-004 simulation | **implemented**, both primary oracles pass |
 | SPEC-006 `.sav` codec | **implemented**, payload round trip exact 326/326 |
-| SPEC-005 map diff | written, not implemented. SPEC-004's oracle 3, and the only oracle not running. |
+| SPEC-005 map diff | **implemented**, draft 2. Oracle 3 passes: 12 622 cells, zero differences. |
 | SPEC-003 headless Lua harness | stub, behind a decision gate. **Do not build:** its gate required manual verification to have become the bottleneck, and the replay sweep is now that oracle instead. |
 | SPEC-001 overlay detector | **cancelled**, in `specs/obsolete/`. Overlays are declared in the level data, not inferred. |
 
@@ -98,6 +98,8 @@ state" — is now measured in the other direction, which is cheaper and stronger
 - **326 / 326** save records across 14 towers replay with **zero errors**,
   ~470 000 simulated moves.
 - **14 / 14** towers' hi-scores reproduce the game's own `score` file **exactly**.
+- **12 622 / 12 622** tiles of final tower state match two real map exports,
+  cell for cell, with **zero differences** (SPEC-005 oracle 3).
 
 Plus four hand-played experiments (C1-C4) predicted independently by the sim.
 Details in `RESULTS.md`. Every entity type in the game is exercised except orbs.
@@ -111,7 +113,7 @@ codec, simulator — and there is no UI, no Vite setup and no route editor.
 
 1. **Start the app.** `DESIGN_ROUTE_EDITING.md` is the deferred sketch to
    promote into a spec.
-2. **SPEC-005 (map diff)** — written, unimplemented, oracle 3.
+2. ~~SPEC-005 (map diff)~~ — **done**. All three oracles now run.
 3. **Floor entry thresholds**, the analysis this tool exists for. Nothing
    blocks it now.
 

@@ -16,8 +16,8 @@ with it. So the next action is no longer a correctness question:
 1. **Start the app.** `src/` holds only the pure modules; there is no UI, no
    Vite setup, and no route editor. `DESIGN_ROUTE_EDITING.md` is the deferred
    sketch to promote into a spec when that begins.
-2. **SPEC-005 (map diff)**, written and unimplemented. It is SPEC-004's oracle
-   3 and is now the only oracle not running.
+2. ~~SPEC-005 (map diff)~~ **done** — 12 622 cells, zero differences. All three
+   of SPEC-004's oracles now run.
 3. **Floor entry thresholds** — the analysis `STATUS.md` names as the whole
    point of the tool. The simulator can now answer it and nothing depends on
    further reverse-engineering.

@@ -1,7 +1,12 @@
 # SPEC: Map PNG Diff (final-state extraction)
 
-Status: draft 1, 2026-08-29. Ready for implementation.
-Game source verified against: `v0.7455` Lua dump.
+Status: **draft 2 — implemented**, 2026-08-29.
+Game source verified against: `v0.7-455` Lua dump.
+
+Draft 2 adds §5.2, the single-image path, which is what actually ran first
+because a final-state export arrived before a `before` export existed. It
+turned out to be the stronger check and it is now the primary one; the
+two-image diff of §5 remains implemented and tested.
 
 > **Scope guard.** This spec covers **only** diffing two map exports of the
 > same tower to find which cells changed. Full cell categorisation — turning a
@@ -201,6 +206,70 @@ For each paired panel, for each of the 225 cells:
    output and diff output, and the UI can load any of the three
    interchangeably.
 
+### 5.2 One image is enough, and it says more
+
+`[F]` **Implemented and run; both available exports pass with zero
+differences.** The two-image diff above answers "which cells changed". A single
+final-state export answers the stronger question — "is every cell what the
+simulator says it is" — and it does so without a `before` image at all.
+
+It rests on a fact §5 already establishes: *tiles are not autotiled and there is
+no terrain/occupant compositing, so two equivalent cells are byte-identical.*
+Therefore:
+
+**The partition check.** Group every cell of the image by what the simulator
+says it should be, and assert each group is internally byte-identical. If the
+sim is right, the image's own byte-equality structure partitions exactly along
+predicted-content lines. If the sim is wrong about one cell, that cell lands in
+the wrong group and surfaces as a second variant.
+
+`[D]` This is not circular. A wrong prediction is *detected* precisely because
+the image disagrees with the group it was assigned to; it would only be missed
+if every instance of a kind were wrong in the same way.
+
+**Emitting both sides as tower JSON.** Better still, and what SPEC-004 §11
+oracle 3 actually asked for:
+
+```
+(a) simulator     -> tower JSON      towerJsonFromSim
+(b) PNG extractor -> tower JSON      towerJsonFromPng
+(c) structural diff of the two       diffTowerJson
+```
+
+`[D]` **(b) consults the simulator for nothing.** Its sprite dictionary is
+learned from the image, keyed by the *initial* tower JSON. That is what makes
+the comparison evidence rather than tautology — if the extractor were handed the
+sim's predictions it would agree by construction.
+
+`[D]` **The dictionary anchor is exact, not a majority vote.** A first attempt
+took the most common band per kind and was wrong exactly where it mattered: a
+route consumes *most* keys, pickaxes and low-tier enemies, so for those kinds
+the majority band is the empty one and every survivor reads as changed. The
+exact anchor uses the three-outcome rule instead:
+
+1. A `wall:0` cell can never become anything else, so any one of them yields the
+   background band outright — ground truth, no vote.
+2. Every other kind ends as its own sprite, the background, or (pop-ups only) a
+   Reinforced Wall. So that kind's sprite is **the band that is neither of the
+   other two**. If no such band exists, every instance was consumed, which needs
+   no sprite to say so.
+
+A kind exhibiting two unexplained bands is a finding, raised rather than
+averaged away.
+
+`[F]` **Textbox coordinates carry the panel translation** of `(+4, +8)` that §4
+records for the title box, so a box declared at `(4, 4)` lands at panel pixel
+`(8, 12)` — the grid's own origin. Measured: without it, 1-6's floors 1, 16 and
+25 report spurious inconsistencies in the cell row immediately below each box;
+with it they are clean. 2-5 has no textboxes and is unaffected either way. Cells
+a textbox covers carry no information about the tile beneath and are masked.
+
+`[D]` **This does not breach the scope guard.** Full cell categorisation — a PNG
+to a tower's *initial* state, with no prior knowledge — remains unimplemented
+and deferred. What §5.2 does is narrower and licensed by the same three-outcome
+rule as §5: it reads a *final* state given the initial state, which the level
+data already provides.
+
 ### 5.1 The Reinforced Wall reference
 
 `[D]` Take the reference band from **within the same image** — any Reinforced
@@ -391,11 +460,27 @@ Report: test summary; PASS/FAIL + actual value per named case;
 **Oracles**
 
 1. **Identity.** Diffing an export against itself yields zero changes. Trivial,
-   but it catches geometry and band-slicing errors immediately.
+   but it catches geometry and band-slicing errors immediately. `[F]` Passes.
 2. **Start/end diff against the simulator.** Export at the start, replay the
    route in the sim, export at the end; assert the sim's predicted final cell
-   states equal the diff, with the player's cell masked. This is the reason the
-   spec exists.
+   states equal the diff, with the player's cell masked. `[O]` Implemented and
+   tested against synthetic exports; **not yet run against the game**, because
+   it needs a `before` export and none exists. Superseded in practice by
+   oracle 4.
 3. **Cross-tower geometry.** For each available export, assert the panel grid
-   and cell origins match §3 and that every panel's title strip is
-   well-formed.
+   and cell origins match §3. `[F]` Passes on both real exports.
+4. **Single-image final-state golden (§5.2).** `[F]` **The result this spec was
+   built for.** Against two real exports:
+
+   | Tower | Route | Cells compared | Differences |
+   |---|---|---|---|
+   | 2-5 The Orderly Order, 32 floors | `F 211g 98.0M win H[A]`, 6 327 steps | **7 199** | **0** |
+   | 1-6 Adventurer's Exam, 25 floors | `747M C2 win`, 10 632 steps | **5 423** | **0** |
+
+   12 622 cells, zero disagreements, across 47 and 40 distinct predicted kinds
+   respectively. Masking: one cell (the player) in 2-5, 202 in 1-6 (the player
+   plus five tutorial textboxes).
+
+   `[F]` The only band collision in either tower is `empty == wall:0` — a cell
+   the route emptied renders identically to floor that was always empty. That is
+   a confirmation of the model, not a defect.

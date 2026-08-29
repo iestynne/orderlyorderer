@@ -67,6 +67,47 @@ Pickaxe still in hand. The hand-played test then agreed. Worth recording as a
 method: **a large corpus of real routes is itself a discriminating oracle** — a
 wrong rule that any recorded run depends on will break that run.
 
+## Every tile confirmed against the game — 2026-08-28
+
+SPEC-004's oracle 3, the fiercest check in the project. The hi-score oracle
+compares one number per tower; this compares **every tile**.
+
+Two final-state map exports, each replayed in the simulator and compared cell
+for cell:
+
+| Tower | Route | Steps | Cells compared | Differences |
+|---|---|---|---|---|
+| 2-5 The Orderly Order, 32 floors | `F 211g 98.0M win H[A]` | 6 327 | **7 199** | **0** |
+| 1-6 Adventurer's Exam, 25 floors | `747M C2 win` | 10 632 | **5 423** | **0** |
+
+**12 622 cells, zero disagreements.** Masked: 1 cell in 2-5 (the player, whose
+marker composites over whatever is beneath it) and 202 in 1-6 (the player plus
+five tutorial textboxes).
+
+Run two ways, both passing:
+
+1. **Partition check.** Group the image's cells by what the sim says each should
+   be, and assert every group is byte-identical. 47 distinct kinds in 2-5, 40 in
+   1-6, each with exactly one rendering.
+2. **Two tower JSONs, structurally diffed** — the shape SPEC-004 §11 asked for.
+   The simulator emits a final-state tower JSON; the PNG extractor emits one
+   independently; they are compared cell for cell. **The extractor consults the
+   simulator for nothing**, which is what makes agreement evidence rather than
+   tautology.
+
+`[F]` The only band collision in either tower is `empty == wall:0`: a cell the
+route emptied renders identically to floor that was always empty. A confirmation
+of the model, not a defect.
+
+`[F]` Two findings from building it, both recorded in SPEC-005 §5.2:
+
+- **The dictionary anchor cannot be a majority vote.** A route consumes *most*
+  keys, pickaxes and low-tier enemies, so for those kinds the majority band is
+  the empty one and every survivor reads as changed. The exact anchor uses the
+  three-outcome rule instead.
+- **Textbox coordinates carry the panel translation** of `(+4, +8)`. Without it,
+  1-6 reports spurious inconsistencies in the cell row below each tutorial box.
+
 ## A TypeScript-written save loads in the game — 2026-08-28
 
 `1-5.TS-ROUNDTRIPPED.sav` — all 36 records of `1-5.sav` parsed and re-emitted
