@@ -36,6 +36,8 @@ src/ test/
   bottom. Convert at parser boundaries only. D1.
 - A change to a canonical doc requires a **diagnostic** test — one whose outcome
   would differ if the change were wrong. D18.
+- Anything from a chat that you'd be annoyed to lose goes into docs/
+  in the same session it's learned.
 
 ## Verification
 
