@@ -67,6 +67,45 @@ Pickaxe still in hand. The hand-played test then agreed. Worth recording as a
 method: **a large corpus of real routes is itself a discriminating oracle** — a
 wrong rule that any recorded run depends on will break that run.
 
+## A TypeScript-written save loads in the game — 2026-08-28
+
+`1-5.TS-ROUNDTRIPPED.sav` — all 36 records of `1-5.sav` parsed and re-emitted
+through the TypeScript codec, 26 511 bytes against the original 26 456 —
+**loads normally**.
+
+Node's deflate does not reproduce Love2D's byte-for-byte (82 of 326 records
+match), but the payload underneath is identical in all 326, and `inflate`
+accepts any valid `deflate` stream. So **exporting a route to the game works**,
+which is the app's primary purpose.
+
+What is lost is byte-comparison against an original as a verification
+technique — the one that settled D17 and the pop-up encoding. The replacement,
+per SPEC-006 §6, is: the emitted payload must match byte-for-byte, and the file
+must load.
+
+## Obtaining royal_boon2 would not invalidate existing routes — 2026-08-28
+
+The `level_scripts.lua` finding (`GAME_MECHANICS.md` §9.1) raised a real worry:
+the 2-1 script **raises ten Weak Walls to Reinforced**, which would break any
+route that had dug through them.
+
+Simulated rather than feared. Replaying the whole corpus with `royal_boon2`
+hypothetically unlocked and the real per-tower crown tiers:
+
+| | |
+|---|---|
+| as the account actually is | **326 / 326 clean** |
+| with `royal_boon2` unlocked | **326 / 326 clean** |
+
+And the reason is structural, not luck: across the 11 towers with Rapier
+scripts, **no route ever enters any of the 59 cells a script edits**. The vaults
+are sealed regions containing nothing until the boon opens them, so no route
+ever had a reason to go there. The design is safe by construction.
+
+`[F]` Confirmed alongside: the `crown` file's per-tower tier agrees with the win
+state our simulator derives from each hi-score route — 14/14, two entirely
+independent sources.
+
 ## Established by reading the loader, not by experiment
 
 **One-way walls are never validated on load, so the one-way pathing setting is

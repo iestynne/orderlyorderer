@@ -460,9 +460,13 @@ not a subset relation.
    per-tower crown tier)`. `data/towers/` holds only the first.
 2. **A shared route must carry the account state it was built under**, or it may
    not reproduce. This is the concrete case `§9` warns about in the abstract.
-3. Our replay sweep (`RESULTS.md`) is valid *for an account without
-   `royal_boon2`*. Once that boon is obtained, 13 towers change shape and old
-   routes may replay differently.
+3. `[F]` **Existing routes survive the change.** The obvious worry — that
+   raising ten walls in 2-1 would break saves that had dug through them — was
+   tested by replaying the whole corpus with `royal_boon2` hypothetically
+   unlocked: **326/326 still clean**. The reason is structural: across the 11
+   towers with Rapier scripts, **no route ever enters any of the 59 cells a
+   script edits**, because the vaults hold nothing until the boon opens them.
+   See `RESULTS.md`.
 
 So a route is a function of `(tower, account state)`, not of the tower alone. The
 app must model at least `total_crowns`, `total_gems` and the royal boon flags as

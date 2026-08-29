@@ -31,7 +31,8 @@ Pure modules, no filesystem access (D7):
 | `src/sav/route.ts` | A record's undo history read as a SPEC-004 `Waypoint[]` |
 | `src/sav/score.ts` | The player's `score` / `crown` files |
 
-**Out of scope:** writing saves the game will load. See §6.
+Writing is in scope and works — see §6 — but is not byte-exact against an
+original.
 
 ## 3. What the port must preserve
 
@@ -109,7 +110,15 @@ The port's real proof is that SPEC-004's oracles run on it and pass:
 exactly**. A codec that misread a coordinate would not produce a legal route,
 let alone the right final power.
 
-## 6. Known limitation — writing is not byte-exact
+## 6. Writing: not byte-exact, but the game accepts it
+
+**`[F]` Settled by experiment, 2026-08-28.** `data/saves/tests/1-5.TS-ROUNDTRIPPED.sav`
+— all 36 records of `1-5.sav` parsed and re-emitted through this codec, 26 511
+bytes against the original's 26 456 — **loads in the game normally.**
+
+So the limitation below constrains *verification*, not capability. **Exporting a
+route to the game works**, which is the whole point of the app.
+
 
 `[F]` **Node's zlib reproduces only 82 of 326 of the game's compressed
 streams**, at any level 1-9. The payload underneath is byte-identical in all
@@ -120,14 +129,18 @@ why the Python codec's round trip was byte-exact and this one's is not).
 Consequences:
 
 - **Reading is unaffected.** Every oracle in §5 passes.
-- **Writing a save the game will load is unaffected in principle** — the game
-  inflates the stream, and any valid deflate stream inflates correctly. What is
-  lost is the ability to prove a write correct by byte-comparison with an
-  original, which is how D17 and the pop-up encoding question were settled.
-- `[D]` **Therefore save *writing* stays on the Python codec for now.** When it
-  moves, this spec needs a matching-deflate story first — most likely a
-  different deflate implementation, tested against the corpus the same way.
+- **Writing is unaffected in practice**, now demonstrated rather than assumed.
+- What *is* lost is the ability to prove a writer correct by byte-comparison
+  with an original — the technique that settled D17 and the pop-up encoding
+  question. That is a real loss, because it is the sharpest tool we have for an
+  encoding question, and it is now unavailable to a TypeScript writer.
 
-`[D]` This limitation is recorded rather than worked around, because the thing
-it would silently cost us — byte-exact comparison against a hand-played save —
-is the technique that settled the only encoding question we have had.
+`[D]` **The replacement acceptance test for a writer** is the pair this spec
+already runs: the emitted payload must be byte-identical to the original's, and
+the file must load. `tools/sav/resave.ts` asserts the first before writing
+anything, on every record.
+
+`[P]` If a future encoding question needs byte-exactness back, the options are a
+deflate implementation that matches Love2D's choices, or generating the
+candidate with the Python codec and diffing there. Do not chase this before
+there is a question that needs it.
