@@ -75,7 +75,7 @@ down from a page.
   the docs. The load-bearing one: `negative_keys` rewrites the entire key
   system, not just the Keysmasher — a two-counter model cannot replay EX-3 at
   all. See `GAME_MECHANICS.md` §4.1, §5.3, §6.1.
-- **SPEC-004 draft 6 is ready for implementation** with every `[O]` closed and
+- **SPEC-004 is implemented**, with every `[O]` closed and
   its step-0 expected values measured rather than predicted.
 
 ## Specs
@@ -83,24 +83,43 @@ down from a page.
 | Spec | State |
 |---|---|
 | SPEC-002 map parser | **implemented**, tests green |
-| SPEC-004 simulation | draft 6, **ready to implement — this is next** |
-| SPEC-005 map diff | written, not implemented. SPEC-004's oracle 3. |
-| SPEC-003 headless Lua harness | stub, behind a decision gate. Not scheduled. |
+| SPEC-004 simulation | **implemented**, both primary oracles pass |
+| SPEC-006 `.sav` codec | **implemented**, payload round trip exact 326/326 |
+| SPEC-005 map diff | written, not implemented. SPEC-004's oracle 3, and the only oracle not running. |
+| SPEC-003 headless Lua harness | stub, behind a decision gate. **Do not build:** its gate required manual verification to have become the bottleneck, and the replay sweep is now that oracle instead. |
 | SPEC-001 overlay detector | **cancelled**, in `specs/obsolete/`. Overlays are declared in the level data, not inferred. |
+
+## The simulator agrees with the game
+
+The claim `STATUS.md` has been making since the start — "the oracle is that an
+app-generated savegame replays in the real game and reaches the predicted
+state" — is now measured in the other direction, which is cheaper and stronger:
+
+- **326 / 326** save records across 14 towers replay with **zero errors**,
+  ~470 000 simulated moves.
+- **14 / 14** towers' hi-scores reproduce the game's own `score` file **exactly**.
+
+Plus four hand-played experiments (C1-C4) predicted independently by the sim.
+Details in `RESULTS.md`. Every entity type in the game is exercised except orbs.
 
 ## Not started
 
-The app itself. `tools/` exists; `src/` does not.
+The app itself. `tools/` and `src/` hold the pure modules — parser, savegame
+codec, simulator — and there is no UI, no Vite setup and no route editor.
 
 ## Next
 
-**Implement SPEC-004.** The one prerequisite it lacks is a **TypeScript `.sav`
-codec** — the only codec today is Python, so `npm test` cannot run SPEC-004's
-two primary oracles. That wants its own small spec; `SAVE_FORMAT.md` is complete
-and the Python version becomes the differential test.
+1. **Start the app.** `DESIGN_ROUTE_EDITING.md` is the deferred sketch to
+   promote into a spec.
+2. **SPEC-005 (map diff)** — written, unimplemented, oracle 3.
+3. **Floor entry thresholds**, the analysis this tool exists for. Nothing
+   blocks it now.
 
 ## Known blockers
 
-None on the mechanics. The only live dependency is `TODO.md` §B: the `.sav`
-corpus and the `score` / `crown` files, without which the replay and hi-score
-oracles have nothing to run against.
+None. The reverse-engineering phase is finished: every mechanic the simulator
+needs is read, implemented and validated against real play.
+
+One recorded limitation, blocking nothing today: save **writing** from
+TypeScript is not byte-exact, because Node's zlib and Love2D's make different
+choices (SPEC-006 §6). Reading is exact. Writing stays on the Python codec.

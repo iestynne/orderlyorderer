@@ -9,40 +9,38 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 
 ## A. Next action
 
-**Implement SPEC-004: the simulation engine.** Draft 6 is ready and every open
-item it had is closed. It carries its own §11 Verification Contract with the
-expected values already measured, so nothing here repeats it.
+**The simulator is implemented and both primary oracles pass** — 326/326 replay
+clean, 14/14 hi-scores exact (`RESULTS.md`). SPEC-006 (the `.sav` codec) landed
+with it. So the next action is no longer a correctness question:
 
-One thing SPEC-004 needs that does not exist yet:
+1. **Start the app.** `src/` holds only the pure modules; there is no UI, no
+   Vite setup, and no route editor. `DESIGN_ROUTE_EDITING.md` is the deferred
+   sketch to promote into a spec when that begins.
+2. **SPEC-005 (map diff)**, written and unimplemented. It is SPEC-004's oracle
+   3 and is now the only oracle not running.
+3. **Floor entry thresholds** — the analysis `STATUS.md` names as the whole
+   point of the tool. The simulator can now answer it and nothing depends on
+   further reverse-engineering.
 
-- **A TypeScript `.sav` codec.** `tools/luajit_buffer.py` is Python, so
-  `npm test` cannot run SPEC-004's two primary oracles at all. Needs its own
-  small spec. `SAVE_FORMAT.md` is complete and the Python codec becomes the
-  differential test. See SPEC-004 §11.
+## B. Loose ends from the oracle work
 
-Then: SPEC-005 (map diff), which is SPEC-004's oracle 3 and is written.
-
-## B. What iestyn needs to provide
-
-Not tests — collateral. This is the whole critical path for the oracles.
-
-| # | What | Why |
+| # | What | Why it matters |
 |---|---|---|
-| B1 | **All `.sav` files** | SPEC-004 oracle 1, the zero-error replay sweep. The primary regression net. Stays outside git; tests take a path (D14b). |
-| B2 | **The `score` and `crown` files** | SPEC-004 oracle 2, the hi-score check. Both live in the game's save folder, have **no extension**, and are named **singular** — not `scores`. |
+| B1 | **Save *writing* from TypeScript is not byte-exact.** Node's zlib reproduces only 82 of 326 of the game's compressed streams at any level; the payload underneath is exact in all 326. | Blocks nothing today — reading is unaffected and writing stays on the Python codec. But byte-comparison against a hand-played save is how D17 and the pop-up encoding were settled, so it must be restored before we write saves from TS. SPEC-006 §6. |
+| B2 | **The `crown` file is still worth having.** | Not for gems: `royal_boon1` is the only consumer and it appears in no shipped map. It is worth having because `crown_data[tower]` is 1 or 2, which says whether that tower's hi-score was a **plain Crown or a doubled Dark Crown** — turning a rule of thumb into a fact. The sim currently derives it from the route instead, and agrees, so this is corroboration rather than a dependency. |
+| B3 | **Tower 2-6 and 3-1 have no saves.** 2-6 is 75 floors and unplayed; 3-1 is the only tower with orbs, which SPEC-004 §1 does not model. | The sweep covers 14 of 16 towers. 3-1 needs the orb work before a save would help; 2-6 needs only play. |
 
-## C. Experiments still worth running
+## C. Experiments — all four run and passed
 
-Short list, and it is short because reading the source answered the rest. Each
-of these confirms we are reading the *right* code path, which reading cannot
-do for itself.
+C1-C4 were played on 2026-08-28 and all four confirmed the simulator. Results
+and the exact numbers are in `RESULTS.md`; the saves are in
+`data/saves/tests/` and asserted by `test/sim/experiments.test.ts`.
 
-| # | Test | Why it survives |
-|---|---|---|
-| C1 | **Load `1-5.SUFFICIENT-POWER.sav`** | The one fixture in `data/saves/tests/` never actually run (`RESULTS.md`). Free — the file exists. Positive control isolating the power comparison. |
-| C2 | **Keysmasher, 2 Light + 3 Dark keys, kill a 5-power enemy** | Expect power **+11**, not +6. Every downstream power number depends on the bonus being *added to* the base, and the HUD shows only the bonus, so this is the one number worth seeing with your own eyes. |
-| C3 | **An EX-3 run touching a Dark Key, then a Dark Gate, then a Keysmasher kill** | `negative_keys` was only just discovered (`GAME_MECHANICS.md` §4.1) and rewrites the whole key system. Nothing in the corpus exercises it. Expect the Dark Key to *decrease* the single key counter below zero. Highest value of the three. |
-| C4 | **Weak Wall while holding both a Pickaxe and a Hyper Pickaxe** | Expect the **ordinary** Pickaxe to be spent and the Hyper Pickaxe retained. Reading an `elseif` the wrong way round would invert this and silently over-spend the scarce item. |
+The one that changed a belief: **C4**. The Hyper Pickaxe is *not* spent in
+preference to an ordinary Pickaxe on a Weak Wall — the ordinary one goes first.
+This had already been settled by the corpus before the test was played (flipping
+the rule drops the sweep to 324/326), which is worth remembering as a method:
+**a large corpus of real routes is itself a discriminating oracle.**
 
 Everything else previously listed here is **answered by the source** and needs
 no play:
