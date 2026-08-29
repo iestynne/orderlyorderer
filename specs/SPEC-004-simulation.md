@@ -293,17 +293,28 @@ post-teleport position lives in `Step.player.{z,x,y}`, where the rest of the
 after-state already is. So on a stairs move `to` names the staircase and
 `player` names the floor above or below, and nothing is ambiguous.
 
-`[D]` **A *waypoint*, by contrast, may never be a staircase — assert it.**
+`[D]` **An *action* waypoint may never be a staircase — assert it.**
 `[F]` `entitydef.stairs_up` has no `undo_store`, so stairs never enter the undo
-history and never reach a `.sav` file. A waypoint on a staircase therefore means
-the route came from somewhere other than the game, or the parser mis-applied the
-save format's ±1-floor offset on the trailing live-position entry. Both are bugs
-worth failing loudly on, and the assertion is free: it runs over every real save
-in the replay sweep (§11 oracle 1) and is a genuine diagnostic (D18).
+history *as an action*. Measured over the corpus: **0** of the 244 staircase-
+naming waypoints sit at an action index. An action waypoint on a staircase would
+mean the save format is not what we think.
+
+`[F]` **A *position* waypoint routinely is a staircase, and draft 6 was wrong to
+assert otherwise.** A recorded pair is (player position before the action, the
+acted-upon cell), and after taking stairs the player is standing on the paired
+staircase. It happens **244 times** in the corpus. The blanket assertion failed
+on the first run against real data.
+
+`[D]` **Consequence for the pathfinder: a staircase target must be reached by
+*landing* on it, never by stepping onto it.** Entering a staircase teleports the
+player straight off it, so a direct step leaves the waypoint unsatisfied and the
+route oscillating across the floor boundary. §5.3 states the rule; it is the one
+place where "the target cell is exempt from traversability" is not enough on its
+own.
 
 Note the asymmetry is not an inconsistency: a `Step` is a move we generated and
-may legitimately step onto stairs; a `Waypoint` is an action the game recorded,
-and the game records no stairs.
+may legitimately step onto stairs; an *action* waypoint is a state change the
+game recorded, and stairs change no state.
 
 ### 4.1 The step pipeline
 
@@ -434,6 +445,18 @@ settings.
 cell at `(z,x,y)` relocates the player to `(z±1,x,y)`, so the BFS edge from a
 neighbour of the stairs leads directly to that arrival node, at cost 1. The
 arrival cell must itself be traversable for the edge to be usable.
+
+`[F]` **The goal test must fire on the arrival node too, not only on the cell
+stepped into.** A target reached by landing off a staircase is never entered
+directly, so testing only the stepped-into cell reports `NO_PATH` for every such
+waypoint. This was the first bug the corpus found: **61 of 326** records failed
+on it, all with `NO_PATH` at a floor change.
+
+`[F]` **A staircase target is the mirror image, and must be reached *only* by
+landing.** Stepping onto a staircase teleports the player off it, so a direct
+step cannot leave them standing there. Suppress the stepped-into goal test when
+the target is a staircase. Not an edge case: **244** position waypoints in the
+corpus name a staircase (§4).
 
 `[F]` **This makes our sim stricter than the game's own loader**, which sets
 `player.floor = moves[i][1]` directly, with no stairs traversal and no
@@ -802,9 +825,10 @@ Assert in debug builds; test as properties (§11).
 7. Intermediate (non-final) steps of a waypoint's path produce **zero** cell
    edits and change no player field but position. This is the pathfinder's
    passivity, stated as an assertion.
-7a. No `Waypoint` names a `stairs_up` or `stairs_down` cell (§4). Diagnostic:
-   it would fail if the save parser mishandled the trailing live-position
-   entry's ±1-floor offset.
+7a. No **action** `Waypoint` names a `stairs_up` or `stairs_down` cell (§4).
+   Position waypoints do, 244 times in the corpus, and that is correct.
+   Diagnostic: an action hit would mean the 2S+1 pairing is not what
+   `SAVE_FORMAT.md` §3 says.
 8. **Journal fidelity:** for any `k`, `Cursor.seekTo(k)` yields cells identical
    to a fresh `simulate` truncated at `k`. This is what makes the cheap journal
    trustworthy in place of per-step snapshots.
@@ -981,12 +1005,14 @@ primary oracle runnable by the ordinary test command, the format is small and
 already reverse-engineered, and the Python codec becomes the differential test
 rather than a dependency. It should be its own spec, not smuggled into this one.
 
-`[D]` **Save files stay outside git and are passed in by path.** Only two people
-run these tests, so there is no clean-clone requirement to satisfy; the saves
-live in the archive alongside the game data and the test reads a path from
-configuration. Oracles 1 and 2 are therefore **local-only tests that skip, not
-fail, when the path is unset** — say so in the runner, or CI will look green
-while testing nothing.
+`[D]` **The save corpus is committed, at `data/saves/<owner>.<date>/`.** It is
+iestyn's own play data, not the developer's level design, so it carries none of
+the permission question that gates `data/towers/` (TODO §D). Committing it makes
+both oracles run on a clean clone, which is worth more than the ~830 KB.
+
+`[D]` The tests still **skip rather than fail** when the directory is absent, and
+honour `TOS_SAVE_DIR` for a corpus held elsewhere — otherwise a missing corpus
+would show green while testing nothing.
 
 `[F]` The score data lives in two extension-less files in the game's save
 folder, named **`score`** and **`crown`** — singular. `scores.lua` is the game's
