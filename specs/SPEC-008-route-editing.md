@@ -4,7 +4,7 @@ Status: **draft 1**, 2026-09-01.
 Depends on: SPEC-002 (tower JSON), SPEC-004 (simulation), SPEC-006 (`.sav`
 codec), SPEC-007 (`Cursor`, the scrubber).
 Load with this spec: `docs/DESIGN_ROUTE_EDITING.md`, `DECISIONS.md` D7, D11,
-D22, D30, D31, D34, D35, D36.
+D22, D30, D31, D34, D35, D36, D37.
 
 The second interactive slice: the player edits a route and sees where it breaks.
 Three features, one machinery — add and remove actions, skippable segments,
@@ -18,10 +18,18 @@ at the screen and disliked it?*
 
 `[F]` fact · `[I]` iestyn said it · `[D]` decision · `[P]` proposal · `[O]` open
 
-`[D]` **A take, not a variant.** `src/mapdiff/verify.ts` already exports a
-`Variant` for sprite hash bands, and D34 forbids two concepts sharing a word.
-The user-facing feature is still "parallel segments"; the thing a segment holds
-*n* of is a **take**.
+`[D]` **Three levels, split by how stable they are.** `[I]` A **Segment** is a
+named list of actions plus metadata, and is expected to outlive every structure
+above it; **Epoch** and the route as a whole will be restructured repeatedly as
+the analysis gets richer. Keeping the durable concept in its own type is what
+makes that churn cheap.
+
+`[D]` **The root is `Route`, not `Timeline`.** `[F]` `Timeline` is already
+`src/sim/types.ts`'s result of `simulate()` — consumed by `Cursor` and three
+`mapdiff` modules — so reusing it here would collide with an implemented,
+tested type (D34). `Route` was already the document's per-route object, so the
+structure needs no new word: **`Route` → `Epoch` → `Segment` → `Action`.**
+"Timeline" stays what it has always been in prose: the strip the player scrubs.
 
 ---
 
@@ -33,14 +41,14 @@ The user-facing feature is still "parallel segments"; the thing a segment holds
 |---|---|
 | Automatic repair of a broken tail | The tool never solves a route — DESIGN §1 |
 | The power graph, margin, threshold *numbers* | A later spec; §4.1 of DESIGN shrinks it |
-| Enumerating take combinations | A feedback loop, not a search — DESIGN §5 |
+| Enumerating segment combinations | A feedback loop, not a search — DESIGN §5 |
 | Re-import reconciliation against a played-on `.sav` | DESIGN §8.1, unresolved |
 | Orb towers (3-1) | `[F]` SPEC-004 §1 does not model orbs |
 
 ```
-src/sim/route/document.ts   segments, takes, actions; flatten()
+src/sim/route/document.ts   epochs, segments, actions; flatten()
 src/sim/route/ordfile.ts    .ord parse and emit, canonical JSON, document hash
-src/sim/route/evaluate.ts   the forward pass: mainline plus per-take forks
+src/sim/route/evaluate.ts   the forward pass: mainline plus per-segment forks
 src/sim/route/edit.ts       insert, disable, split, merge, switch, rename, reorder
 src/sim/route/export.ts     document -> .sav record
 src/store/working.ts        IndexedDB working store
@@ -89,7 +97,7 @@ interface Route {
   tower: string                 // tower id, e.g. '2-5'
   gemsOwned: number             // SPEC-004 §10.1
   source?: SaveSource           // absent for a route not imported from a .sav
-  segments: Segment[]
+  epochs: Epoch[]
 }
 
 interface SaveSource {
@@ -98,15 +106,15 @@ interface SaveSource {
   hash: string                  // SHA-256 of the record's decompressed payload
 }
 
-interface Segment {
-  name: string
-  skippable: boolean
-  active: number                // index into takes
-  takes: Take[]                 // length >= 1
+interface Epoch {
+  name?: string                 // the span, e.g. '5F'
+  skippable: boolean            // may resolve to nothing; see §3
+  active: number                // index into segments
+  segments: Segment[]           // length >= 1
 }
 
-interface Take {
-  name?: string
+interface Segment {
+  name: string                  // the player's own, e.g. 'take the Light Key'
   actions: Action[]
 }
 
@@ -131,7 +139,7 @@ hash over compressed bytes would report spurious mismatches.
 function flatten(route: Route): Waypoint[]
 ```
 
-`[D]` Concatenates the **active take** of each segment in order, dropping
+`[D]` Concatenates the **active segment** of each epoch in order, dropping
 `disabled` actions. This is the only thing the simulator ever sees (D7); it
 never receives a segment.
 
@@ -148,28 +156,45 @@ invariant 4 asserts.
 
 ---
 
-## 3. The segment model
+## 3. Epochs and segments
 
-`[D]` One construct, three behaviours. The player sees three features; the code
-has one.
+`[D]` **A Segment is inert.** It is a named list of actions and nothing else:
+no selection, no fallback, no opinion about what happens when it fails. All
+three features are **selection policies on the Epoch that holds it**, which is
+why the player sees three features and the code has one.
 
-| The player sees | Takes | Active take chosen |
+| The player sees | Segments in the epoch | Active segment chosen |
 |---|---|---|
 | A plain segment | 1 | always |
-| A skippable segment | its actions, plus an **implicit empty take** | automatically: the empty one iff the actions fail |
+| A skippable segment | 1, plus an **implicit empty segment** | automatically: the empty one iff the authored one fails |
 | Parallel segments | *n*, authored | by hand, persisted in `active` |
 
-`[D]` The implicit empty take is **not stored**. `skippable: true` denotes
-it, and evaluation selects it. Storing it would let `active` and `skippable`
-disagree.
+`[D]` **`skippable` is Epoch state, not Segment metadata.** It describes how the
+epoch *chooses* — "this span may resolve to nothing" — and that is not a
+property of any one segment's contents. `[F]` With one segment the two
+placements are equivalent; with three, "segment 2 is skippable" does not say
+whether the epoch skips that segment or the whole span, and there is no answer
+that is not arbitrary. On the epoch it is exact.
 
-`[D]` **A failing non-skippable segment stops the whole route.** Skippable is
-the exception, not the default.
+`[D]` The implicit empty segment is **not stored**. `skippable: true` denotes
+it, and evaluation selects it. Storing it would let `active` and `skippable`
+disagree, and would put a segment in the document that the player never wrote.
+
+`[D]` **A failing non-skippable epoch stops the whole route.** Skippable is the
+exception, not the default.
 
 `[D]` **Splitting is UI-only and must not change `flatten()`.** A split divides
-one segment's active take at an action boundary into two segments, each with
-one take. `[D]` A segment with more than one take **cannot** be split —
-there is no meaning for where the other takes divide. Invariant 2.
+one epoch's active segment at an action boundary into two epochs, each holding
+one segment. `[D]` An epoch with more than one segment **cannot** be split —
+there is no meaning for where the other segments divide. Invariant 2.
+
+`[O]` **Cached end state is derived, not document metadata.** `[I]` iestyn
+raised caching a segment's ending state on the segment. `[P]` It cannot live in
+the `.ord` as written: a segment's end state is a function of the state it
+*began* with, which depends on every upstream choice, so a cached value is valid
+for exactly one prefix and silently wrong after any edit above it. If it is
+built, key it by the incoming state and keep it in the working store, where a
+stale entry costs a recomputation rather than a wrong answer.
 
 ---
 
@@ -178,34 +203,34 @@ there is no meaning for where the other takes divide. Invariant 2.
 ```ts
 interface Evaluation {
   mainline: Timeline                       // over the flattened active route
-  segments: SegmentResult[]                // one per segment, in order
+  epochs: EpochResult[]                    // one per epoch, in order
 }
 
-interface SegmentResult {
-  skipped: boolean                         // a skippable segment that failed
-  error?: SimError                         // SPEC-004 §7, first failure in this segment
-  forks: (SimError | null)[]               // one per inactive take
+interface EpochResult {
+  skipped: boolean                         // a skippable epoch whose segment failed
+  error?: SimError                         // SPEC-004 §7, first failure in the active segment
+  forks: (SimError | null)[]               // one per inactive segment
   startStep: number                        // index into mainline.steps
 }
 ```
 
-`[D]` **A single forward pass.** Each segment is evaluated against the state its
-predecessors produced. A skippable segment that fails is rewound to its start and
-its successor continues from there. Earlier segments are already committed, so
-nothing cascades backwards.
+`[D]` **A single forward pass over epochs.** Each epoch is evaluated against the
+state its predecessors produced. A skippable epoch whose active segment fails is
+rewound to its start and its successor continues from there. Earlier epochs are
+already committed, so nothing cascades backwards.
 
 `[D]` **Rewind is `Cursor.seekTo`**, not a re-simulation from zero. `[F]`
 SPEC-004 invariant "undo(do(s)) == s" and SPEC-007 invariant 2 (seek symmetry)
 are what make this sound; this spec adds no new undo machinery.
 
-`[D]` **An inactive take is forked from the mainline's prefix**, not
+`[D]` **An inactive segment is forked from the mainline's prefix**, not
 simulated in isolation: its outcome depends on the state reached at that point.
 `[D]` **A fork runs to its own end and no further** — it answers *would this pass
-from here*. Total work is the sum of take lengths, not the product.
+from here*. Total work is the sum of segment lengths, not the product.
 
 `[D]` **A route is therefore several runs**, and the app legitimately holds
-several errors at once: one per skipped segment and one per failing fork, each
-well-defined within its own run. This is the SPEC-004 §7 amendment named above.
+several errors at once: one per skipped epoch and one per failing fork, each
+well-defined within its own run. This is the SPEC-004 §7 amendment.
 
 `[D]` **Forks must not mutate mainline state.** Invariant 8.
 
@@ -215,23 +240,29 @@ well-defined within its own run. This is the SPEC-004 §7 amendment named above.
 
 ```ts
 type Edit =
-  | { op: 'insert';  segment: number; index: number; at: Waypoint }
-  | { op: 'setDisabled'; segment: number; take: number; index: number; value: boolean }
-  | { op: 'split';   segment: number; index: number }
-  | { op: 'merge';   segment: number }        // with its successor
-  | { op: 'setActive'; segment: number; take: number }
-  | { op: 'rename';  segment: number; name: string }
-  | { op: 'reorder'; from: number; to: number }
-  | { op: 'setSkippable'; segment: number; value: boolean }
+  | { op: 'insert';       epoch: number; segment: number; index: number; at: Waypoint }
+  | { op: 'setDisabled';  epoch: number; segment: number; index: number; value: boolean }
+  | { op: 'addSegment';   epoch: number }               // a new parallel segment
+  | { op: 'split';        epoch: number; index: number }
+  | { op: 'merge';        epoch: number }               // with its successor
+  | { op: 'setActive';    epoch: number; segment: number }
+  | { op: 'rename';       epoch: number; segment?: number; name: string }
+  | { op: 'reorder';      from: number; to: number }    // epochs
+  | { op: 'setSkippable'; epoch: number; value: boolean }
 ```
+
+`[D]` Every op names an **epoch** first, because that is the addressable unit;
+`segment` selects within it and is omitted only by `rename`, which names an
+epoch when absent. `[D]` `reorder` moves epochs, never segments: `[F]` segments
+within an epoch are alternatives, so their order carries no meaning.
 
 `[D]` **Every `Edit` is document-tier**, and every one sets the unsaved-changes
 marker and pushes an app-level undo entry. Nothing else does — scrubbing,
 selection, mode and option toggles are view-tier (DESIGN §2.3). `[D]` This is
 one rule with no exceptions, which is why it needs no list to maintain.
 
-`[D]` **Re-evaluation resumes at the edited segment's start**, not from zero.
-Invariant 6 is what licenses this: segments before the edit are unaffected, so
+`[D]` **Re-evaluation resumes at the edited epoch's start**, not from zero.
+Invariant 6 is what licenses this: epochs before the edit are unaffected, so
 `Cursor.seekTo` reaches that state and only the tail is re-simulated.
 
 `[D]` This is **not** a fast path that skips work. `[F]` SPEC-004 §7's
@@ -241,8 +272,8 @@ only *where replay starts*, from a state the journal already proves correct.
 An insert at the head degenerates to the whole route, which is why oracle 4
 benchmarks exactly that.
 
-`[D]` `insert` names a segment explicitly, so there is no ambiguous position
-between two segments. `[F]` This is why `docs/UI.md` requires a selected segment
+`[D]` `insert` names an epoch and segment explicitly, so there is no ambiguous position
+between two epochs. `[F]` This is why `docs/UI.md` requires a selected segment
 before editing.
 
 ---
@@ -302,7 +333,7 @@ From `docs/DESIGN_ROUTE_EDITING.md`:
 |---|---|
 | §3.1 | The green/red timeline; the `+` badge on added actions; the *no entry* badge and start-location behaviour for disabled ones; three mutually-exclusive mode buttons; Z and Y single-stepping; click semantics in add and delete mode |
 | §4.3 | Segment selection; the bracket over the current segment; scrubbing a failed segment and clamping at its failing action; the failure overlay built from `SimError`'s code plus `have`/`need` |
-| §5 | Choosing between takes by clicking, and what the inactive ones show |
+| §5 | Choosing between parallel segments by clicking, and what the inactive ones show |
 
 `[O]` Three of these resolve only by building — whether the outline around
 actions reads well, whether it should apply to live actions too, and whether an
@@ -327,35 +358,35 @@ Report: test summary; PASS/FAIL + actual value per named case;
 | Records in a file, corpus range | 10 to 48 |
 | Entry count odd, every record (`2S+1`) | **326 / 326** |
 | Largest route, slider stops / cell edits | **1 773 / 1 849** (`2-5`, `F 211g 98.3M win H [A]`) |
-| `ErrorCode` values surfaced by a segment result | **16** (SPEC-004 §7) |
-| Takes in a segment, minimum | 1 |
-| Segments in a freshly imported route | 1 |
+| `ErrorCode` values surfaced by an epoch result | **16** (SPEC-004 §7) |
+| Segments in an epoch, minimum | 1 |
+| Epochs in a freshly imported route | 1 |
 
 **Invariants**
 
-1. **Import identity.** For every corpus record: import to a one-segment,
-   one-take document with nothing disabled; `flatten()` equals the
+1. **Import identity.** For every corpus record: import to a one-epoch,
+   one-segment document with nothing disabled; `flatten()` equals the
    `Waypoint[]` SPEC-006 reads, and `simulate(flatten())` equals simulating the
    record directly. `[D]` This is the "segments are UI only" claim, asserted
    rather than assumed.
-2. **Split neutrality.** Splitting a segment at any action boundary leaves
-   `flatten()` identical. Splitting a multi-take segment is refused.
+2. **Split neutrality.** Splitting an epoch at any action boundary leaves
+   `flatten()` identical. Splitting a multi-segment epoch is refused.
 3. **Merge inverts split.** `merge(split(d, i))` restores `flatten()` exactly.
    `[D]` The *document* may differ, because the split's second name is lost;
    only the flattened route is asserted equal.
 4. **Toggle identity.** Disabling an action and re-enabling it restores the
    byte-identical canonical serialization, hence the same document hash. `[D]`
    This is the unsaved-changes marker's correctness, not a nicety.
-5. **Skip equals empty take.** A failing skippable segment leaves the
-   mainline in exactly the state an explicitly-selected empty take would.
+5. **Skip equals empty segment.** A failing skippable epoch leaves the
+   mainline in exactly the state an explicitly-selected empty segment would.
    `[D]` The diagnostic for §3's unification (D18): if the two ever diverge, the
    one-construct claim is false.
-6. **Forward-pass locality.** Changing `active` on segment *k* leaves the
-   evaluated state at the start of segment *k* unchanged. Nothing cascades
+6. **Forward-pass locality.** Changing `active` on epoch *k* leaves the
+   evaluated state at the start of epoch *k* unchanged. Nothing cascades
    backwards.
 7. **Document round trip.** `parse(emit(d))` equals `d`, and `emit` is
    byte-stable across repeated calls.
-8. **Fork isolation.** Evaluating inactive takes leaves `mainline` bit-identical
+8. **Fork isolation.** Evaluating inactive segments leaves `mainline` bit-identical
    to an evaluation with forks disabled.
 9. **No UI import in `src/sim/route/`.** A grep, asserted in test. D7.
 
@@ -369,7 +400,7 @@ Report: test summary; PASS/FAIL + actual value per named case;
    byte-for-byte. `[F]` SPEC-006 §5.1 already proves the codec does this
    326 / 326, so any failure here is ours, not the codec's. **Expected 326 / 326.**
 3. **Segmentation sweep.** For each corpus record, split the route into *n*
-   segments at even boundaries for several *n*, and assert invariants 1, 2 and 6
+   epochs at even boundaries for several *n*, and assert invariants 1, 2 and 6
    hold at every split. `[D]` Cheap, and it exercises the structure against real
    routes rather than fixtures.
 4. **Re-evaluation against the ceiling.** The 1 849-edit record: insert an

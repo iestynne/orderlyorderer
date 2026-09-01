@@ -1,6 +1,6 @@
 # DESIGN: Route Editing
 
-Draft 5, 2026-08-31. Rationale and behaviour for the three editing features.
+Draft 6, 2026-09-01. Rationale and behaviour for the three editing features.
 The testable contract is `specs/SPEC-008-route-editing.md`; the two must not
 overlap (D30). Depends on SPEC-004.
 
@@ -96,8 +96,8 @@ document which crashes the app *during* load cannot trap the player in a loop.
 `[D]` **The marker tracks the document, not the view** — the same division the
 working store uses, so no list of triggering actions has to be maintained.
 Scrubbing, Z/Y, mode buttons, option toggles and selection are all view.
-Inserting, disabling, splitting, renaming, reordering and switching a take
-are all document.
+Inserting, disabling, splitting, renaming, reordering and switching which
+segment is active are all document.
 
 `[D]` It is a **comparison against the saved document**, not a sticky flag,
 because toggling an action off and back on must clear it. `[D]` This is the
@@ -234,7 +234,7 @@ it; scrubbing auto-selects when nothing is selected manually.
 which segment a boundary insertion joins rather than answering it.
 
 `[D]` Selection is not a special case for failures — it is the same affordance
-feature 3 needs to choose takes. Build it once.
+feature 3 needs to choose between parallel segments. Build it once.
 
 `[F]` **The failure report already has its content**: SPEC-004 §7's `SimError`
 carries 16 error codes plus `have` and `need`, so a message can say *4 000
@@ -253,33 +253,51 @@ the inactive alternatives are simulated too, so the player sees which would pass
 if switched to.
 
 `[I]` The point is rapid permutation with instant feedback: switch 5F from a
-take that kills enemies for a Light Key to one that skips them, then switch a
-complementary take on 7F that takes a Light Key there instead, and the
+segment that kills enemies for a Light Key to one that skips them, then switch a
+complementary segment on 7F that takes a Light Key there instead, and the
 cascading colours say immediately whether the combination works.
 
-`[D]` **Segments contain their actions.** Takes of one chunk have different
-lengths, so a segment cannot be an index range over a flat list — every range
-after a switch would shift. This reverses an earlier decision that was right for
-features 1 and 2. `[I]` iestyn expects further features on the same structure,
-so it is load-bearing beyond these three. D7 is untouched: the sim still sees
-only the flattened active takes, never a segment.
+### 5.1 The structure this needs
 
-`[D]` **This unifies features 2 and 3 rather than stacking them**, which is the
-strongest argument for a single spec. A plain segment has one always-active
-take; a skippable segment has an implicit empty take, active if and only
-if the segment fails; parallel segments have *n* takes chosen by hand.
+`[D]` **Segments contain their actions.** Alternatives for one span have
+different lengths, so a segment cannot be an index range over a flat list —
+every range after a switch would shift. This reverses an earlier decision that
+was right for features 1 and 2.
 
-`[D]` **An inactive take is forked from the mainline's prefix, not simulated
+`[D]` **`Route` → `Epoch` → `Segment` → `Action`, split by how stable each level
+is.** `[I]` A **Segment** — a named list of actions plus metadata — is expected
+to outlive everything above it, while the containers get restructured repeatedly
+as the analysis gets richer; keeping the durable concept in its own type is what
+makes that churn cheap. An **Epoch** is one span of the route, holding the
+alternative segments for it and which is live. The default route is one epoch
+holding one segment. D7 is untouched: the sim sees only the flattened active
+segments, never an epoch.
+
+`[F]` The root is `Route` and not `Timeline` because `Timeline` is already the
+simulator's result type. "Timeline" keeps its ordinary meaning in prose — the
+strip the player scrubs.
+
+`[D]` **A Segment is inert**, and all three features are selection policies on
+the Epoch: one always-active segment; one segment plus an implicit empty one
+chosen automatically when it fails; or *n* segments chosen by hand. That unifies
+features 2 and 3 instead of stacking them, and is the strongest argument for a
+single spec. It also puts `skippable` on the Epoch, where "this span may resolve
+to nothing" is exact, rather than on a segment where it would be ambiguous as
+soon as there were two.
+
+### 5.2 What gets simulated
+
+`[D]` **An inactive segment is forked from the mainline's prefix, not simulated
 in isolation** — its outcome depends on the state the mainline reaches there,
 which is cheap because that state already exists. `[D]` **A fork runs to its own
 end and no further**, answering *would this pass from here* in linear total
 work; the active combination already answers *would the whole thing still work*
-for free the moment the player switches. `[I]` The timeline may become a full
-tree later; walk before running.
+for free the moment the player switches. `[I]` The route may become a full tree
+later; walk before running.
 
-`[D]` **Combinations are never enumerated.** With *k* groups of *m* takes
+`[D]` **Combinations are never enumerated.** With *k* epochs of *m* segments
 there are *m^k* routes; the app simulates the current one plus one fork per
-take. It is a feedback loop for a human permuting choices, not a search.
+segment. It is a feedback loop for a human permuting choices, not a search.
 
 ---
 
@@ -312,7 +330,7 @@ always-on, and the performance answer is to make full re-simulation fast enough
 for the hard cases. *Non-additive substitution*: trading a Light Key for a Dark
 Key changes power at every subsequent step, so a downstream attack may fail and
 repairing it shifts power again. `[P]` Feature 3 is the tractable form of this —
-two takes switched and compared, rather than an edit made blind.
+two segments of one epoch, switched and compared, rather than an edit made blind.
 
 ---
 
@@ -353,7 +371,7 @@ power per step is a contiguous `Float64Array` read (`MAX_POWER` is
    Power is not the only threshold resource — keys, pickaxes and gold gate
    progress too, as do resource-limited modifiers like the Vorpal Blade.
 3. `[O]` Splitting a segment is specified; **merging two back together** is not.
-4. `[O]` Whether takes can be reordered or moved between segments, or only
+4. `[O]` Whether segments can be moved between epochs, or only
    created and deleted in place.
 5. `[O]` Two in §3.1 and one in §4.2 that resolve by building, not by argument.
 

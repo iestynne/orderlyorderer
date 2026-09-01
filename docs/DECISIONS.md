@@ -117,28 +117,48 @@ section of it rather than its own spec, because the format is ours and cannot
 surprise us the way a reverse-engineered one can.
 
 `[D]` **A segment contains its actions**, rather than being an index range over
-one flat list. Parallel takes of the same chunk have different lengths, so every
-range after a switched take would shift. `[I]` iestyn expects further features
-built on the same structure, so it is load-bearing beyond these three. D7 is
-untouched: the simulator sees only the flattened active takes, never a segment.
+one flat list. Alternatives for one span have different lengths, so every range
+after a switch would shift.
 
-`[D]` The three features are **one construct with three selection policies**,
-not three mechanisms:
+`[D]` **The structure is `Route` → `Epoch` → `Segment` → `Action`, split by how
+stable each level is.** `[I]` iestyn: a **Segment** — a named list of actions
+plus metadata — is expected to persist long-term, while the containers above it
+will be restructured repeatedly as the analysis gets richer. Keeping the durable
+concept in its own type is what makes that churn cheap. An **Epoch** is one span
+of the route, holding the alternative segments for it and which is live; the
+default route is one epoch holding one segment. D7 is untouched: the simulator
+sees only the flattened active segments, never an epoch.
 
-| The player sees | Takes | Active take chosen |
+`[F]` The root is `Route` and **not** `Timeline`, which is already
+`src/sim/types.ts`'s result of `simulate()`, consumed by `Cursor` and three
+`mapdiff` modules (D34). "Timeline" keeps its ordinary meaning in prose.
+
+`[D]` **A Segment is inert** — a list of actions, with no selection, no fallback
+and no opinion about failure. The three features are **selection policies on the
+Epoch**, not three mechanisms:
+
+| The player sees | Segments in the epoch | Active segment chosen |
 |---|---|---|
 | A plain segment | 1 | always |
-| A skippable segment | its actions, plus an implicit empty take | automatically, iff the actions fail |
+| A skippable segment | 1, plus an implicit empty segment | automatically, iff the authored one fails |
 | Parallel segments | *n*, authored | by hand |
 
+`[D]` `skippable` therefore lives on the **Epoch**: it describes how the span
+chooses, and "segment 2 is skippable" has no non-arbitrary meaning once an epoch
+holds three.
+
 `[D]` SPEC-008 invariant 5 is the diagnostic that keeps this honest (D18): a
-skipped segment and an explicitly-selected empty take must leave the mainline in
+skipped epoch and an explicitly-selected empty segment must leave the mainline in
 identical states. If they ever diverge, the one-construct claim is false and the
 three features really are three mechanisms.
 
-`[D]` **A take, not a variant** — `src/mapdiff/verify.ts` already exports a
-`Variant` for sprite hash bands, and D34 forbids two concepts sharing a word.
-The user-facing feature keeps the name "parallel segments".
+**D37. On a name collision, the web app keeps the word and the tool renames.**
+`[I]` iestyn: the app is where the complexity is going to be, so it takes
+priority on code quality. `src/` under `sim/`, `ui/` and `store/` outranks
+`tools/` and the diff harness. `[F]` Recorded after `Variant` was briefly
+renamed in the *app* to avoid `src/mapdiff/verify.ts`; the restructure above
+retired that clash, but the precedence is worth keeping for the next one. D34
+still decides *whether* two things may share a word; this decides *who moves*.
 
 ## Data handling
 
