@@ -36,6 +36,7 @@ The Adamantine Shield case is a good example — it lowers the threshold of a
 | `DECISIONS.md` | Every settled decision, with rationale |
 | `RESULTS.md` | Outcomes of savegame validation experiments |
 | `TODO.md` | Outstanding actions |
+| `UI.md` | What the app currently does, in natural language. Mutable; 150-line budget (D31) |
 | `DESIGN_ROUTE_EDITING.md` | Route segmentation and the power graph. A draft, deferred. |
 | `NOTES_map_extraction_deferred.md` | Research record for the retired image pipeline. Not a spec. |
 | `SPRITES.json` | 41 sprite hashes to entity names. Demoted; only SPEC-005 needs it. |
@@ -86,6 +87,7 @@ down from a page.
 | SPEC-004 simulation | **implemented**, both primary oracles pass |
 | SPEC-006 `.sav` codec | **implemented**, payload round trip exact 326/326 |
 | SPEC-005 map diff | **implemented**, draft 2. Oracle 3 passes: 62 040 cells across all 14 towers, zero differences. |
+| SPEC-007 tower scrubber | **implemented**, all three stages. Stages 1-2 green against the contract; stage 3 awaits an eye (D24a). |
 | SPEC-003 headless Lua harness | stub, behind a decision gate. **Do not build:** its gate required manual verification to have become the bottleneck, and the replay sweep is now that oracle instead. |
 | SPEC-001 overlay detector | **cancelled**, in `specs/obsolete/`. Overlays are declared in the level data, not inferred. |
 
@@ -105,24 +107,44 @@ state" — is now measured in the other direction, which is cheaper and stronger
 Plus four hand-played experiments (C1-C4) predicted independently by the sim.
 Details in `RESULTS.md`. Every entity type in the game is exercised except orbs.
 
-## Not started
+## The app exists
 
-The app itself. `tools/` and `src/` hold the pure modules — parser, savegame
-codec, simulator — and there is no UI, no Vite setup and no route editor.
+`SPEC-007` slice 1 is built, all three stages. **242 tests pass.**
+
+- **Stage 1, `Cursor`** — `src/sim/cursor.ts`, pure, 122 lines. Every named
+  value in the contract reproduced first time: 177 slider stops / 591 steps /
+  161 cell edits for `1-3 / "C wip 4F"`, corpus maxima 1 773 stops and 1 849
+  edits both in `2-5 / "F 211g 98.3M win H [A]"`. Invariants 1-4 pass over all
+  326 records; oracle 1 seeks to all 195 000 stops with no stale tile.
+- **Stage 2, assets** — `tools/atlas/build.ts` packs 65 sprites and the four
+  bitmap fonts into one 883×176 atlas, 9 KB, gitignored in `build/`. Atlas
+  counts confirmed: 160 tiles in 2-6, 32 in EX-2, 325 across all 16 towers.
+- **Stage 3, the UI** — Vite, React, one canvas, two panels. Through **four
+  rounds of review by eye**, the only judge it has (D24a), and an MVP by
+  iestyn's assessment. Two performance faults remain — `TODO.md` §A5.
+
+**The D32 reimplementation test ran** and found a real bug — in the docs, not
+the code (D33). Looking at the app then found nine more, none of which any test
+could have caught: D24a earns its keep.
 
 ## Next
 
-1. **Start the app.** `DESIGN_ROUTE_EDITING.md` is the deferred sketch to
-   promote into a spec.
-2. ~~SPEC-005 (map diff)~~ — **done**. All three oracles now run.
-3. **Floor entry thresholds**, the analysis this tool exists for. Nothing
-   blocks it now.
+1. **Fix the two performance faults** — `TODO.md` §A5. Scrubbing degrades until
+   the app is unusable, so it outranks anything cosmetic.
+2. **Set the perf baseline** (§7 oracle 2, `[O]`). Fix §A5 first, or the
+   baseline measures the leak.
+3. **Floor entry thresholds**, the analysis this tool exists for.
 
 ## Known blockers
 
 None. The reverse-engineering phase is finished: every mechanic the simulator
 needs is read, implemented and validated against real play.
 
-One recorded limitation, blocking nothing today: save **writing** from
-TypeScript is not byte-exact, because Node's zlib and Love2D's make different
-choices (SPEC-006 §6). Reading is exact. Writing stays on the Python codec.
+Two recorded limitations, blocking nothing today:
+
+- Save **writing** from TypeScript is not byte-exact, because Node's zlib and
+  Love2D's make different choices (SPEC-006 §6). Reading is exact. Writing
+  stays on the Python codec.
+- The browser cannot use `node:zlib`, so the Vite build aliases it to
+  `src/sav/zlib-browser.ts` (fflate, ~3 KB). Node keeps the real one, so the
+  tests still exercise the code that ships to them.

@@ -1,0 +1,192 @@
+/* docs/UI.md §5 — pixels stay square at any window size, so nothing here may
+   smooth or fractionally scale the canvas. */
+
+:root {
+  color-scheme: dark;
+  --ink: #e8e6f2;
+  --dim: #9a97ad;
+  --ground: #0c0c10;
+  --panel: #15151a;
+  --line: #2a2a33;
+  --accent: #b9aef0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font: 13px/1.5 ui-sans-serif, system-ui, sans-serif;
+}
+
+.app {
+  height: 100%;
+  position: relative;
+  overflow: auto;
+}
+
+/* Absolutely positioned so an oversized (zoomed-in) canvas scrolls inside the
+   host without changing the host's own measured size. See Screen.resize. */
+.stage {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  image-rendering: pixelated;
+  touch-action: none;
+}
+
+.shell {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: auto;
+}
+
+.pane {
+  width: min(720px, 100%);
+}
+
+h1 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 0 0 16px;
+}
+
+.drop {
+  display: grid;
+  gap: 4px;
+  place-items: center;
+  padding: 40px 24px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.drop:hover {
+  border-color: var(--accent);
+}
+
+.drop strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.drop span {
+  color: var(--dim);
+}
+
+.drop input {
+  display: none;
+}
+
+.hint,
+.notice {
+  color: var(--dim);
+  font-size: 12px;
+}
+
+.notice {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+code {
+  color: var(--ink);
+  font-family: ui-monospace, monospace;
+}
+
+.records {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.records th {
+  color: var(--dim);
+  font-weight: 500;
+  text-align: right;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.records th:first-child,
+.records td:first-child {
+  text-align: left;
+}
+
+.records td {
+  padding: 3px 8px;
+  text-align: right;
+  border-bottom: 1px solid rgba(42, 42, 51, 0.5);
+  font-variant-numeric: tabular-nums;
+}
+
+.records tr.disabled td {
+  color: var(--dim);
+}
+
+.records button,
+.towers button {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.records button:hover,
+.towers button:hover {
+  text-decoration: underline;
+}
+
+.towers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tools {
+  position: fixed;
+  left: 10px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+.tools button {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tools button:hover {
+  text-decoration: underline;
+}
+
+.keys {
+  color: var(--dim);
+  font-size: 11px;
+}
+
+.error {
+  color: #f0a0a0;
+}

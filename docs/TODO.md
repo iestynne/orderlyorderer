@@ -9,57 +9,83 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 
 ## A. Next action
 
-**The simulator is implemented and both primary oracles pass** — 326/326 replay
-clean, 14/14 hi-scores exact (`RESULTS.md`). SPEC-006 (the `.sav` codec) landed
-with it. So the next action is no longer a correctness question:
+**SPEC-007 slice 1 is built and has been through four rounds of visual review**
+— 242 tests green (`STATUS.md`). It is an MVP by iestyn's own assessment. Next,
+in order:
 
-1. **Start the app.** `src/` holds only the pure modules; there is no UI, no
-   Vite setup, and no route editor. `DESIGN_ROUTE_EDITING.md` is the deferred
-   sketch to promote into a spec when that begins.
-2. ~~SPEC-005 (map diff)~~ **done** — 62 040 cells across all 14 towers with
-   saves, zero differences. All three of SPEC-004's oracles now run.
-3. **Floor entry thresholds** — the analysis `STATUS.md` names as the whole
-   point of the tool. The simulator can now answer it and nothing depends on
-   further reverse-engineering.
+1. **Fix the two performance faults in §A5.** The scrubbing one degrades until
+   the app is unusable, so it outranks anything cosmetic.
+2. **Set the perf baseline** — SPEC-007 §7, oracle 2, still `[O]`. The harness
+   is built and toggled from the settings block; nobody has read the number.
+   It is what decides Canvas 2D versus WebGL, and §A5 should be fixed first or
+   the baseline measures the leak.
+3. **Look for restated rules elsewhere.** §A4 cleaned SPEC-004; D33 forbids the
+   pattern, but SPEC-002/005/006 have not been checked.
+4. **Floor entry thresholds**, the analysis `STATUS.md` names as the whole point
+   of the tool. Nothing depends on further reverse-engineering.
 
-## A2. Next session — the interactive UI begins
+`[D]` Still open by eye, not blocking: `docs/UI.md` §6 — the trail's `dHue`,
+the stack's size, whether overlapped floors read on a 32- or 75-floor tower,
+and the deferred proposal to freeze past and future floors.
 
-`[D]` First deliverable is deliberately small: a **save-file visualiser**. Load a
-`.sav`, pick a record, and scrub back and forth through the undo history. No
-editing, no analysis, no route construction. That is the whole scope, and it is
-the right first slice because everything under it already exists and is
-validated — the codec reads the file, the simulator produces the timeline, and
-`Cursor.seekTo` is specified for exactly this (SPEC-004 §8).
+`[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
+own capture control: press `S` or the button, share the PNG.
 
-To discuss when it starts: framework setup (Vite + React per `STATUS.md`), how a
-floor is drawn, and whether the scrubber moves by **step** or by **waypoint** —
-the timeline is at move granularity and the route at waypoint granularity, and
-`Step.waypointIndex` maps between them.
+## A5. Two scrubber performance faults, both observed 2026-09-01
 
-`DESIGN_ROUTE_EDITING.md` is the deferred sketch for the *editing* work that
-comes after; it is not in scope for the visualiser.
+`[I]` **Scrubbing back and forth gets progressively slower, then falls off a
+cliff into hundreds of milliseconds per update, and never recovers.** Observed
+by iestyn on the tower stack; a leak of some kind is the obvious shape.
 
-## A3. ~~Map export collateral to capture~~ — done 2026-08-29
+`[P]` **A specific hypothesis, cheap to test.** `FloorCache.makeCanvas` creates
+each floor's context with `getContext("2d")`, and `boxDownscale` then asks the
+same canvas for `getContext("2d", { willReadFrequently: true })`. A canvas
+returns its *existing* context and ignores the attributes, so that flag has
+never taken effect — and Chrome said so twice in the console during the last
+screenshot runs:
 
-All fourteen towers with saves are captured. The longest save in each tower by
-undo-history entries was exported and dropped into
-`data/reference/maps/tests/`, named `<tower-id>.<save record>.png`; the suite
-found them with no code change and **all sixteen pass with zero differences**
-(`RESULTS.md`). Both near-misses were re-exported at the longer record, and the
-two originals were kept as extra fixtures — hence 16 exports for 14 towers.
+> Canvas2D: Multiple readback operations using getImageData are faster with
+> the willReadFrequently attribute set to true.
 
-The oracle now covers **62 040 cells over 292 floors**, against the 12 622 it
-started with. Regenerate the longest-save table any time with:
+Chrome demotes a GPU-backed canvas to software after repeated readbacks and does
+not promote it back — which matches "slower and slower, then a cliff, never
+recovers". Test first: pass the flag at creation in `makeCanvas`, or drop
+`getImageData` and downscale with `drawImage` into a scratch canvas.
 
-```
-npx tsx tools/sav/longest-per-tower.ts data/saves/iestyn.2026.08.28
-```
+`[P]` Second candidate: `Scrubber.bindInput` adds `keydown` and `resize`
+listeners to `window` and `stop_()` never removes them, so every remount leaks a
+listener plus a retained `FloorCache`. StrictMode double-invokes effects, so
+there are two already.
 
-`[P]` What remains uncaptured is a **`before` export** — one taken immediately
-after restarting a tower — which would enable SPEC-005's two-image diff (§5)
-alongside the single-image check. The single-image check is the stronger of the
-two and needs no baseline, so this is a nice-to-have, not a gap. Towers 2-6 and
-3-1 have no saves at all (B3), so nothing to export there.
+`[F]` **Loading is slow, and the cause is measured.** 2-5.sav takes ~3 s.
+Opening a `.sav` simulates **every** record just to fill the list's power, floor
+and stop columns: 41 records, **156 546 steps**, 1 144 ms in node alone. Fixes,
+cheapest first: simulate lazily per row, cache by record, or show the list at
+once and fill those columns in as they compute. `[P]` The rest is `paintAll`
+(32 floors x 450 draws) and 32 `boxDownscale` calls, both one-off.
+
+`[D]` Neither is a correctness fault nor blocks the MVP, so both are recorded
+rather than fixed in the session that found them.
+
+## A3. Map exports — captured; one nice-to-have left
+
+Done 2026-08-29: all fourteen towers with saves captured, 16 exports for 14
+towers, oracle covering **62 040 cells over 292 floors**. Regenerate the
+longest-save table with
+`npx tsx tools/sav/longest-per-tower.ts data/saves/iestyn.2026.08.28`.
+
+`[P]` Uncaptured: a **`before` export**, taken immediately after restarting a
+tower, enabling SPEC-005's two-image diff (§5) alongside the single-image check.
+The single-image check is the stronger of the two and needs no baseline, so this
+is a nice-to-have. Towers 2-6 and 3-1 have no saves (B3), so nothing to export.
+
+## A4. ~~De-duplicate the game rules out of SPEC-004 §6~~ — done 2026-08-31
+
+`SPEC-004` §6 restated ten rules from `GAME_MECHANICS.md` §2-§5 and now cites
+them: **1082 → 880 lines**, no behaviour change. The one-way wall table moved to
+`GAME_MECHANICS.md` §3; nothing was deleted without a home to go to. `[F]` The
+rewrite also found the Adamantine Shield's signed-floor rule written out
+**twice inside §6 itself** — D33's failure mode, twice in one section.
 
 ## B. Loose ends from the oracle work
 
@@ -73,45 +99,34 @@ two and needs no baseline, so this is a nice-to-have, not a gap. Towers 2-6 and
 
 ## C. Experiments — all four run and passed
 
-C1-C4 were played on 2026-08-28 and all four confirmed the simulator. Results
-and the exact numbers are in `RESULTS.md`; the saves are in
-`data/saves/tests/` and asserted by `test/sim/experiments.test.ts`.
+C1-C4 were played on 2026-08-28 and all four confirmed the simulator. Numbers in
+`RESULTS.md`; saves in `data/saves/tests/`, asserted by
+`test/sim/experiments.test.ts`.
 
 The one that changed a belief: **C4**. The Hyper Pickaxe is *not* spent in
 preference to an ordinary Pickaxe on a Weak Wall — the ordinary one goes first.
-This had already been settled by the corpus before the test was played (flipping
-the rule drops the sweep to 324/326), which is worth remembering as a method:
-**a large corpus of real routes is itself a discriminating oracle.**
+The corpus had already settled it before the test was played (flipping the rule
+drops the sweep to 324/326), which is worth remembering as a method: **a large
+corpus of real routes is itself a discriminating oracle.**
 
-Everything else previously listed here is **answered by the source** and needs
-no play:
-
-- ~~One-way traversal recording, and whether the pathing checkbox must travel
-  with a shared route.~~ **No.** The loader detects a barrier at the target cell
-  and places the player there directly, skipping validation entirely
-  (`save_manager.lua:629-654`). Replay never consults the setting, so it is
-  editor-only. This retires the former "highest priority, and free" item.
-- ~~Battle Gate opened at a distance by a kill.~~ One kill decrements **every**
-  gate on the floor, wherever it is, and opens each that reaches 0.
-- ~~Verify the Adamantine Shield rounds up.~~ It does not; it is signed floor.
-- ~~Pather fallback test.~~ Moot: the loader has no fallback to test.
-- ~~Is picking up a held item optional?~~ No. Pickup is unconditional.
-- ~~Hyper Pickaxe: consumable or passive?~~ Consumable.
+Six further questions that once lived here are **answered by the source**. Their
+answers are in `GAME_MECHANICS.md`, where game rules live (D33), and are not
+restated here: one-way traversal recording, Battle Gates opened at a distance,
+Shield rounding, pather fallback, whether pickup is optional, Hyper Pickaxe
+consumability.
 
 ## D. Ask the developer
 
-- **Agree the wording of the "unofficial" notice.** He has asked for one and
-  said he needs to research what it should look like. A draft is in
-  `DECISIONS.md` D14b-1 to give him something concrete to react to.
-- **Confirm that publishing tower JSON is fine.** It is a text dump of every
-  level's contents, derived from `res/maps/*`. Our position is that it is
-  equivalent to what any player sees in game and carries no secret, but it is
-  his level design in machine-readable form, so worth asking as a courtesy.
-  **This gates `data/towers/`, which is already committed** — the one item here
-  with a live consequence.
+- **Agree the wording of the "unofficial" notice.** He asked for one and wants
+  to research it; a draft is in `DECISIONS.md` D14b-1 to react to.
+- **Confirm that publishing tower JSON is fine.** A text dump of every level,
+  derived from `res/maps/*` — equivalent to what any player sees in game and
+  carrying no secret, but it is his level design in machine-readable form, so
+  worth asking as a courtesy. **This gates `data/towers/`, already committed**:
+  the one item here with a live consequence.
 - **Would a public repo containing the sprite files be acceptable**, or should
-  assets stay outside the repo with the build pulling from them? The second is
-  the safe default and is what we are doing regardless.
+  assets stay outside it with the build pulling from them? The second is the
+  safe default and is what we do regardless.
 - Minor: `entitydef.orb_change.compendium_header` reads "Warp orb", duplicating
   `orb_warp`. Looks like a copy-paste slip.
 

@@ -9,7 +9,7 @@
 // Rejects loudly rather than guessing: interlaced images, 16-bit channels and
 // anything else LÖVE does not emit are errors, not best-effort decodes.
 
-import { inflateSync } from "node:zlib";
+import { deflateSync, inflateSync } from "node:zlib";
 
 export class PngError extends Error {
   constructor(message: string) {
@@ -173,4 +173,68 @@ export function distinctColors(png: Png): Set<number> {
     out.add((png.pixels[i]! << 16) | (png.pixels[i + 1]! << 8) | png.pixels[i + 2]!);
   }
   return out;
+}
+
+/**
+ * The other direction, for the SPEC-007 §6.1 atlas: RGBA in, an 8-bit truecolour
+ * PNG out. Filter 0 on every row -- an atlas is mostly transparent padding and
+ * deflate handles that better than any predictor would. Small enough to keep
+ * here rather than take a dependency (D11).
+ */
+export function encodePng(width: number, height: number, pixels: Uint8Array): Uint8Array {
+  if (pixels.length !== width * height * 4) {
+    throw new PngError(`pixel buffer is ${pixels.length} bytes, expected ${width * height * 4}`);
+  }
+  const raw = new Uint8Array(height * (1 + width * 4));
+  for (let y = 0; y < height; y++) {
+    raw[y * (1 + width * 4)] = 0;
+    raw.set(pixels.subarray(y * width * 4, (y + 1) * width * 4), y * (1 + width * 4) + 1);
+  }
+
+  const chunk = (type: string, data: Uint8Array): Uint8Array => {
+    const out = new Uint8Array(12 + data.length);
+    const view = new DataView(out.buffer);
+    view.setUint32(0, data.length);
+    for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    out.set(data, 8);
+    view.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+    return out;
+  };
+
+  const ihdr = new Uint8Array(13);
+  const iv = new DataView(ihdr.buffer);
+  iv.setUint32(0, width);
+  iv.setUint32(4, height);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 6; // colour type: RGBA
+  const parts = [
+    new Uint8Array(SIGNATURE),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", new Uint8Array(deflateSync(raw, { level: 9 }))),
+    chunk("IEND", new Uint8Array(0)),
+  ];
+  const total = parts.reduce((n, p) => n + p.length, 0);
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const p of parts) {
+    out.set(p, off);
+    off += p.length;
+  }
+  return out;
+}
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes: Uint8Array): number {
+  let c = 0xffffffff;
+  for (const b of bytes) c = CRC_TABLE[(c ^ b) & 0xff]! ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
 }

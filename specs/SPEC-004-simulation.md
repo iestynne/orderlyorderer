@@ -1,7 +1,13 @@
 # SPEC: Game Simulation Engine
 
-Status: **draft 6 — ready for implementation**, 2026-08-28.
+Status: **draft 7 — implemented**, 2026-08-31.
 Game source verified against: `v0.7-455` Lua dump.
+
+Draft 7 changes no behaviour. It rewrites §6 to **cite** `GAME_MECHANICS.md`
+instead of restating it (D33), which removed 202 lines and the last of the
+duplicated rules; and it corrects invariant 3, which had the pop-up chain
+backwards. Load `GAME_MECHANICS.md` alongside this spec — it is no longer
+optional, because the rules are only there now.
 
 Draft 6 closes every `[O]` in draft 5 by reading the Lua rather than running
 experiments, and corrects the rules that reading found wrong. The corrections
@@ -124,7 +130,7 @@ so it creates no undo item and never becomes a waypoint. Floor changes are
 therefore implicit, and our pathfinder must traverse stairs itself (§5).
 
 `[F]` **Axis convention:** `x` east, `y` **downward**, `z` up. Proven by the
-one-way wall predicates (§6).
+one-way wall predicates (`GAME_MECHANICS.md` §3).
 
 `[F]` **Tower flags** are a bitfield in the level metadata
 (`leveldata.lua:26-31`), tower-wide, not per-floor:
@@ -132,7 +138,7 @@ one-way wall predicates (§6).
 | Bit | Flag | Effect |
 |---|---|---|
 | 0 | `negative_keys` | **rewrites the entire key system** — see below |
-| 1 | `uncapped_elixirs` | removes the Elixir gain cap (§6) |
+| 1 | `uncapped_elixirs` | removes the Elixir gain cap (`GAME_MECHANICS.md` §4) |
 | 2 | — | an EX-4-only flag, deliberately unmodelled |
 
 `[F]` `negative_keys` is used only by tower EX-3, `uncapped_elixirs` only by
@@ -200,7 +206,7 @@ interface Player {
   held: HeldItem | null
   pendingPopup: Addr | null         // see §4.2
   win: 0 | 1 | 2                    // 0 none, 1 Crown, 2 Dark Crown
-  submittedScore: number            // max of all crown submissions, §6
+  submittedScore: number            // max of all crown submissions, §6 / GAME_MECHANICS §6.2
 }
 
 const enum CellState {
@@ -365,11 +371,10 @@ Strict order. Phases 1–2 are pure predicates; nothing mutates until phase 3.
 7. **Pop-up commit** (§4.2).
 8. **Assert** `1 <= power <= MAX_POWER`.
 
-### 4.2 Pop-up walls — two transitions, not one
+### 4.2 Pop-up walls — where the transitions sit in the pipeline
 
-`[F]` `entitydef.lua:921-951`, `game.lua:1560-1569`. The cell genuinely becomes
-empty while occupied; the black square in an exported map PNG is the real
-state, not a rendering artifact.
+**The rule is `GAME_MECHANICS.md` §3, "The pop-up life cycle".** Do not
+paraphrase it; D33. What belongs here is only *which phase* does what.
 
 **On entry** (phase 4), if the player does **not** hold a Levitation Feather:
 
@@ -432,7 +437,7 @@ no player-state change**:
 |---|---|
 | Empty / floor | yes |
 | Weak / Reinforced / Iron wall | no |
-| One-way wall | yes, iff entered from an allowed side (§6) |
+| One-way wall | yes, iff entered from an allowed side (`GAME_MECHANICS.md` §3) |
 | Pop-Up Wall | only while holding a Levitation Feather |
 | Spikes | only while holding a Levitation Feather |
 | Stairs Up / Down | yes — see §5.3 |
@@ -505,235 +510,116 @@ cell edit or change of held item. Do not build it speculatively.
 
 ---
 
-## 6. Cell rules
+## 6. Cell rules — the app's encoding of them
 
-`tier(p)` = decimal digit count of `|p|`, capped at 10. `[F]` The game computes
-it as a `while val >= 10 and tier < 10` division loop. `[D]` Implement by
-repeated division or string length — **never** `Math.log10`, which returns
-2.9999… for 1000 on some inputs.
+**Every game rule this section used to state now lives in `GAME_MECHANICS.md`,
+and is cited rather than repeated (D33).** What belongs here is only how the
+simulator *encodes* a rule: which `Player` fields move, which `CellEdit`s are
+emitted, which `ErrorCode` a refusal carries, and what `requirement` the entry
+demanded. If you find a game rule written out below, that is a bug in this
+document — fix it by deleting it and pointing at the paragraph that owns it.
+
+`[F]` Rewritten 2026-08-31. Draft 6 restated ten rules from `GAME_MECHANICS.md`
+§2-§5, and one of the paraphrases — the pop-up chain — was **backwards** for
+long enough to be implemented against and reviewed. Two more, the Adamantine
+Shield's signed floor, were duplicated inside this one section.
+
+| What you are looking for | Where it lives |
+|---|---|
+| Combat, enemy tiers, gold | `GAME_MECHANICS.md` §2 |
+| The held-item chain, in order, with guards | §5.3 |
+| Terrain, walls, digging precedence, spikes, one-way walls | §3 |
+| The pop-up life cycle | §3, and §4.2 above for the phases |
+| Gates and pickups; `negative_keys` | §4, §4.1 |
+| Held items, consumable and passive | §5.1, §5.2 |
+| Crowns, and what each submits | §6.2 |
+| Stairs | §3, §7 |
+
+### `tier()`
+
+`[D]` Implements the decade bands of `GAME_MECHANICS.md` §2. Implement by
+repeated division or by string length — **never** `Math.log10`, which returns
+2.9999… for 1000 on some inputs. `[F]` The Rapier's loop reaches 11 where the
+gold loop caps at 10 (§5.3), so do not share one `tier()` between them; the
+Rapier is out of scope in v1 but the helper is not.
 
 ### Enemies
 
-`[F]` Entry requires `power > ent.value` (strict), unless a Vorpal Blade is
-held, which always succeeds (`_enemy_can_interact`, `entitydef.lua:109`).
-
-`[F]` **`ent.value` is always stored positive; the sign lives in the entity
-type.** So a −25 enemy also requires `power > 25`, even though beating it costs
-power. Draft 5 wrote `base = enemy.power // signed`, which the tower JSON never
-provides. Route it through one helper so the rule documents itself and has its
-own test:
+`[D]` The sign is applied in exactly one place, so the rule documents itself
+and can carry its own test:
 
 ```ts
-// The ONLY place an enemy's value acquires a sign.
+// The ONLY place an enemy's value acquires a sign. GAME_MECHANICS.md §2.
 function signedBase(ent: Cell): number {
   return ent.kind === 'enemy_neg' ? -ent.value : ent.value
 }
 ```
 
-`[F]` The held-item branches are a single `elseif` chain in the game's enemy
-`interact`, which formally confirms mutual exclusivity and makes ordering
-between them unreachable.
+`[D]` Emissions on a kill: the cell → `Gone`, `step.killedOn = z`, and every
+Battle Gate on that floor re-evaluates (below).
 
-```
-base = signedBase(ent)
-if   held == VorpalBlade:                     delta = 0;             consume
-elif held == BlackRod  && kind == enemy:      delta = base * 2;      consume
-elif held == WhiteRod  && kind == enemy_neg:  delta = -base;         consume
-elif held == AdamantineShield:                delta = floor(base/2)
-elif held == Keysmasher:                      delta = base + keysmasherBonus()
-else:                                         delta = base
-power += delta
+`[D]` `requirement = ent.value`. It is the **entry threshold**, so no held item
+changes it — the Shield halves the power *change* and never the power
+*required*, because `can_interact` runs before any item is consulted. `[F]` A
+Vorpal kill's `requirement` is `ent.value` like any other, but its power delta
+is *absent* rather than zero: its branch never calls `modify_player_power`
+(§5.3).
 
-goldGain = tier(ent.value)
-if   held == GoldDagger:     goldGain += 2
-elif held == GoldenClaymore: goldGain *= 2      // elseif: they cannot combine
-gold += goldGain
-
-cell -> Gone;  step.killedOn = z
-// then: every Battle Gate on this floor re-evaluates (below)
-```
-
-`[F]` **The rod guards test the entity type, not the sign of `base`.**
-Equivalent in practice, but it is what makes a rod on the wrong enemy sign fall
-through to the bare `else` — taking the ordinary delta and **staying held**.
-Draft 5 flagged that as plausible-but-unvalidated; it is now read, so it needs
-a named test rather than an experiment.
-
-`[F]` **Black Rod / White Rod are `dark_rod` / `light_rod`** in `entitydef.lua`.
-Keep both names in view: the entity vocabulary uses one and the compendium the
-other, and confusing them inverts the sign rule.
-
-`[F]` The Adamantine Shield applies **signed floor**, not round-toward-zero:
-+5 → +2, +25 → +12, **−25 → −13**. Confirmed twice — measured in-game on tower
-2-2 floors 8 and 9, and read as `modify_player_power(math.floor(base/2))`.
-
-`[F]` **Keysmasher — settled, no longer `[O]`.**
-`keysmasherBonus() = negative_keys ? lightKeys² : lightKeys * darkKeys`, and
-the Lua adds it **to** the enemy's signed base:
-`modify_player_power(base_change + bonus)` (`entitydef.lua:178-186`). The HUD's
-`get_held_value` displays only the bonus, which is why it reads as bonus-only
-in play. Keys are not consumed.
-
-On a **negative** enemy this offsets the loss and can invert it: `−5` with a
-bonus of `+11` is a net `+6`. `[I]` iestyn reports exactly this in play, which
-is independent confirmation of the additive reading.
-
-`[F]` **Adamantine Shield** is `math.floor(base/2)` — signed floor, not
-round-toward-zero and not round-up: +5 → +2, +25 → +12, **−25 → −13**.
-Confirmed twice: measured in game on tower 2-2 floors 8 and 9, and read as
-`modify_player_power(math.floor(base_change/2))`.
-
-`[I]` Vorpal Blade is consumed on the next attack of any kind, not only on
-attacks the player would otherwise lose. `[F]` Its branch never calls
-`modify_player_power` at all, so the delta is genuinely absent rather than
-zero — the distinction matters only for the power-change animation, but it is
-why `requirement` for a Vorpal kill is 0, not `ent.value`.
-`[F]` The Shield halves the power *change* but never the power *required* to
-win: `can_interact` is evaluated before any held item is consulted.
+`[D]` The item chain is a `switch` in `resolveEntry`, written in §5.3's order
+even though that order is unreachable — the game's is an `elseif` chain, so
+mutual exclusivity is structural. Keeping the order makes the two read alike.
 
 ### Battle Gates
 
-`[F]` `entitydef.battle_gate`. A gate carries a countdown `value`. Every enemy
-defeated **on the same floor** decrements every Battle Gate on that floor; any
-gate reaching 0 opens. A Master Key also opens one directly (`can_interact` is
-`held_item == "master_key"`); otherwise it simply blocks.
-
-`[D]` Cell state stays uniform — an open gate is `Gone` in the mask like
+`[D]` **Cell state stays uniform.** An open gate is `Gone` in the mask like
 everything else, so tile queries need no special case. Only the kill step does
-the arithmetic, using `kills[z]` against each gate's initial value, and emits
-one `CellEdit` per gate that opens.
+the arithmetic, emitting one `CellEdit` per gate that opens.
 
-`[F]` The game does this destructively — it decrements every still-closed gate
-on the floor and opens the ones hitting exactly 0 — while we compare a running
-count against the immutable initial value. The two agree because an opened gate
-stops being decremented (`if type == "battle_gate"` excludes it), so values
-never pass below 0, and because a Master-Key opening also removes the gate.
-Worth stating: it is the one place where "immutable parameters, mutable enum"
-diverges structurally from the game and still has to match it exactly.
+`[D]` **We count up where the game counts down.** `GAME_MECHANICS.md` §4 has
+the game decrementing every still-closed gate on the floor; we compare a
+running `kills[z]` against each gate's immutable initial value. The two agree
+because an opened gate stops being decremented, so values never pass below 0,
+and because a Master-Key opening also removes the gate.
 
-### Gates
+This is the one place where "immutable parameters, mutable enum" (§3) diverges
+*structurally* from the game and still has to match it exactly, which is why
+invariant 6 asserts the equivalence rather than trusting it.
 
-All become `Gone` when opened. `[I]`
+### Gates, walls, items and terrain
 
-| Cell | Cost | Master Key |
-|---|---|---|
-| Light Gate (`door`) | 1 Light Key (`lightKeys > 0`) | substitutes, consumed |
-| Dark Gate (`dark_door`) | 1 Dark Key — but see `negative_keys`, §2 | substitutes, consumed |
-| Gold Gate (`money_door`) | `value` Gold | substitutes, consumed |
-| Half Gate (`gate`) | `power = ceil(power / 2)` | substitutes, consumed, power unchanged |
-| Battle Gate | see above | `[F]` opens it, consumed |
-| Gem Gate (`gem_door`) | `value` gems (`gemsSpent += value`) | **does not apply** `[I]` |
+`[D]` Every payable cell is `Original → Gone` when paid. The pop-up chain is
+the sole exception; it is invariant 3, and the rule behind it is
+`GAME_MECHANICS.md` §3.
 
-`[I]` Master Key consumption is **non-optional**: it is spent even when the
-player has the ordinary key to spare. True of every item except Orbs.
+`[D]` `requirement` is `ent.value` for an enemy and for a Spike — the two cells
+that gate on power — and 0 for everything else. It records what the move
+*demanded*, never what it cost, because it is the input to the power-graph
+margin track (§8).
 
-`[F]` Gems are tracked as **spent**, not remaining (`player.gems_spent`) —
-necessarily, since a save must load correctly after the player earns more gems
-elsewhere, and gems are never lost.
+`[D]` Refusals carry the `ErrorCode` naming the resource that fell short (§7).
+`NEED_PICKAXE` and `NEED_HYPER_PICKAXE` stay distinct because the wall values
+that produce them are distinct, and telling a player they need a Pickaxe on a
+Reinforced Wall is actively misleading.
 
-`[I]` Gem Gates cluster on dedicated floors but also appear mid-route
-(2-1 f10; 1-6 f21 and f17).
+`[D]` Gems are tracked as `gemsSpent`, counted up, never as a remaining balance
+counted down. `GAME_MECHANICS.md` §4 has the game's reason; §10 has ours for
+taking `gemsOwned` as an input.
 
-### Walls
+`[D]` **Crowns persist and set `win`**, and `submittedScore` is a `max`
+**within the run**. `GAME_MECHANICS.md` §6.2 gives the game's across-run
+maxima; the within-run max is ours, for the same reason the game's exists — one
+run can submit twice, taking the Crown, rewinding, and taking the Dark Crown,
+and a later worse submission must not erase a better one. `[F]` The hi-score
+oracle cannot distinguish the two policies, since it reads only the final
+value, so this is settled by matching the game's structure rather than by test.
 
-`[F]` Wall grid values, confirmed against the movement code's own precedence
-(`game.lua:1421-1509` tests `3`, then `2`, then `1`, in that order):
+`[P]` Track prospective score every step — `power`, and `min(power*2,
+MAX_POWER)` — so the UI can show the anticipated Crown and Dark Crown values
+without mental arithmetic. Only Crown entry commits it.
 
-| Value | Cell | Entry |
-|---|---|---|
-| 0 | empty floor | free |
-| 1 | Weak Wall | 1 Pickaxe if `pickaxes > 0`, **else** Hyper Pickaxe (consumed) → Gone |
-| 2 | Reinforced Wall | Hyper Pickaxe only (consumed) → Gone |
-| 3 | Iron Wall | never — `BLOCKED_IRON` |
-| — | Pop-Up Wall (entity) | always enterable; §4.2 |
-| — | One-Way Wall (entity) | below |
-
-`[F]` **The ordinary Pickaxe is always spent first.** The Hyper Pickaxe branch
-on a Weak Wall is an `elseif` reached only when `pickaxes == 0`, so a player
-holding both loses the ordinary one. Getting this backwards silently over-counts
-Hyper Pickaxes, which are far scarcer.
-
-`[F]` **The Hyper Pickaxe is single-use** — `held_item = nil` on both branches.
-This closes an open question in `GAME_MECHANICS.md`.
-
-`[F]` A converted pop-up becomes value **2**, so an ex-pop-up needs a Hyper
-Pickaxe, not a Pickaxe (`entitydef.lua:938`, `game.lua:1569`).
-
-`[F]` Getting 2 and 3 the wrong way round would be quiet and widespread — the
-shipped distribution is 6 473 Weak / 23 468 Reinforced / 5 634 Iron — so §11
-carries a named case for each of the three.
-
-`[F]` **One-way walls** (`entitydef.lua:954-1000`). The direction letter names
-the **blocked side**:
-
-| Cell | Enterable when | blocked from |
-|---|---|---|
-| `barrier_u` | `player.y >= ent.y` | above |
-| `barrier_d` | `player.y <= ent.y` | below |
-| `barrier_l` | `player.x >= ent.x` | the west |
-| `barrier_r` | `player.x <= ent.x` | the east |
-
-`[F]` Three of four approaches are always allowed; the cell is not consumed
-(`interact` returns `true` and changes nothing) and there is no exit
-restriction — `can_interact` gates entry only.
-
-### Items and terrain
-
-| Cell | Effect on entry | Cell after |
-|---|---|---|
-| Light Key (`key`) | `lightKeys += 1` | Gone |
-| Dark Key (`dark_key`) | `darkKeys += 1`, or `lightKeys -= 1` under `negative_keys` | Gone |
-| Pickaxe | `pickaxes += 1` | Gone |
-| Gold Bag (`money`) | `gold += value` | Gone |
-| Elixir | below | Gone |
-| Held Item | previous held item **destroyed** `[F]`, new one held | Gone |
-| Crown | `win = 1`; `submittedScore = max(submittedScore, power)` | **persists** `[I]` |
-| Dark Crown | `win = 2`; `submittedScore = max(submittedScore, min(power*2, MAX_POWER))` | **persists** `[I]` |
-| Spike (`spikes`) | below | **persists** `[I]` |
-| Stairs Up / Down | teleport (§4.1 phase 6) | unchanged |
-| Empty / floor | none | unchanged |
-
-`[F]` **Keys and Pickaxes increment by 1. The tile's `value` is ignored** —
-`game.player.keys = game.player.keys + 1`, with no reference to `ent.value`
-(`entitydef.lua:527, 552, 665`). Draft 5 said "increment counter by `value`",
-which would be wrong on any tile whose value is not 1. `money` is the only
-pickup that reads `value`.
-
-`[F]` **Pickup is mandatory**, not merely conventional: every held-item entity's
-`can_interact` is a bare `return true` and its `interact` overwrites `held_item`
-unconditionally. There is no branch that can decline, so a tile holding an item
-is impassable-without-cost while carrying a passive. This was the highest-
-priority open mechanics question and it is now closed by reading.
-
-`[F]` **Elixir:** the gain is capped independently of the global power cap —
-`power += min(power, 1_000_000_000)`, unless the tower's `uncapped_elixirs`
-flag is set, in which case `power += power`. At 3e9 power a normal Elixir
-yields 4e9, not 6e9.
-
-`[I]` **Spike:** with a Feather held, entry is always legal, no damage, Feather
-not consumed — the power check is skipped entirely. Without it, entry requires
-`power > value`, then `power -= value`. Spikes persist and can be re-triggered.
-
-`[F]` **Crowns** set a win flag and submit a score: Crown submits `power`
-(win = 1), Dark Crown `min(power*2, MAX_POWER)` (win = 2)
-(`entitydef.lua:855-901`). `[I]` Neither ends the run — the player may rewind,
-change things, and reach the other — so both cells persist.
-
-`[F]` **`max`, and the question draft 5 asked badly.** `Scores:submit` writes
-`score_data[level]` only when `score >` the stored value, and `crown_data[level]`
-only when `crown_tier >` the stored tier — two independent maxima, and both are
-*across all runs ever*, held in the player's `score` and `crown` files.
-
-Since one run can submit twice (take the Crown, rewind, take the Dark Crown),
-the sim needs a per-run answer too, and it should be **`max` within the run**,
-for the same reason the game uses `max` across runs: a later, worse submission
-must not erase a better one. Hence `submittedScore = max(...)` above. The
-hi-score oracle cannot tell the two apart — it only reads the final value — so
-this is settled by matching the game's structure, not by a test.
-
-`[P]` Track prospective score every step (`power` and `min(power*2,
-MAX_POWER)`) so the UI can show anticipated Crown / Dark Crown value without
-mental arithmetic. Only Crown entry commits it to `score`.
+`[F]` **§11 carries a named case per wall value.** Getting 2 and 3 the wrong
+way round would be quiet and widespread: the shipped distribution is
+6 473 Weak / 23 468 Reinforced / 5 634 Iron.
 
 ---
 
@@ -825,9 +711,16 @@ Assert in debug builds; test as properties (§11).
    Asserting keys non-negative unconditionally would fail on EX-3 by design,
    not by bug — see §2.
 3. Every `CellEdit` is a legal transition. `[D]` A two-line function, not a
-   table: `Original → Gone` for everything, plus `Original → Reinforced` and
+   table. The rule is **`GAME_MECHANICS.md` §3, "The pop-up life cycle"** —
+   read it there; this spec states only the `CellState` encoding of it:
+   `Original → Gone` for everything, plus `Gone → Reinforced` and
    `Reinforced → Gone` for pop-ups only. `[I]` The pop-up chain is real and was
    load-bearing in a best Orderly Order run.
+   `[F]` **Corrected 2026-08-31 (D33).** Draft 6 paraphrased the game rule here
+   and got it backwards. `GAME_MECHANICS.md` had it right the whole time, and
+   so did §4.2 of this spec — the wrong copy was the third one. Found by the
+   D32 double build of `Cursor`; the chains the corpus actually contains are
+   counted in SPEC-007 §8.
 4. `to` is orthogonally adjacent to `from` and on the same floor. The player's
    position after the step equals `to`, **except** on a stairs entry, where it
    is `(z±1, to.x, to.y)` — exactly one teleport, never two.
@@ -864,7 +757,7 @@ Draft 5 had four. All four are closed; one new one takes their place.
    hypothetical the derived value cannot express. Computing it from the `score`
    and `crown` files is a convenience that prefills the box, not a replacement.
    `[D]` For the replay sweep (§11 oracle 1), pass `Infinity`.
-2. **Keysmasher total vs bonus — closed `[F]`.** It is `base + bonus`; §6.
+2. **Keysmasher total vs bonus — closed `[F]`.** It is `base + bonus`; `GAME_MECHANICS.md` §5.2.
 3. **Stairs arrival cell — closed `[F]`.** Always enterable terrain, measured
    over all 581 stairs. Phase 6 is explicitly non-recursive; §4.1.
 4. **Wall-and-entity on one cell — closed `[F]`.** Zero, over all 16 towers.
@@ -991,86 +884,3 @@ set first.
 | Enemy −25, power 26, no item | power **1** |
 | Crown entry, power 900 | score **900**, cell still Crown |
 | Dark Crown entry, power 900 | score **1800**, cell still Dark Crown |
-| `barrier_u` entered from above | `BLOCKED_ONE_WAY` |
-| `barrier_u` from below / left / right | legal, cell unchanged |
-| `barrier_l` from the west | blocked |
-| Pathfind across a Light Gate with 5 Light Keys | **`NO_PATH`** (passivity) |
-| Pathfind across a spike, no Feather | **`NO_PATH`** |
-| Pathfind across a spike, Feather held | route found, power unchanged |
-| Pathfind across two floors via stairs | route found, floors traversed |
-| Route touching an Orb or Rapier | `UNSUPPORTED_ENTITY` |
-
-**Prerequisite for oracles 1 and 2: reading `.sav` from TypeScript**
-
-`[O]` Both primary oracles need to read save files, and the only codec is
-`tools/luajit_buffer.py` — Python. As written, `npm test` cannot run the primary
-regression net at all. Three options:
-
-| Option | Cost | Consequence |
-|---|---|---|
-| **Port the codec to TypeScript** | one focused spec; the format is fully documented in `SAVE_FORMAT.md` and the Python version is a verified reference to differential-test against | `npm test` self-contained; no Python in the test path |
-| Shell out to Python from the test | small | adds a Python runtime to `npm test`, and a second language to every CI story |
-| Pre-convert saves to committed JSON waypoint fixtures | small | oracles run on a clean clone, but the fixtures drift from the saves and hide codec bugs |
-
-`[P]` **Recommend the port.** It is the only option that leaves the sim's
-primary oracle runnable by the ordinary test command, the format is small and
-already reverse-engineered, and the Python codec becomes the differential test
-rather than a dependency. It should be its own spec, not smuggled into this one.
-
-`[D]` **The save corpus is committed, at `data/saves/<owner>.<date>/`.** It is
-iestyn's own play data, not the developer's level design, so it carries none of
-the permission question that gates `data/towers/` (TODO §D). Committing it makes
-both oracles run on a clean clone, which is worth more than the ~830 KB.
-
-`[D]` The tests still **skip rather than fail** when the directory is absent, and
-honour `TOS_SAVE_DIR` for a corpus held elsewhere — otherwise a missing corpus
-would show green while testing nothing.
-
-`[F]` The score data lives in two extension-less files in the game's save
-folder, named **`score`** and **`crown`** — singular. `scores.lua` is the game's
-source and holds no data.
-
-**Oracles, cheapest first**
-
-1. **Zero-error replay sweep.** Replay every save in every `.sav` (they are
-   packed folders of multiple named saves) from first waypoint to last; assert
-   no error. This is the primary regression net and it is far stronger than it
-   sounds: every waypoint must be both *reachable* — exercising traversability,
-   Feather rules, one-way directions and stairs — and *legal* — exercising
-   every gate, wall, enemy and item rule. Errors compound forward, so a single
-   mis-modelled rule usually kills an entire replay rather than hiding.
-   `[F]` Remember our sim is stricter than the game's loader (§5.3): triage a
-   cross-floor `NO_PATH` before assuming it is our bug.
-2. **Hi-score oracle.** `[F]` The `score` file is plain alternating
-   lines of tower name and best score. `[I]` iestyn's hi-scores are all Dark
-   Crown runs, so for each `AUTOSAVE_HISCORE` save, assert
-   `finalScore == score-file value`, i.e. final power `== value / 2`.
-   Supporting evidence: all fourteen recorded scores are even, and the largest
-   (EX-1, 1.66e10) is far below `MAX_POWER`, so none are clamped and the
-   halving is exact. This is a genuine end-state check requiring **no PNG
-   work**.
-3. **Final map golden** — this is SPEC-005's job. `[D]` The
-   extractor emits the **same JSON schema as the tower initial-state files**,
-   fully populated, so one structural differ serves initial state, sim output
-   and extractor output. Bonus test: extract a PNG of a tower's *starting*
-   state and assert it round-trips to the initial JSON exactly — two very
-   different code paths reaching one value.
-   `[F]` The exported PNG composites the player sprite **over** the cell it
-   occupies (stairs and spike pixels survive around the sprite's edges; a
-   win-state export hid the Crown). The differ must mask the player's final
-   position and the extractor schema needs an `unknown` marker.
-   `[F]` A player standing on a pop-up renders as pure black, which is that
-   cell's true state (§4.2) — indistinguishable from occlusion in the image, so
-   the mask covers it either way.
-4. **Property tests** over fuzzed legal walks: invariants 1–7 of §9.
-5. **Journal test:** for ~20 sampled `k` per save, assert `Cursor.seekTo(k)`
-   matches a fresh truncated simulation, and that seeking away and back
-   reproduces state at `k` exactly (invariant 8).
-6. **Determinism test:** one test, not a suite (invariant 9).
-
-**Deliberately rejected tests.** A final-position check is near-tautological —
-the last waypoint is applied as a move target, so we reach it by construction;
-it validates only the parser's stairs-offset quirk and belongs in the parser's
-tests. Prefix consistency across saves from the same run is the determinism
-test in disguise: if the sim is a pure fold over the waypoint list, replaying
-save B's first *k* waypoints is literally the same input as save A's.

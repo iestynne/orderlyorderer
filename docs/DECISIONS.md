@@ -269,6 +269,82 @@ irreversible tower-state changes within a route; a gold ledger that reconciles
 log). Critical-path logic touching none of these is
 a signal the invariant set has a hole.
 
+**D32. The reimplementation test: build a module twice from the docs alone, and
+diff the two against the corpus.**
+`[P]` Open method, first trial scheduled for `Cursor` (`TODO.md` §A2 stage 1).
+
+The question it answers is whether the docs actually **determine** the code, or
+merely describe one implementation of it. Nothing else asks this: the suite
+checks that the code is self-consistent, never that a reader starting from the
+docs would arrive at the same place. `[I]` iestyn: a fresh Claude context and a
+new team member are the same kind of reader, and both are misled identically.
+
+Divergences sort into three classes, and only the third is interesting:
+
+1. **The docs constrain it and the two differ** — an ordinary bug, in the code
+   or in the doc.
+2. **The docs deliberately leave it free** — correct. That is the latitude the
+   doc granted on purpose.
+3. **The docs should constrain it but silently do not** — the divergence *is*
+   the finding. It has located an assumption that existed only in the code and
+   in our heads.
+
+`[D]` Each class-3 finding is then either written down, or **explicitly declared
+free**. The second is as valuable as the first and cheaper: a doc that says a
+thing is unconstrained stops the question being reopened.
+
+`[D]` Trial on a **module, not the app** — full reimplementation is too
+expensive to be a habit. `Cursor` is the right first subject: small, pure,
+specified with named invariants, and two implementations can be differentially
+tested against each other over all 326 corpus records. Agreement means the spec
+determined the behaviour; disagreement isolates class 3 exactly. The invariants
+that make the comparison possible already exist, so the experiment is close to
+free.
+
+`[O]` What to do if the two agree but both are wrong is not addressed here. The
+corpus oracles are the guard against that, not this test.
+
+## Presentation
+
+**D26. Towers of Scale is monochrome, so every hue is available to us.**
+`[F]` Light sprites on black, cyan for the player alone — `data/reference/ui/`.
+Consequences: overlay colour (route trail, beatable/unbeatable tint, threshold
+highlighting) can never collide with the game's own presentation; a tint is one
+composite pass rather than a recoloured sprite. SPEC-007 §5.2 requires the
+renderer to take a per-cell tint override from the start, unused in slice 1, so
+the threshold analysis drops in without restructuring.
+
+**D27. The app mirrors the game's presentation exactly: 1x logical canvas,
+integer upscale, nearest filtering.**
+`[F]` `main.lua` renders to 426x248 and scales by `min(w/426, h/248)`, flooring
+to an integer only under the `pixel_perfect` setting; `linear_filter` selects
+the upscale filter separately. We mirror both settings — two booleans for exact
+parity with however the user has the game configured. `[I]` iestyn: familiarity
+is what makes a tower state parseable at a glance after dozens of hours.
+
+**D27a. The game's status panel is exactly 186 logical pixels wide** — 426
+minus one 240px floor — and its layout coordinates are read from
+`game.lua:1995-2031`. Our status column reuses both, so the block is
+pixel-identical to the one the player already reads. SPEC-007 §8.1.
+
+**D28. Visual mocks are snapshots, never canonical.**
+Every dimension a mock shows is restated in the spec as a number, because
+numbers are testable and pictures are not; where they disagree the spec wins.
+A mock is kept only until the app renders the same view, then deleted.
+
+`[F]` **Carried out 2026-09-01.** `docs/reference/tower-scrubber-mock.html` was
+the mock that settled the SPEC-007 layout. The app now renders that view and
+`[I]` iestyn judges it better in every respect, so the mock is deleted rather
+than left to rot into a second, wrong description of the UI. Its numbers live in
+SPEC-007 §5, which is where they were always meant to be. Nothing referenced it
+but the three notes saying it could go.
+
+**D29. No placeholder tileset in slice 1; the repo does not build standalone.**
+D14b-1 anticipates a placeholder set so that anyone without the game archive can
+build. It is deferred, not dropped: until it exists, a build requires
+`../local/game/`. Recorded because it is a real limitation of the published
+repo, not an oversight.
+
 ## Workflow
 
 **D23. Opus/Fable for design, specs, format reverse-engineering and
@@ -279,5 +355,134 @@ refactors.**
 Long threads re-send their whole history every turn, so a 40-turn conversation
 costs far more per message than a 5-turn one.
 
+**D24a. UI iteration runs inside one conversation, contra D24.**
+D24 is right for implementation and wrong here. On the fourth round of "the
+trail is still too busy", the context that matters is the three things just
+rejected — chat state, not doc state. Reloading from docs each round loses it
+and costs more. The doc is updated once, at the end, when the shape has settled.
+`[I]` Rejected options still get recorded here when the reason is worth
+keeping, as everywhere else in this file.
+
 **D25. Every subtask opens with a cost estimate; over ~5 tool calls, wait for
 approval. If an approach fails twice, stop and report — don't try a third.**
+
+**D30. UI is specified in two documents, split by testability.**
+The spec-first discipline was built for reverse-engineering, where the facts
+precede both spec and code and freezing is therefore safe. UI inverts that: the
+artefact precedes the judgement, so a frozen UI spec freezes a guess.
+
+- `specs/SPEC-NNN` holds only what is **numerically testable** — constants,
+  measured facts, interfaces, invariants, the Verification Contract. It freezes.
+- `docs/UI.md` describes **current behaviour in natural language**. It is
+  mutable and current-state-only, like every other file in `docs/`.
+
+The test for which one a statement belongs in: *would it change because you
+looked at the screen and disliked it?* If yes it is behaviour, not contract.
+The two must not overlap. `[I]` A green suite must never be mistaken for a
+working UI, so the contract says so explicitly.
+
+**D31. Design docs are bounded, and shrink as often as they grow.**
+`[I]` iestyn: accumulating documentation is a default-nervous thing to do,
+because nothing tells you when a doc lies, and both a new team member and a
+fresh Claude context are misled by the same stale sentence. Drift is hard to
+avoid by discipline alone, so the rules are structural:
+
+1. **Only what can be verified by looking.** A sentence that cannot be checked
+   against the running app in under a minute is a decision (→ here) or
+   speculation (→ delete).
+2. **No implementation detail** in a design doc — no module names, no data
+   flow, no algorithms. Those are what drift; the spec and the code own them.
+3. **A change that makes a sentence false deletes it in the same edit.**
+4. **A line budget**, so the doc stays short enough to actually re-verify in one
+   pass. `docs/UI.md`, `STATUS.md`, `TODO.md`: **150 lines** each.
+
+`[I]` Over budget is a signal to **think harder, not to split** — if it will not
+compress, the design is not understood yet, and a design that will not compress
+usually reads as a cluttered UI too. `[F]` The benchmark that says 150 is
+achievable rather than aspirational: `SPEC-006` fully specifies the `.sav`
+codec in **146 lines**, and that codec round-trips 326/326 records exactly.
+
+`DECISIONS.md` is exempt from a line cap — it is a ledger and legitimately
+grows — but not from deletion: a superseded decision is **removed**, not struck
+through. Specs are exempt because they freeze and their size is set by the
+subject, not by neglect.
+
+`[D]` Panels stay sections of one file rather than separate files, so loading
+context is predictable rather than a guess about which subset a task needs.
+Revisit if a section outgrows the budget on its own.
+
+**D33. A game rule has exactly one home, and it is `GAME_MECHANICS.md`. Specs
+cite it; they never restate it.**
+
+`[F]` Prompted by a real bug found on 2026-08-31. The Pop-Up Wall life cycle was
+stated in three places. `GAME_MECHANICS.md` §3 had it right. `SPEC-004` §4.2 had
+it right. `SPEC-004` §9 invariant 3 and `SPEC-007` §4.4 had it **backwards** —
+`Original → Reinforced → Gone` where the game does `entity → empty → wall` — and
+the wrong pair had been read, implemented against and reviewed without anyone
+noticing, because each copy is locally plausible.
+
+`[I]` iestyn: we should not have game rules, or other critical app logic, listed
+in multiple places; there is a reference doc for this, so reference it.
+
+The failure mode is specific and worth naming: **a paraphrase of a rule reads as
+an independent confirmation of it.** Three statements looked like corroboration
+and were actually one source plus two guesses. The corpus could not catch it
+either, because the simulator only ever ran one of the encodings.
+
+`[D]` So:
+
+1. **`GAME_MECHANICS.md` is the only place a game rule is stated.** If a rule is
+   not in there, put it there first.
+2. **A spec may state the app's *encoding* of a rule** — `CellState`, an
+   interface, an invariant's exact form — because that is ours, not the game's.
+   It cites the rule it encodes and does not re-derive it.
+3. **A spec that needs a consequence cites the consequence, not the rule.**
+   SPEC-007 §4.4 wanted "at most three edits per cell"; it had no business
+   restating why.
+4. `[D]` **When you catch yourself explaining a game rule in a spec, that is the
+   signal.** Move it to `GAME_MECHANICS.md` and leave a pointer.
+
+`[D]` This extends D18: a change to a canonical doc needs a diagnostic test.
+The diagnostic for a *rule* is a test that names the rule's content — the edit
+bound alone passed happily against the inverted chain, and only asserting the
+chains by name caught it (`test/sim/cursor.test.ts`, invariant 4).
+
+**D34. A scroll unit is a view device; a route segment is simulation state.
+They share no code, no layer and — deliberately — no word.**
+
+`[I]` iestyn: segments are lower level, they affect save state and simulation;
+the scroll-related sub-sequences are UI only.
+
+`[F]` This began as a name collision. The timeline strip grew a `Segment` type
+for laying out a working set of floors, while `DESIGN_ROUTE_EDITING.md` §4 and
+`SPEC-008` already owned "segment" for the user-named, skippable divisions of a
+route. Two concepts, one word, and the second one was being drafted in another
+session at the same time — so nothing in either place would have caught it.
+
+`[D]` The two are kept apart by layer, not by care:
+
+| | Route segment | Scroll unit |
+|---|---|---|
+| Owns | `SPEC-008`, `src/sim/` | `docs/UI.md`, `src/ui/render/` |
+| Made of | route waypoints the player groups and names | floors that happen to fit the strip |
+| Lifetime | persists; affects save state and simulation | recomputed whenever the window resizes |
+| Survives a resize | yes | no, and that is the point |
+
+`[D]` Invariant 5 already forbids `src/sim/` from importing the UI, so the
+dependency cannot run the wrong way. What that does not catch is the *word*
+leaking back down, so a test asserts `src/sim/` never mentions `ScrollUnit`.
+
+**The finding worth keeping.** `UI.md` §6 deferred smart layout for wanting a
+tuning parameter — "how much oscillation should count" — and that parameter
+turned out not to exist. The honest threshold is **how many tiles fit on the
+screen**, which is not a number anyone has to choose: it is already determined
+by the layout, and it adapts to the window instead of being guessed once.
+
+`[I]` Confirmed by iestyn: the threshold for the working set is the number of
+fully visible tiles.
+
+`[D]` Worth generalising, carefully: **a parameter that resists being chosen is
+sometimes a parameter that is already determined by something else.** Before
+adding a knob, look for the quantity the system already knows. This is not a
+licence to eliminate every parameter — `dHue` and the stack's dimensions are
+genuinely matters of taste and stay tunable — but it earned its keep once.

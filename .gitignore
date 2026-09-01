@@ -6,3 +6,6 @@ assets/game/
 v0.*-*.zip
 node_modules/
 dist/
+
+# SPEC-007 §6.1: the asset build output. Game art, never publishable (D14b).
+build/

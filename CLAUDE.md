@@ -29,6 +29,14 @@ src/ test/
   once, commit the derived tower JSON, and depend on that. D14e.
 - **Docs are canonical; code is derived.** A behaviour change updates the
   relevant doc in the same commit. Disagreement between them is a bug in both.
+- **A game rule has exactly one home: `docs/GAME_MECHANICS.md`.** Specs cite it,
+  never restate it — a paraphrase reads as independent confirmation and is not
+  one. A spec may state the app's *encoding* of a rule, and cites the rule it
+  encodes. D33.
+- **Before naming a new type, check the word is free.** `grep` the docs for it.
+  "Segment" already belonged to route editing when the UI grew a `Segment`;
+  it is `ScrollUnit` now. A view concept and a simulation concept must never
+  share a word. D34.
 - **Less code is better.** Refactor toward smaller as part of the task, not as
   follow-up work. D11.
 - The simulation engine is a **pure module with no UI imports**. D7.
@@ -38,6 +46,14 @@ src/ test/
   would differ if the change were wrong. D18.
 - Anything from a chat that you'd be annoyed to lose goes into docs/
   in the same session it's learned.
+- **Commit at each checkpoint, not at the end.** A commit is a bisect point,
+  not a publication — commit broken states too, and fold the session's commits
+  at the tail once it all tests. A bug with a commit boundary around it shows
+  you *why* in one diff; the same bug buried in an hour of uncommitted work
+  does not.
+- **Never reach outside localhost.** No fetching, browsing or downloading from
+  the network during a task. `.claude/settings.json` denies it; this is here so
+  the rule is also stated where you will read it.
 
 ## Verification
 

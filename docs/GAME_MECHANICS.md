@@ -101,6 +101,22 @@ Wall grid values in `res/maps/*`, **confirmed against the movement code**
 Pop-Up Wall is written as `2` (`entitydef.lua:938`, `game.lua:1569`), which
 matches "becomes a Regular Wall".
 
+**The pop-up life cycle, in order.** One cell, up to three changes, and the
+order is easy to get backwards:
+
+> **entity → empty → Regular Wall → empty**
+
+Stepping on a Pop-Up Wall *removes* it (`ent.type = nil`, `entitydef.lua:938`),
+so the cell is genuinely **empty while the player stands on it** — the black
+square in an exported map PNG is the real state, not a rendering artifact. The
+wall is raised **behind** the player when they leave (`walls[x][y] = 2`,
+`game.lua:1569`). From then on it is an ordinary Regular Wall, so a Hyper
+Pickaxe can destroy it, which is the third change. **This is the only cell in
+the game that changes state more than once**, and everything downstream — undo,
+scrubbing, edit bounds — depends on the order above. `[F]` Two specs restated
+this backwards and were corrected on 2026-08-31 (D33); cite this paragraph
+rather than paraphrasing it.
+
 **Digging precedence.** On a Weak Wall the game spends an ordinary Pickaxe
 *first*; the Hyper Pickaxe branch is an `elseif` reached only when
 `pickaxes == 0`. So a player carrying both loses the ordinary one. On a
@@ -119,6 +135,22 @@ nothing.
 | **Pop-Up Wall** | Walkable. Stepping on removes the entity and marks it pending; it becomes a **Regular Wall** (`walls = 2`) once the player leaves. Negated entirely by a Levitation Feather. Only **one** pop-up is pending at a time — `entitydef.popup.interact` converts the previous one when a new one is entered, and `Game:popup_check` (`game.lua:1560`) converts it on any other move away. `popup_check` compares **floor as well as x/y**, so taking stairs off a pop-up converts it too. It is called from every exit path of `Game:move_dir`, including the blocked ones, where it is a no-op because the player has not moved. |
 | **Spikes** | Walkable trap, indestructible. Entering costs the shown power, every time. **Entry requires `power > value`** (strictly greater, exactly as for combat) unless holding a Levitation Feather. Confirmed in `entitydef.spikes.can_interact`. |
 | **Stairs Up** / **Stairs Down** | Move the player to the **same `(x, y)`** on the adjacent floor. Always. What varies is whether a matching staircase exists there to come back — see §7. |
+
+**One-way walls, per direction.** `[F]` `entitydef.lua:954-1000`. The direction
+letter names the **blocked side**, and the guard is a comparison against the
+player's own coordinate, not a movement direction:
+
+| Cell | Enterable when | Blocked from |
+|---|---|---|
+| `barrier_u` | `player.y >= ent.y` | above |
+| `barrier_d` | `player.y <= ent.y` | below |
+| `barrier_l` | `player.x >= ent.x` | the west |
+| `barrier_r` | `player.x <= ent.x` | the east |
+
+So three of the four approaches are always allowed, including from the same
+row or column. `can_interact` gates **entry only** — there is no exit
+restriction — and the cell is not consumed: `interact` returns `true` and
+changes nothing, so a one-way wall works the same way every time.
 
 ## 4. Gates and pickups
 
