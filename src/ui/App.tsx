@@ -6,12 +6,11 @@
 
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { hasOrbMoves, routeFromRecord } from "../sav/route";
+import { routeFromRecord } from "../sav/route";
 import { parseSaveFile, type SaveRecord } from "../sav/savefile";
-import { simulate } from "../sim/simulate";
-import { stopStepIndices } from "../sim/cursor";
 import type { TowerJSON } from "../sim/types";
 import { knownTowerIds, loadSheet, loadTower, manifest, towerIdFromFilename } from "./assets";
+import { blankSummaries, fillSummaries, type Summary } from "./records";
 import { Scrubber, type ScrubberSettings } from "./scrubber";
 
 const NOTICE =
@@ -19,36 +18,11 @@ const NOTICE =
   "It is not made by, endorsed by or affiliated with the game's developer.";
 const SAVE_HINT = "%APPDATA%\\LOVE\\towers_of_scale\\";
 
-interface Summary {
-  record: SaveRecord;
-  orbs: boolean;
-  power: number | null;
-  highest: number | null;
-  stops: number | null;
-}
-
-/** Player-named records sort above the AUTOSAVE_* ones: those names are the player's own index into their play. */
-function sortRecords(a: Summary, b: Summary): number {
-  const auto = (s: Summary): number => (s.record.name.startsWith("AUTOSAVE") ? 1 : 0);
-  return auto(a) - auto(b) || a.record.name.localeCompare(b.record.name);
-}
-
-function summarise(tower: TowerJSON, record: SaveRecord): Summary {
-  if (hasOrbMoves(record)) return { record, orbs: true, power: null, highest: null, stops: null };
-  try {
-    const route = routeFromRecord(record);
-    const t = simulate({ tower, gemsOwned: Number.POSITIVE_INFINITY, route });
-    const last = t.steps.at(-1)?.player ?? t.initial;
-    return {
-      record,
-      orbs: false,
-      power: last.power,
-      highest: t.steps.reduce((m, s) => Math.max(m, s.player.z), t.initial.z),
-      stops: stopStepIndices(t, route.length).length,
-    };
-  } catch {
-    return { record, orbs: false, power: null, highest: null, stops: null };
-  }
+/** A computed column: still coming, absent, or a number. */
+function column(s: Summary, v: number | null, format: (n: number) => string = String): string {
+  if (s.orbs) return "";
+  if (!s.computed) return "…";
+  return v === null ? "—" : format(v);
 }
 
 export default function App(): React.ReactElement {
@@ -85,13 +59,24 @@ export default function App(): React.ReactElement {
     await openWith(id, bytes);
   }, []);
 
+  // Which file the list belongs to. Opening another one abandons the fill that
+  // is still running against the old one rather than letting it write over it.
+  const openedRef = useRef(0);
+
   const openWith = useCallback(async (id: string, bytes: Uint8Array) => {
+    const mine = ++openedRef.current;
     try {
       const t = await loadTower(id);
-      const file = parseSaveFile(bytes);
+      const rows = blankSummaries(parseSaveFile(bytes).records);
       setTower(t);
-      setRecords(file.records.map((r) => summarise(t, r)).sort(sortRecords));
+      setRecords(rows);
       setPendingBytes(null);
+      await fillSummaries(
+        t,
+        rows,
+        (i, s) => setRecords((prev) => prev && prev.map((r, j) => (j === i ? s : r))),
+        () => openedRef.current !== mine,
+      );
     } catch (e) {
       setError(String(e));
     }
@@ -104,7 +89,7 @@ export default function App(): React.ReactElement {
     scrubberRef.current = s;
     s.load(tower, routeFromRecord(chosen));
     return () => {
-      s.stop_();
+      s.destroy();
       scrubberRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately not `settings`: see update() below.
@@ -205,9 +190,9 @@ export default function App(): React.ReactElement {
                     )}
                   </td>
                   <td>{s.record.time ?? "—"}</td>
-                  <td>{s.orbs ? "uses orbs" : s.power?.toLocaleString("en-GB") ?? "—"}</td>
-                  <td>{s.highest ?? "—"}</td>
-                  <td>{s.stops ?? "—"}</td>
+                  <td>{s.orbs ? "uses orbs" : column(s, s.power, (n) => n.toLocaleString("en-GB"))}</td>
+                  <td>{column(s, s.highest)}</td>
+                  <td>{column(s, s.stops)}</td>
                 </tr>
               ))}
             </tbody>

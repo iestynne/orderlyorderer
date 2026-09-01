@@ -15,11 +15,11 @@ that also takes a file dropped anywhere on the window. No placeholder tower,
 nothing greyed out. The empty state names where saves live — that path is not
 obvious — and carries the unofficial notice.
 
-Opening a `.sav` lists its records: name, timestamp where there is one, and
-three figures from simulating it — final power, highest floor, waypoint stops.
-Player-named records sort above the `AUTOSAVE_*` ones, those names being the
-player's own index into their play. A record using orbs is listed but not
-openable, and says why.
+Opening a `.sav` lists its records at once: name, timestamp where there is one,
+and three figures simulated behind the list, `…` until each lands — final power,
+highest floor, waypoint stops. Player-named records sort above the `AUTOSAVE_*`
+ones, those names being the player's own index into their play. A record using
+orbs is listed but not openable, and says why.
 
 The tower comes from the filename; if that names no tower we know, the app asks
 rather than guessing. Choosing a record replaces the empty state with the two

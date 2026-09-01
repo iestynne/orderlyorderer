@@ -106,7 +106,7 @@ Details in `RESULTS.md`. Every entity type in the game is exercised except orbs.
 
 ## The app exists
 
-`SPEC-007` slice 1 is built, all three stages. **242 tests pass.**
+`SPEC-007` slice 1 is built, all three stages. **255 tests pass.**
 
 - **Stage 1, `Cursor`** — `src/sim/cursor.ts`, pure, 122 lines. Every named
   value in the contract reproduced first time: 177 slider stops / 591 steps /
@@ -118,7 +118,8 @@ Details in `RESULTS.md`. Every entity type in the game is exercised except orbs.
   counts confirmed: 160 tiles in 2-6, 32 in EX-2, 325 across all 16 towers.
 - **Stage 3, the UI** — Vite, React, one canvas, two panels. Through **four
   rounds of review by eye**, the only judge it has (D24a), and an MVP by
-  iestyn's assessment. Two performance faults remain — `TODO.md` §A5.
+  iestyn's assessment. Both performance faults fixed — four causes, and not yet
+  watched in a browser, which is the only judge of it: `TODO.md` §A5, D38-D41.
 
 **The D32 reimplementation test ran** and found a real bug — in the docs, not
 the code (D33). Looking at the app then found nine more that no test could have
@@ -126,10 +127,10 @@ caught: D24a earns its keep.
 
 ## Next
 
-1. **Fix the two performance faults** — `TODO.md` §A5. Scrubbing degrades until
-   the app is unusable, so it outranks anything cosmetic.
-2. **Set the perf baseline** (§7 oracle 2, `[O]`). Fix §A5 first, or the
-   baseline measures the leak.
+1. **Set the perf baseline** (§7 oracle 2, `[O]`) — now that §A5 is fixed, the
+   number measures the renderer rather than the leak. Needs a browser, so it
+   needs iestyn: open a record, tick `perf test`, read the `frame` line.
+2. **Confirm §A5 by eye** — a minute of scrubbing 2-5 that does not degrade.
 3. **Build SPEC-008, route editing.** Specified, nothing implemented.
 4. ~~Floor entry thresholds~~ — **reframed.** SPEC-008's skippable segments are
    a general-purpose threshold detector, so the analysis arrives as a

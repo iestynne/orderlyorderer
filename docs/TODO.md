@@ -10,15 +10,17 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 ## A. Next action
 
 **SPEC-007 slice 1 is built and has been through four rounds of visual review**
-— 242 tests green (`STATUS.md`). It is an MVP by iestyn's own assessment. Next,
-in order:
+— 255 tests green (`STATUS.md`). It is an MVP by iestyn's own assessment, and
+both its recorded performance faults are fixed (§A5). Next, in order:
 
-1. **Fix the two performance faults in §A5.** The scrubbing one degrades until
-   the app is unusable, so it outranks anything cosmetic.
-2. **Set the perf baseline** — SPEC-007 §7, oracle 2, still `[O]`. The harness
-   is built and toggled from the settings block; nobody has read the number.
-   It is what decides Canvas 2D versus WebGL, and §A5 should be fixed first or
-   the baseline measures the leak.
+1. **Read the perf baseline** — SPEC-007 §7, oracle 2, still `[O]`. §A5 is
+   fixed, so the number now measures the renderer rather than the leak. The
+   harness is built and toggled from the settings block; nobody has read it.
+   It is what decides Canvas 2D versus WebGL. **Needs iestyn**: open a record,
+   tick `perf test`, report the `frame` median/max against the 5 ms budget.
+2. **Confirm §A5 by eye and by hand** — scrub 2-5 back and forth for a minute
+   and check it does not degrade, and that opening a `.sav` shows its list at
+   once. Neither is testable headless; both are what was actually wrong.
 3. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
    the pattern, but SPEC-002/005/006 have not been checked.
 4. **Build SPEC-008, route editing** — §A6. Add and remove actions, skippable
@@ -35,41 +37,28 @@ and the deferred proposal to freeze past and future floors.
 `[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
 own capture control: press `S` or the button, share the PNG.
 
-## A5. Two scrubber performance faults, both observed 2026-09-01
+## A5. The two scrubber performance faults — fixed 2026-09-01
 
-`[I]` **Scrubbing back and forth gets progressively slower, then falls off a
-cliff into hundreds of milliseconds per update, and never recovers.** Observed
-by iestyn on the tower stack; a leak of some kind is the obvious shape.
+`[F]` Both faults are fixed: **four causes**, three of them behind the
+scrubbing one and one behind the load. The **second** row below was not among
+the hypotheses — it turned up while reading the update path for the others.
+Rationale in `DECISIONS.md` D38-D41; each has a diagnostic test under
+`test/ui/`, checked by reverting the fix and watching it fail.
 
-`[P]` **A specific hypothesis, cheap to test.** `FloorCache.makeCanvas` creates
-each floor's context with `getContext("2d")`, and `boxDownscale` then asks the
-same canvas for `getContext("2d", { willReadFrequently: true })`. A canvas
-returns its *existing* context and ignores the attributes, so that flag has
-never taken effect — and Chrome said so twice in the console during the last
-screenshot runs:
+| Fault | Was | Now |
+|---|---|---|
+| `willReadFrequently` never took effect, so every miniature rebuild read back from an accelerated canvas and Chrome demoted it for good | slower, then a cliff, never recovering | asked for at creation, on the floor bitmaps only (D38) |
+| The stack's shear ran one `drawImage` per source row | 2 048 draw calls per scrub update on 2-5, 4 800 on 2-6 | baked into the cached miniature: one blit per floor (D39) |
+| `keydown` and `resize` were left on `window` at unmount | one dead scrubber still seeking per mount ever made; two from StrictMode alone | one `AbortController`, aborted by `destroy()` (D40) |
+| Opening a `.sav` simulated all 41 records before drawing the list | ~3 s of blank window | the list first, the columns behind it (D41) |
 
-> Canvas2D: Multiple readback operations using getImageData are faster with
-> the willReadFrequently attribute set to true.
+`[O]` **Unconfirmed by eye.** All four are reasoned and tested headless; none of
+them has been watched in a browser, which is the only judge of whether the
+degradation is actually gone (D24a). §A step 2.
 
-Chrome demotes a GPU-backed canvas to software after repeated readbacks and does
-not promote it back — which matches "slower and slower, then a cliff, never
-recovers". Test first: pass the flag at creation in `makeCanvas`, or drop
-`getImageData` and downscale with `drawImage` into a scratch canvas.
-
-`[P]` Second candidate: `Scrubber.bindInput` adds `keydown` and `resize`
-listeners to `window` and `stop_()` never removes them, so every remount leaks a
-listener plus a retained `FloorCache`. StrictMode double-invokes effects, so
-there are two already.
-
-`[F]` **Loading is slow, and the cause is measured.** 2-5.sav takes ~3 s.
-Opening a `.sav` simulates **every** record just to fill the list's power, floor
-and stop columns: 41 records, **156 546 steps**, 1 144 ms in node alone. Fixes,
-cheapest first: simulate lazily per row, cache by record, or show the list at
-once and fill those columns in as they compute. `[P]` The rest is `paintAll`
-(32 floors x 450 draws) and 32 `boxDownscale` calls, both one-off.
-
-`[D]` Neither is a correctness fault nor blocks the MVP, so both are recorded
-rather than fixed in the session that found them.
+`[P]` What is left of load time is `paintAll` (32 floors x 450 draws) and the
+32 miniature builds, both one-off and both now off the critical path for
+showing the list.
 
 ## A3. Map exports — captured; one nice-to-have left
 

@@ -53,6 +53,16 @@ export class Scrubber {
   private dirty = true;
   private raf = 0;
   private settings: ScrubberSettings;
+  /**
+   * `[D]` Every listener this object registers is registered with this
+   * controller's signal, so `destroy` drops all of them in one call and cannot
+   * miss one. `keydown` and `resize` are on `window`, which outlives the
+   * canvas: left behind, they hold the whole `FloorCache` alive and keep
+   * seeking a scrubber nobody can see, which is work every remount adds to.
+   * StrictMode double-invokes effects, so there were two from the first mount.
+   * D40.
+   */
+  private readonly input = new AbortController();
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -146,7 +156,7 @@ export class Scrubber {
   }
 
   start(): void {
-    if (this.raf !== 0) return;
+    if (this.raf !== 0 || this.input.signal.aborted) return;
     const loop = (now: number): void => {
       if (this.settings.perf && this.stops.length > 1) {
         const target = this.perfHarness.tick(now, this.stops.length);
@@ -158,9 +168,15 @@ export class Scrubber {
     this.raf = requestAnimationFrame(loop);
   }
 
-  stop_(): void {
+  /**
+   * Tear down for good: stop the loop and drop every listener with it. Not a
+   * pause — a destroyed scrubber does not restart, because the only caller is
+   * React unmounting the canvas it draws to.
+   */
+  destroy(): void {
     cancelAnimationFrame(this.raf);
     this.raf = 0;
+    this.input.abort();
   }
 
   resize(): void {
@@ -265,6 +281,7 @@ export class Scrubber {
   }
 
   private bindInput(): void {
+    const { signal } = this.input;
     const stopFromY = (clientY: number): number => {
       const rect = this.canvas.getBoundingClientRect();
       const g = sliderGeometry(this.screen.layout);
@@ -291,14 +308,14 @@ export class Scrubber {
         this.seek(stopFromY(e.clientY));
       }
     };
-    this.canvas.addEventListener("pointerdown", onDown);
+    this.canvas.addEventListener("pointerdown", onDown, { signal });
     this.canvas.addEventListener("pointermove", (e) => {
       if (dragging) this.seek(stopFromY(e.clientY));
-    });
+    }, { signal });
     this.canvas.addEventListener("pointerup", (e) => {
       dragging = false;
       if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
-    });
+    }, { signal });
     window.addEventListener("keydown", (e) => {
       const step = e.shiftKey ? 10 : 1;
       // `[D]` Left/right only. Up/down were also bound, and inverted against
@@ -318,8 +335,8 @@ export class Scrubber {
       else if (e.key === "s" || e.key === "S") this.saveCapture();
       else return;
       e.preventDefault();
-    });
-    window.addEventListener("resize", () => this.resize());
+    }, { signal });
+    window.addEventListener("resize", () => this.resize(), { signal });
   }
 }
 

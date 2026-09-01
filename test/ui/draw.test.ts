@@ -224,6 +224,34 @@ d("stage 3 — the draw path runs over real records", () => {
     }
   });
 
+  // `[D]` D39. The shear used to be applied a source row at a time, which on
+  // 2-5 is 32 floors x 64 rows = 2 048 drawImage calls in every scrub update,
+  // for a projection that never changes. It is baked into the cached miniature
+  // now, so a floor is one blit; the panel's remaining draws are its text, a
+  // glyph at a time. The bound is what separates those two regimes.
+  it("the tower stack is one blit per floor, not one per row", () => {
+    const save = loadAllSaves().find((s) => s.towerId === "2-5")!;
+    const depth = save.tower.floors.length;
+    const floors = stubFloors(depth, manifest, save.tower);
+    const { ctx, calls } = stubCtx();
+    const player = { ...simulate({ tower: save.tower, gemsOwned: Number.POSITIVE_INFINITY, route: [] }).initial };
+    drawRightPanel(ctx, manifest, {} as any, floors, {
+      tower: save.tower,
+      player,
+      floorName: save.tower.floors[0]!.name,
+      stop: 0,
+      stopCount: 100,
+      ticks: [],
+      currentFloor: 1,
+      captions: true,
+      perf: false,
+      perfLine: "",
+    }, layout);
+    expect(depth).toBe(32);
+    expect(calls["drawImage"]!).toBeGreaterThanOrEqual(depth);
+    expect(calls["drawImage"]!).toBeLessThan(depth * 8);
+  });
+
   // The shear pushes a floor's top row ceil((h-1)/SHEAR) px right, so the
   // tallest floor plus its shear is the stack's true width. Getting this wrong
   // cropped every floor's right edge against the clip box.
