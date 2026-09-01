@@ -110,16 +110,27 @@ describe("SPEC-007 §8 — named geometry", () => {
 });
 
 describe("SPEC-007 §8 — invariants 5 and 6", () => {
-  // Invariant 5. D7: the simulation engine is a pure module with no UI imports.
-  it("5. nothing in src/sim/ imports the UI", () => {
+  // Invariant 5, and SPEC-008 invariant 9, which is the same claim about the
+  // same tree. D7: the simulation engine is a pure module with no UI imports.
+  //
+  // `[F]` It walks subdirectories, and did not use to: src/sim/route/ arrived
+  // with SPEC-008 and readdirSync handed the loop a directory to read as a file.
+  it("5. nothing under src/sim/ imports the UI", () => {
     const offenders: string[] = [];
-    for (const f of readdirSync(join(ROOT, "src", "sim"))) {
-      const src = readFileSync(join(ROOT, "src", "sim", f), "utf8");
-      for (const m of src.matchAll(/from\s+"([^"]+)"/g)) {
-        const spec = m[1]!;
-        if (/\bui\b|react|\.css$/.test(spec)) offenders.push(`src/sim/${f} -> ${spec}`);
+    const walk = (rel: string): void => {
+      for (const e of readdirSync(join(ROOT, rel))) {
+        const child = `${rel}/${e}`;
+        if (statSync(join(ROOT, child)).isDirectory()) {
+          walk(child);
+          continue;
+        }
+        for (const m of readFileSync(join(ROOT, child), "utf8").matchAll(/froms+"([^"]+)"/g)) {
+          const spec = m[1]!;
+          if (/ui|react|.css$/.test(spec)) offenders.push(`${child} -> ${spec}`);
+        }
       }
-    }
+    };
+    walk("src/sim");
     expect(offenders).toEqual([]);
   });
 

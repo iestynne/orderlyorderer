@@ -9,27 +9,28 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 
 ## A. Next action
 
-**SPEC-007 slice 1 is built and has been through four rounds of visual review**
-— 242 tests green (`STATUS.md`). It is an MVP by iestyn's own assessment. Next,
-in order:
+**SPEC-007 and SPEC-008 are both built** — 281 tests green (`STATUS.md`). The
+scrubber has had four rounds of visual review; **the editing UI has had none.**
+Next, in order:
 
-1. ~~Fix the two scrubber performance faults~~ — **done**, §A5.
+1. **Look at the editing UI.** D24a is its only judge and it has not been used
+   on it yet. Three of `docs/UI.md` §7's questions are new and resolve only by
+   looking: whether the outline around edited actions reads well, whether live
+   actions should carry one too, and whether an ignored click in add mode should
+   still move the player icon.
 2. **Set the perf baseline** — SPEC-007 §7, oracle 2, still `[O]`. The harness
    is built and toggled from the settings block; nobody has read the number.
    It is what decides Canvas 2D versus WebGL. §A5 is fixed, so a reading taken
    now measures the renderer rather than the leak.
-3. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
+3. **Floor entry thresholds — the *number*.** SPEC-008's skippable segments are
+   the predicate, built and working; what is left is a search over it.
+4. **The two open pieces of editing UX** — §A6.
+5. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
    the pattern, but SPEC-002/005/006 have not been checked.
-4. **Build SPEC-008, route editing** — §A6. Add and remove actions, skippable
-   segments, parallel segments. Specified; nothing implemented.
-5. ~~Floor entry thresholds~~ — **reframed, not dropped.** SPEC-008's skippable
-   segments *are* a general-purpose threshold detector, so the analysis arrives
-   as a consequence of the editing work. The remaining piece is the *number*,
-   which is a search over that predicate rather than a separate computation.
 
-`[D]` Still open by eye, not blocking: `docs/UI.md` §6 — the trail's `dHue`,
-the stack's size, whether overlapped floors read on a 32- or 75-floor tower,
-and the deferred proposal to freeze past and future floors.
+`[D]` Still open by eye, not blocking: the rest of `docs/UI.md` §7 — the
+trail's `dHue`, the stack's size, whether overlapped floors read on a 32- or
+75-floor tower, and the deferred proposal to freeze past and future floors.
 
 `[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
 own capture control: press `S` or the button, share the PNG.
@@ -71,17 +72,17 @@ is a nice-to-have. Towers 2-6 and 3-1 have no saves (B3), so nothing to export.
 
 ## A6. SPEC-008 route editing — two open pieces of UX
 
-`[D]` The spec and `DESIGN_ROUTE_EDITING.md` are written; these are the two
-questions they deliberately leave to design rather than answer.
+`[D]` SPEC-008 is implemented; these are the two questions it deliberately
+leaves to design rather than answers. Neither blocks the editor as it stands.
 
 - **Importing a route from a `.sav` into an existing `.ord`.** What makes one
   `.ord` usable for all of a player's work. Includes reconciliation: the `.ord`
   stores the payload hash of the record it came from, so a match is clean and a
   mismatch means the player has played on and the metadata must be re-anchored
   by prefix alignment.
-- **Autosave behaviour for the working store.** Cadence, what counts as an edit,
-  whether to request `navigator.storage.persist()`, and how the player is told
-  the difference between crash recovery and a backup (D35).
+- **Autosave behaviour for the working store.** It writes on every edit today,
+  which is what DESIGN §2.2 asks for and may be more than is wanted on a long
+  route. Also unanswered: whether to request `navigator.storage.persist()`.
 
 ## B. Loose ends from the oracle work
 

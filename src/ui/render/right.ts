@@ -126,6 +126,8 @@ export interface RightPanelState {
   /** Stop indices where the route changes floor, for the slider's ticks. */
   ticks: number[];
   currentFloor: number;
+  /** The first stop the route fails at, or null where it runs clean. */
+  failedFrom: number | null;
   captions: boolean;
   perf: boolean;
   perfLine: string;
@@ -206,6 +208,16 @@ function drawSlider(
   const mid = g.x + SLIDER_W / 2;
   ctx.fillStyle = "#2a2a33";
   ctx.fillRect(mid - 2, g.y, 4, g.h);
+
+  // The track carries the same verdict the trail does: green as far as the
+  // route gets, red from the action that breaks it. Nothing when it runs clean.
+  if (s.failedFrom !== null) {
+    const split = Math.round(stopToY(s.failedFrom, s.stopCount, g));
+    ctx.fillStyle = "#5aa85a";
+    ctx.fillRect(mid - 2, split, 4, g.y + g.h - split);
+    ctx.fillStyle = "#a85a5a";
+    ctx.fillRect(mid - 2, g.y, 4, Math.max(1, split - g.y));
+  }
 
   // Ticks on the track mark where the route changes floor.
   ctx.fillStyle = "#55556a";

@@ -123,6 +123,7 @@ d("stage 3 — the draw path runs over real records", () => {
         stop: i,
         stopCount: stops.length,
         ticks: [],
+        failedFrom: null,
         currentFloor: cursor.player.z,
         captions: true,
         perf: false,

@@ -59,6 +59,19 @@ function decodeBlob(blob: Uint8Array): Entry[] {
   });
 }
 
+/**
+ * A record's decompressed payload — the bytes under the zlib stream, not the
+ * stream itself.
+ *
+ * `[F]` SPEC-006 §5.1: the payload round trip is exact for all 326 records
+ * while the compressed stream is not (§6), so this is the level at which two
+ * routes may be compared byte for byte. SPEC-008 hashes it for `SaveSource`
+ * and exports at it.
+ */
+export function emitPayload(entries: Entry[]): Uint8Array {
+  return emitTop(LuaArray.from(entries.map((e) => LuaArray.from(e as LuaValue[]))));
+}
+
 export function parseSaveFile(bytes: Uint8Array): SaveFile {
   const top = parseTop(bytes);
   if (!(top instanceof Map)) throw new SavFormatError("top level is not a table");
@@ -97,8 +110,7 @@ export function parseSaveFile(bytes: Uint8Array): SaveFile {
 export function emitSaveFile(file: SaveFile): Uint8Array {
   const top: LuaTable = new Map();
   for (const rec of file.records) {
-    const payload = emitTop(LuaArray.from(rec.entries.map((e) => LuaArray.from(e as LuaValue[]))));
-    const compressed = new Uint8Array(deflateSync(payload, { level: 6 }));
+    const compressed = new Uint8Array(deflateSync(emitPayload(rec.entries), { level: 6 }));
     const full = new Uint8Array(8 + compressed.length);
     full.set(stringToBytes(MAGIC));
     full.set(compressed, 8);

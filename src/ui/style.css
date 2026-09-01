@@ -160,10 +160,12 @@ code {
 .tools {
   position: fixed;
   left: 10px;
+  right: 10px;
   bottom: 8px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   background: var(--panel);
   padding: 4px 10px;
   border-radius: 4px;
@@ -189,4 +191,50 @@ code {
 
 .error {
   color: #f0a0a0;
+}
+
+/* SPEC-008 §8 — the editing chrome. The toolbar grew, so it wraps and its
+   groups are separated rather than run together. */
+
+.tools button:disabled {
+  color: var(--dim);
+  cursor: default;
+  text-decoration: none;
+}
+
+.tools button.on {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+}
+
+/* The unsaved-changes marker: large and unmissable, and in the tab title too. */
+.unsaved,
+.tools button.urgent {
+  color: #ffd479;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.toast {
+  position: fixed;
+  left: 10px;
+  top: 10px;
+  max-width: 40ch;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.toast.error {
+  color: #f0a0a0;
+  border-color: #6a3a3a;
 }
