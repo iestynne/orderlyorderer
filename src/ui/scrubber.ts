@@ -53,6 +53,13 @@ export class Scrubber {
   private dirty = true;
   private raf = 0;
   private settings: ScrubberSettings;
+  /**
+   * `[F]` `bindInput` put `keydown` and `resize` on `window`, and `stop_()`
+   * removed neither — so every remount leaked a listener holding this Scrubber
+   * and its FloorCache, and StrictMode double-invokes effects, so there were
+   * two from the first mount. TODO §A5's second fault.
+   */
+  private readonly unbind: Array<() => void> = [];
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -161,6 +168,7 @@ export class Scrubber {
   stop_(): void {
     cancelAnimationFrame(this.raf);
     this.raf = 0;
+    for (const off of this.unbind.splice(0)) off();
   }
 
   resize(): void {
@@ -265,6 +273,10 @@ export class Scrubber {
   }
 
   private bindInput(): void {
+    const on = <K extends keyof WindowEventMap>(k: K, fn: (e: WindowEventMap[K]) => void): void => {
+      window.addEventListener(k, fn);
+      this.unbind.push(() => window.removeEventListener(k, fn));
+    };
     const stopFromY = (clientY: number): number => {
       const rect = this.canvas.getBoundingClientRect();
       const g = sliderGeometry(this.screen.layout);
@@ -299,7 +311,7 @@ export class Scrubber {
       dragging = false;
       if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
     });
-    window.addEventListener("keydown", (e) => {
+    on("keydown", (e) => {
       const step = e.shiftKey ? 10 : 1;
       // `[D]` Left/right only. Up/down were also bound, and inverted against
       // the slider they were meant to match -- but the fix is not to flip them:
@@ -319,7 +331,7 @@ export class Scrubber {
       else return;
       e.preventDefault();
     });
-    window.addEventListener("resize", () => this.resize());
+    on("resize", () => this.resize());
   }
 }
 

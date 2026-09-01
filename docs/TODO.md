@@ -13,12 +13,11 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 — 242 tests green (`STATUS.md`). It is an MVP by iestyn's own assessment. Next,
 in order:
 
-1. **Fix the two performance faults in §A5.** The scrubbing one degrades until
-   the app is unusable, so it outranks anything cosmetic.
+1. ~~Fix the two scrubber performance faults~~ — **done**, §A5.
 2. **Set the perf baseline** — SPEC-007 §7, oracle 2, still `[O]`. The harness
    is built and toggled from the settings block; nobody has read the number.
-   It is what decides Canvas 2D versus WebGL, and §A5 should be fixed first or
-   the baseline measures the leak.
+   It is what decides Canvas 2D versus WebGL. §A5 is fixed, so a reading taken
+   now measures the renderer rather than the leak.
 3. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
    the pattern, but SPEC-002/005/006 have not been checked.
 4. **Build SPEC-008, route editing** — §A6. Add and remove actions, skippable
@@ -35,31 +34,21 @@ and the deferred proposal to freeze past and future floors.
 `[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
 own capture control: press `S` or the button, share the PNG.
 
-## A5. Two scrubber performance faults, both observed 2026-09-01
+## A5. Scrubber performance
 
-`[I]` **Scrubbing back and forth gets progressively slower, then falls off a
-cliff into hundreds of milliseconds per update, and never recovers.** Observed
-by iestyn on the tower stack; a leak of some kind is the obvious shape.
+`[F]` **Both faults found on 2026-09-01 are fixed.** Scrubbing degraded until
+the app was unusable, and the cause was that a canvas has exactly one context:
+`FloorCache.makeCanvas` created it without `willReadFrequently`, so
+`boxDownscale` asking the same canvas for the flag was ignored and Chrome
+demoted each floor to software after repeated `getImageData`, permanently.
+Readbacks now go through one shared scratch canvas that carries the flag.
+Second: `Scrubber.bindInput` leaked its `keydown` and `resize` listeners on
+every remount — StrictMode double-invokes effects, so there were two from the
+first mount — and `stop_()` now removes them.
 
-`[P]` **A specific hypothesis, cheap to test.** `FloorCache.makeCanvas` creates
-each floor's context with `getContext("2d")`, and `boxDownscale` then asks the
-same canvas for `getContext("2d", { willReadFrequently: true })`. A canvas
-returns its *existing* context and ignores the attributes, so that flag has
-never taken effect — and Chrome said so twice in the console during the last
-screenshot runs:
-
-> Canvas2D: Multiple readback operations using getImageData are faster with
-> the willReadFrequently attribute set to true.
-
-Chrome demotes a GPU-backed canvas to software after repeated readbacks and does
-not promote it back — which matches "slower and slower, then a cliff, never
-recovers". Test first: pass the flag at creation in `makeCanvas`, or drop
-`getImageData` and downscale with `drawImage` into a scratch canvas.
-
-`[P]` Second candidate: `Scrubber.bindInput` adds `keydown` and `resize`
-listeners to `window` and `stop_()` never removes them, so every remount leaks a
-listener plus a retained `FloorCache`. StrictMode double-invokes effects, so
-there are two already.
+`[O]` **The perf baseline is still unread** — SPEC-007 §7 oracle 2. The harness
+is built and toggled from the settings block; nobody has looked at the number,
+and it is what decides Canvas 2D versus WebGL.
 
 `[F]` **Loading is slow, and the cause is measured.** 2-5.sav takes ~3 s.
 Opening a `.sav` simulates **every** record just to fill the list's power, floor
@@ -67,9 +56,6 @@ and stop columns: 41 records, **156 546 steps**, 1 144 ms in node alone. Fixes,
 cheapest first: simulate lazily per row, cache by record, or show the list at
 once and fill those columns in as they compute. `[P]` The rest is `paintAll`
 (32 floors x 450 draws) and 32 `boxDownscale` calls, both one-off.
-
-`[D]` Neither is a correctness fault nor blocks the MVP, so both are recorded
-rather than fixed in the session that found them.
 
 ## A3. Map exports — captured; one nice-to-have left
 

@@ -43,8 +43,7 @@ function makeCanvas(w: number, h: number): { canvas: HTMLCanvasElement; ctx: Can
  * and the stack width is free to be tuned by eye rather than snapped to 1/2.
  */
 export function boxDownscale(src: HTMLCanvasElement, w: number, h: number): HTMLCanvasElement {
-  const sctx = src.getContext("2d", { willReadFrequently: true })!;
-  const s = sctx.getImageData(0, 0, src.width, src.height);
+  const s = readback(src);
   const out = document.createElement("canvas");
   out.width = w;
   out.height = h;
@@ -85,6 +84,41 @@ export function boxDownscale(src: HTMLCanvasElement, w: number, h: number): HTML
   }
   out.getContext("2d")!.putImageData(d, 0, 0);
   return out;
+}
+
+/**
+ * `[F]` **A canvas has exactly one context, and `getContext` ignores the
+ * attributes on every call after the first.** So asking a floor canvas for
+ * `{ willReadFrequently: true }` in boxDownscale never took effect: the
+ * context it returned was the one `makeCanvas` had already created without the
+ * flag. Chrome demotes a GPU-backed canvas to software after repeated
+ * `getImageData` and never promotes it back, which is the scrubbing fault of
+ * TODO §A5 — slower and slower, then a cliff, never recovering.
+ *
+ * `[D]` **Read back through one scratch canvas rather than flagging the
+ * floors.** Setting the flag on the floor canvases would fix the demotion by
+ * making it permanent and universal, when a floor is drawn to far more often
+ * than it is read. One shared software canvas takes every readback the app
+ * makes, at the cost of one extra `drawImage`, and the floor canvases stay
+ * accelerated.
+ */
+let scratch: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null = null;
+
+function readback(src: HTMLCanvasElement): ImageData {
+  if (scratch === null) {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("no 2d context");
+    scratch = { canvas, ctx };
+  }
+  const { canvas, ctx } = scratch;
+  if (canvas.width < src.width || canvas.height < src.height) {
+    canvas.width = Math.max(canvas.width, src.width);
+    canvas.height = Math.max(canvas.height, src.height);
+  }
+  ctx.clearRect(0, 0, src.width, src.height);
+  ctx.drawImage(src, 0, 0);
+  return ctx.getImageData(0, 0, src.width, src.height);
 }
 
 export class FloorCache {
