@@ -19,10 +19,14 @@ in order:
    is built and toggled from the settings block; nobody has read the number.
    It is what decides Canvas 2D versus WebGL, and §A5 should be fixed first or
    the baseline measures the leak.
-3. **Look for restated rules elsewhere.** §A4 cleaned SPEC-004; D33 forbids the
-   pattern, but SPEC-002/005/006 have not been checked.
-4. **Floor entry thresholds**, the analysis `STATUS.md` names as the whole point
-   of the tool. Nothing depends on further reverse-engineering.
+3. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
+   the pattern, but SPEC-002/005/006 have not been checked.
+4. **Build SPEC-008, route editing** — §A6. Add and remove actions, skippable
+   segments, parallel segments. Specified; nothing implemented.
+5. ~~Floor entry thresholds~~ — **reframed, not dropped.** SPEC-008's skippable
+   segments *are* a general-purpose threshold detector, so the analysis arrives
+   as a consequence of the editing work. The remaining piece is the *number*,
+   which is a search over that predicate rather than a separate computation.
 
 `[D]` Still open by eye, not blocking: `docs/UI.md` §6 — the trail's `dHue`,
 the stack's size, whether overlapped floors read on a 32- or 75-floor tower,
@@ -79,13 +83,19 @@ tower, enabling SPEC-005's two-image diff (§5) alongside the single-image check
 The single-image check is the stronger of the two and needs no baseline, so this
 is a nice-to-have. Towers 2-6 and 3-1 have no saves (B3), so nothing to export.
 
-## A4. ~~De-duplicate the game rules out of SPEC-004 §6~~ — done 2026-08-31
+## A6. SPEC-008 route editing — two open pieces of UX
 
-`SPEC-004` §6 restated ten rules from `GAME_MECHANICS.md` §2-§5 and now cites
-them: **1082 → 880 lines**, no behaviour change. The one-way wall table moved to
-`GAME_MECHANICS.md` §3; nothing was deleted without a home to go to. `[F]` The
-rewrite also found the Adamantine Shield's signed-floor rule written out
-**twice inside §6 itself** — D33's failure mode, twice in one section.
+`[D]` The spec and `DESIGN_ROUTE_EDITING.md` are written; these are the two
+questions they deliberately leave to design rather than answer.
+
+- **Importing a route from a `.sav` into an existing `.ord`.** What makes one
+  `.ord` usable for all of a player's work. Includes reconciliation: the `.ord`
+  stores the payload hash of the record it came from, so a match is clean and a
+  mismatch means the player has played on and the metadata must be re-anchored
+  by prefix alignment.
+- **Autosave behaviour for the working store.** Cadence, what counts as an edit,
+  whether to request `navigator.storage.persist()`, and how the player is told
+  the difference between crash recovery and a backup (D35).
 
 ## B. Loose ends from the oracle work
 
@@ -99,21 +109,12 @@ rewrite also found the Adamantine Shield's signed-floor rule written out
 
 ## C. Experiments — all four run and passed
 
-C1-C4 were played on 2026-08-28 and all four confirmed the simulator. Numbers in
-`RESULTS.md`; saves in `data/saves/tests/`, asserted by
-`test/sim/experiments.test.ts`.
+C1-C4 were played on 2026-08-28 and all four confirmed the simulator. Numbers
+and the C4 finding — including the method it taught — are in `RESULTS.md`; the
+saves are in `data/saves/tests/`, asserted by `test/sim/experiments.test.ts`.
 
-The one that changed a belief: **C4**. The Hyper Pickaxe is *not* spent in
-preference to an ordinary Pickaxe on a Weak Wall — the ordinary one goes first.
-The corpus had already settled it before the test was played (flipping the rule
-drops the sweep to 324/326), which is worth remembering as a method: **a large
-corpus of real routes is itself a discriminating oracle.**
-
-Six further questions that once lived here are **answered by the source**. Their
-answers are in `GAME_MECHANICS.md`, where game rules live (D33), and are not
-restated here: one-way traversal recording, Battle Gates opened at a distance,
-Shield rounding, pather fallback, whether pickup is optional, Hyper Pickaxe
-consumability.
+Six further questions that once lived here are **answered by the source**, and
+their answers are in `GAME_MECHANICS.md` where game rules live (D33).
 
 ## D. Ask the developer
 

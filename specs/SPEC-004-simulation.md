@@ -659,6 +659,12 @@ a Reinforced Wall is actively misleading.
 "collect all errors" is not offered; the UI points at the first break and the
 user repairs forward.
 
+`[D]` **That is a statement about one run, not about one route.** SPEC-008 §4
+evaluates a route as several runs — the mainline, plus one per skipped segment
+and per inactive take — so an app holding several errors at once is not
+violating this, provided each belongs to a run of its own. It is still never
+legal to read state past a failure within a single run.
+
 `[D]` Validation is **always on**. There is no fast path that skips it for
 edits that only add resources; the performance answer is to make full
 re-simulation fast enough for the hard cases.

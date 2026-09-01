@@ -106,6 +106,40 @@ about correctly. Corollary usable as a review signal: if an implementation is
 much larger than its spec's algorithm description, the abstraction is probably
 wrong.
 
+**D36. Route editing is one spec, and a segment contains its actions.**
+
+`[D]` All three editing features — add and remove actions, skippable segments,
+parallel segments — bottom out in the same machinery: an action list, an edit at
+index *i*, truncate-and-replay, and a report of the first step that now fails.
+Three specs would freeze three copies of that contract and triplicate its
+invariants (D11, D22), so there is one: `SPEC-008`. The `.ord` format is a
+section of it rather than its own spec, because the format is ours and cannot
+surprise us the way a reverse-engineered one can.
+
+`[D]` **A segment contains its actions**, rather than being an index range over
+one flat list. Parallel takes of the same chunk have different lengths, so every
+range after a switched take would shift. `[I]` iestyn expects further features
+built on the same structure, so it is load-bearing beyond these three. D7 is
+untouched: the simulator sees only the flattened active takes, never a segment.
+
+`[D]` The three features are **one construct with three selection policies**,
+not three mechanisms:
+
+| The player sees | Takes | Active take chosen |
+|---|---|---|
+| A plain segment | 1 | always |
+| A skippable segment | its actions, plus an implicit empty take | automatically, iff the actions fail |
+| Parallel segments | *n*, authored | by hand |
+
+`[D]` SPEC-008 invariant 5 is the diagnostic that keeps this honest (D18): a
+skipped segment and an explicitly-selected empty take must leave the mainline in
+identical states. If they ever diverge, the one-construct claim is false and the
+three features really are three mechanisms.
+
+`[D]` **A take, not a variant** — `src/mapdiff/verify.ts` already exports a
+`Variant` for sprite hash bands, and D34 forbids two concepts sharing a word.
+The user-facing feature keeps the name "parallel segments".
+
 ## Data handling
 
 **D12. Cells hidden by tutorial overlays are recorded as Strong Wall, not
@@ -231,6 +265,49 @@ the same name as an original — that risks overwriting real saves.
 **D17. Savegame files are edited structurally, never by byte-splicing.**
 Parse the file, substitute the entry in the top-level table, re-emit. Every
 count stays consistent by construction.
+
+**D35. `.ord` is the document; `.sav` is import and export only.**
+
+The app's own format holds the route and its editing metadata. The game's save
+file is read on import and written on an explicit export, never used as storage.
+`[D]` JSON, because a route is small — 1 773 waypoints is the corpus maximum —
+and a text document is diffable, greppable and repairable by hand, which is the
+right insurance for an artefact worth fifty hours of play. `[D]` **Self-contained**:
+it carries the actions, the tower, and the identity and payload hash of the
+`.sav` record it came from, so the player may overwrite or delete their `.sav`
+and lose nothing. That is what makes it a document rather than a sidecar, whose
+failure mode is silent breakage when the pair comes apart. `[I]` How many `.ord`
+files to keep is the player's decision; the app neither assumes an organisation
+nor manages one.
+
+**Nothing is injected into the `.sav`.** Rejected on function before risk:
+
+- `[F]` The game rewrites the whole file on every in-game save, so injected
+  metadata dies at the player's next save. Injection survives only where the
+  player stops using the file — exactly where a separate file costs nothing.
+- `[F]` Every site is unsafe anyway. The top level is save-name → record, so an
+  extra key appears in the game's own load menu; the payload is positional under
+  the `2S+1` rule, so appended entries replay as moves; orb tuples already vary
+  in arity, so extra values are read as orb parameters.
+- `[F]` We cannot write byte-exact `.sav` from TypeScript regardless (B1), so
+  every export is already a new file. The metadata never had a host to ride in.
+
+`[D]` The rule worth keeping: **never put your own data in the artefact whose
+only job is to be accepted by someone else's parser.** The upside is one fewer
+file; the downside is an export that can brick a fifty-hour save on a game
+update we do not control.
+
+`[D]` A **working store** (IndexedDB) holds the document and the view
+continuously and recomputes everything derived, so a closed tab loses nothing.
+It is **crash recovery, not a backup** — one browser, one machine, discarded by
+clearing site data — so restoring from it warns and says exactly that. `[D]` The
+unsaved-changes marker doubles as the crash detector: a clean-exit flag would
+have to be written from `beforeunload`, which does not reliably fire, so its
+absence would mean "probably crashed", a guess. The marker is not a guess — it
+names the thing that matters, work that is in no `.ord` file. For the same
+reason the store is **not** cleared on exit.
+
+SPEC-008 §2, §6; `DESIGN_ROUTE_EDITING.md` §2.
 
 ## Verification
 

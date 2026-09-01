@@ -20,12 +20,11 @@ Not solving routes — **making a human's search less laborious**. The player
 builds and edits the route; the app supplies visualisation and editing
 affordances, plus small, predictable automations.
 
-The highest-value analysis identified so far is **floor entry thresholds**: the
-minimum power needed to enter and clear a region, given held items. Tower 2-5
-*The Orderly Order* is built entirely around working out the order to tackle
-floors in, and that computation is tedious by hand and trivial for a simulator.
-The Adamantine Shield case is a good example — it lowers the threshold of a
-`-N`/`+N` enemy pair from `> 2N` to `> 1.5N`, which is easy to miss manually.
+The highest-value analysis is **floor entry thresholds** — the minimum power to
+enter and clear a region, given held items. Tower 2-5 is built entirely around
+that ordering; it is tedious by hand and easy to get wrong (the Adamantine
+Shield drops a `-N`/`+N` pair from `> 2N` to `> 1.5N`). **SPEC-008's skippable
+segments compute it as a side effect of editing**, not as a separate feature.
 
 ## Canonical documents
 
@@ -37,7 +36,7 @@ The Adamantine Shield case is a good example — it lowers the threshold of a
 | `RESULTS.md` | Outcomes of savegame validation experiments |
 | `TODO.md` | Outstanding actions |
 | `UI.md` | What the app currently does, in natural language. Mutable; 150-line budget (D31) |
-| `DESIGN_ROUTE_EDITING.md` | Route segmentation and the power graph. A draft, deferred. |
+| `DESIGN_ROUTE_EDITING.md` | Route editing: rationale and behaviour. Live; SPEC-008 holds the contract. |
 | `NOTES_map_extraction_deferred.md` | Research record for the retired image pipeline. Not a spec. |
 | `SPRITES.json` | 41 sprite hashes to entity names. Demoted; only SPEC-005 needs it. |
 | `tools/luajit_buffer.py` | Working, verified codec for `.sav` files |
@@ -47,16 +46,13 @@ Each spec names which docs to load. Do not load them all.
 ## Read the source, do not run experiments
 
 The developer has granted access to the game's source and assets **for use in
-this tool only — not for redistribution**. A Love2D executable is a ZIP
-container, so the Lua source and texture atlases unpack with standard tools.
-
-This has been decisive. Every mechanics question put to the source has been
-answered by it, including several the docs had **wrong**, not merely uncertain.
-Reach for `../local/game/v0.7-455/*.lua` before designing an experiment.
-
-Experiments retain one role the source cannot fill: confirming we are reading
-the *right* code path. `TODO.md` §C is what survives that filter — four tests,
-down from a page.
+this tool only — not for redistribution**; a Love2D executable is a ZIP, so the
+Lua and texture atlases unpack with standard tools. This has been decisive:
+every mechanics question put to the source was answered by it, several of which
+the docs had **wrong** rather than merely uncertain. Reach for
+`../local/game/v0.7-455/*.lua` before designing an experiment. Experiments
+retain the one role the source cannot fill — confirming we are reading the
+*right* code path (`TODO.md` §C).
 
 ## Done
 
@@ -88,6 +84,7 @@ down from a page.
 | SPEC-006 `.sav` codec | **implemented**, payload round trip exact 326/326 |
 | SPEC-005 map diff | **implemented**, draft 2. Oracle 3 passes: 62 040 cells across all 14 towers, zero differences. |
 | SPEC-007 tower scrubber | **implemented**, all three stages. Stages 1-2 green against the contract; stage 3 awaits an eye (D24a). |
+| SPEC-008 route editing | **spec written**, draft 1. Three features, one machinery. Nothing implemented. |
 | SPEC-003 headless Lua harness | stub, behind a decision gate. **Do not build:** its gate required manual verification to have become the bottleneck, and the replay sweep is now that oracle instead. |
 | SPEC-001 overlay detector | **cancelled**, in `specs/obsolete/`. Overlays are declared in the level data, not inferred. |
 
@@ -124,8 +121,8 @@ Details in `RESULTS.md`. Every entity type in the game is exercised except orbs.
   iestyn's assessment. Two performance faults remain — `TODO.md` §A5.
 
 **The D32 reimplementation test ran** and found a real bug — in the docs, not
-the code (D33). Looking at the app then found nine more, none of which any test
-could have caught: D24a earns its keep.
+the code (D33). Looking at the app then found nine more that no test could have
+caught: D24a earns its keep.
 
 ## Next
 
@@ -133,14 +130,16 @@ could have caught: D24a earns its keep.
    the app is unusable, so it outranks anything cosmetic.
 2. **Set the perf baseline** (§7 oracle 2, `[O]`). Fix §A5 first, or the
    baseline measures the leak.
-3. **Floor entry thresholds**, the analysis this tool exists for.
+3. **Build SPEC-008, route editing.** Specified, nothing implemented.
+4. ~~Floor entry thresholds~~ — **reframed.** SPEC-008's skippable segments are
+   a general-purpose threshold detector, so the analysis arrives as a
+   consequence of the editing work; what is left is the *number*, a search over
+   that predicate rather than a separate computation.
 
 ## Known blockers
 
 None. The reverse-engineering phase is finished: every mechanic the simulator
-needs is read, implemented and validated against real play.
-
-Two recorded limitations, blocking nothing today:
+needs is read, implemented and validated. Two limitations block nothing today:
 
 - Save **writing** from TypeScript is not byte-exact, because Node's zlib and
   Love2D's make different choices (SPEC-006 §6). Reading is exact. Writing
