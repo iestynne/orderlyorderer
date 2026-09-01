@@ -493,11 +493,35 @@ avoid by discipline alone, so the rules are structural:
 4. **A line budget**, so the doc stays short enough to actually re-verify in one
    pass. `docs/UI.md`, `STATUS.md`, `TODO.md`: **150 lines** each.
 
-`[I]` Over budget is a signal to **think harder, not to split** — if it will not
-compress, the design is not understood yet, and a design that will not compress
-usually reads as a cluttered UI too. `[F]` The benchmark that says 150 is
-achievable rather than aspirational: `SPEC-006` fully specifies the `.sav`
-codec in **146 lines**, and that codec round-trips 326/326 records exactly.
+5. **Minimal complete description: every sentence must change what a reader
+   would build.** If deleting it leaves the same artefact, delete it. Three
+   habits this rules out, all of them Claude's: saying a thing in summary and
+   again in detail; explaining *why* where a decision already holds the why
+   (D33, generalised from rules to reasoning); and arguing for a choice the
+   reader has no power to reject.
+6. **A compression pass names what it cut and where the content went.**
+   "Deleted §A4 — done, and D33 holds the finding" is a compression. "Tightened
+   the prose" is not: same content, denser. That is how a doc loses fidelity
+   silently while staying under budget.
+
+`[I]` Over budget is first a signal to **think harder, not to split** — a design
+that will not compress is usually not understood yet, and usually reads as a
+cluttered UI too. `[F]` 150 is achievable, not aspirational: `SPEC-006` fully
+specifies the `.sav` codec in **146 lines**, and that codec round-trips 326/326
+records exactly.
+
+`[D]` **But over budget with nothing left to name is the escalation trigger**,
+not licence to compress again. Escalate by raising the budget and recording the
+new number, or by splitting on a real axis — one doc per surface. `[I]` Dodging
+a budget and having genuinely two subjects are different moves; only the first
+is forbidden. `[F]` The trigger was earned: of four compressions in the session
+that wrote D35-D37, two deleted duplicated content and two only made prose
+denser, and nothing at the time distinguished them.
+
+`[O]` **What counts as minimal is not yet shared understanding.** `[I]` iestyn
+finds Claude's documentation verbose in general; rule 5 is a first attempt at the
+test, not a settled one. `[F]` The gap is measurable — SPEC-008 specifies route
+editing in ~410 lines against SPEC-006's 146 for a whole codec. Expect revision.
 
 `DECISIONS.md` is exempt from a line cap — it is a ledger and legitimately
 grows — but not from deletion: a superseded decision is **removed**, not struck
