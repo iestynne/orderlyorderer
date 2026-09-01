@@ -8,16 +8,65 @@ load them all.
 
 ## Layout
 
-The working directory is the parent of this repository.
+The working directory is the parent of this repository. A session works in its
+own sibling worktree, not in the repository itself — see Session protocol.
+Relative paths in this file resolve inside that worktree.
 
 ```
-../local/game/v0.7-455/   the game archive. Readable. NEVER publishable.
+../local/game/v0.7-455/   the game archive. Read-only. NEVER publishable.
+../git/                   main checked out. Merge target only; never edit here.
+../git-<WTTN>/            this session's worktree. All work happens here.
 docs/    canonical. Mutable, current state only. Code is derived from these.
 specs/   SPEC-NNN-slug.md. Frozen once tests exist against them.
 tools/   standalone utilities
 data/    captured game data. Immutable; version-stamped by path.
 src/ test/
 ```
+
+## Session protocol
+
+Each session works in its own worktree, so any number of CLI instances run in
+parallel without stomping on each other, all reading the same `../local/`.
+
+**1. Ask for the work-tree topic name.** Before anything else — before reading
+docs, before any tool call that touches the repository:
+
+> What is the work-tree topic name for this session?
+
+Normalize the answer to lowercase kebab-case (`[a-z0-9-]`). That is `<WTTN>`.
+
+*Exception:* a read-only session — questions, explanation, no file changes —
+says so and reads from `../git/` without writing. The moment an edit is
+wanted, stop and ask.
+
+**2. Create the worktree.** From `../git/`:
+
+```sh
+git worktree add -b session-<WTTN> ../git-<WTTN> main
+cd ../git-<WTTN>
+npm ci --prefer-offline   # node_modules/ is gitignored; ~2s from a warm cache
+npm run build-atlas       # build/ is gitignored; typecheck fails without it
+```
+
+If `../git-<WTTN>/` already exists, reuse it.
+
+**3. Work there, and only there.** Never edit a file under `../git/`.
+
+**4. Merge back, once `npm test` and `npm run typecheck` both pass.**
+Conflicts are resolved in the worktree; `main` only ever fast-forwards.
+
+```sh
+git merge main            # in the worktree: take what other sessions landed.
+                          # Resolve here, then re-run test + typecheck.
+cd ../git && git merge --ff-only session-<WTTN>
+```
+
+A rejected `--ff-only` means another session landed first: back to the
+worktree, `git merge main` again, retest, retry until it fast-forwards.
+`../git/` must have a clean working tree for this step; if it does not, stop
+and ask.
+
+**5. Report** the branch name, the worktree path, and what landed on `main`.
 
 ## Hard rules
 
