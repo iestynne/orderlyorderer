@@ -521,7 +521,16 @@ denser, and nothing at the time distinguished them.
 `[O]` **What counts as minimal is not yet shared understanding.** `[I]` iestyn
 finds Claude's documentation verbose in general; rule 5 is a first attempt at the
 test, not a settled one. `[F]` The gap is measurable — SPEC-008 specifies route
-editing in ~410 lines against SPEC-006's 146 for a whole codec. Expect revision.
+editing in ~437 lines against SPEC-006's 146 for a whole codec.
+
+`[F]` **One attempt was made and did not converge**, 2026-09-01. Rule 5 applied
+to SPEC-008 §3-§4 cut 80 lines to 65 — and `[I]` iestyn's verdict on the result
+was that *both* versions are hard to parse, which is the finding: the problem is
+not length alone, so cutting words is the wrong axis to optimise. `[F]` Also
+learned, from measuring: 77 of the spec's lines are inside code fences, and the
+prose weight is concentrated in §9 and §2, not spread evenly. The abandoned
+candidate is `local/scratch/SPEC-008-candidate.md`. Resume from *legibility*,
+not from a line target.
 
 `DECISIONS.md` is exempt from a line cap — it is a ledger and legitimately
 grows — but not from deletion: a superseded decision is **removed**, not struck
