@@ -11,21 +11,18 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 
 **SPEC-007 slice 1 is built and has been through four rounds of visual review**
 — 255 tests green (`STATUS.md`). It is an MVP by iestyn's own assessment, and
-both its recorded performance faults are fixed (§A5). Next, in order:
+both its recorded performance faults are fixed and confirmed by eye (§A5).
+Next, in order:
 
-1. **Read the perf baseline** — SPEC-007 §7, oracle 2, still `[O]`. §A5 is
-   fixed, so the number now measures the renderer rather than the leak. The
-   harness is built and toggled from the settings block; nobody has read it.
-   It is what decides Canvas 2D versus WebGL. **Needs iestyn**: open a record,
-   tick `perf test`, report the `frame` median/max against the 5 ms budget.
-2. **Confirm §A5 by eye and by hand** — scrub 2-5 back and forth for a minute
-   and check it does not degrade, and that opening a `.sav` shows its list at
-   once. Neither is testable headless; both are what was actually wrong.
-3. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
-   the pattern, but SPEC-002/005/006 have not been checked.
-4. **Build SPEC-008, route editing** — §A6. Add and remove actions, skippable
+1. **Build SPEC-008, route editing** — §A6. Add and remove actions, skippable
    segments, parallel segments. Specified; nothing implemented.
-5. ~~Floor entry thresholds~~ — **reframed, not dropped.** SPEC-008's skippable
+2. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
+   the pattern, but SPEC-002/005/006 have not been checked.
+3. **Fix the perf harness, then read the baseline** — SPEC-007 §7, oracle 2,
+   still `[O]`. Deferred with the rest of the perf work (§A5): the number
+   decides Canvas 2D versus WebGL and that decision is not being made yet, and
+   the harness would answer it wrongly today.
+4. ~~Floor entry thresholds~~ — **reframed, not dropped.** SPEC-008's skippable
    segments *are* a general-purpose threshold detector, so the analysis arrives
    as a consequence of the editing work. The remaining piece is the *number*,
    which is a search over that predicate rather than a separate computation.
@@ -52,13 +49,28 @@ Rationale in `DECISIONS.md` D38-D41; each has a diagnostic test under
 | `keydown` and `resize` were left on `window` at unmount | one dead scrubber still seeking per mount ever made; two from StrictMode alone | one `AbortController`, aborted by `destroy()` (D40) |
 | Opening a `.sav` simulated all 41 records before drawing the list | ~3 s of blank window | the list first, the columns behind it (D41) |
 
-`[O]` **Unconfirmed by eye.** All four are reasoned and tested headless; none of
-them has been watched in a browser, which is the only judge of whether the
-degradation is actually gone (D24a). §A step 2.
+`[F]` **Confirmed by eye, 2026-09-02.** iestyn: the cliff is gone and load time
+is fixed. `[I]` **Long-range slider drags are still slower than he would like**
+— a full-length seek invalidates many floors at once, so it rebuilds many
+miniatures in one update. `[D]` **Deferred, and the reason is what makes it
+safe to defer:** short-range scrubbing is the common path, and it is fine.
+Features outrank it.
 
-`[P]` What is left of load time is `paintAll` (32 floors x 450 draws) and the
-32 miniature builds, both one-off and both now off the critical path for
-showing the list.
+`[P]` If it is picked up: the cost is proportional to floors touched, not to
+distance, so the lever is rebuilding a miniature from only the rows an edit
+changed rather than the whole floor. The rest of load time is `paintAll` and 32
+miniature builds, both one-off and both off the critical path now.
+
+`[P]` **The perf harness is not trustworthy, so do not record a baseline from
+it** (SPEC-007 §7, §8 oracle 2). Two defects: `pass` compares rAF deltas to the
+5 ms budget, which no display below ~200 Hz can satisfy — a rAF delta is
+floored by the refresh period, and §7's own "roughly 3x" arithmetic is about
+CPU work inside a frame; and `record()` pushes into both tracks on every call
+while being called twice per update with one side zeroed, so the `seek` and
+`blit` medians are half zeros. The fix is to budget `seek + blit`, report
+`frame` as a safety net rather than a pass/fail, and add long-task and Event
+Timing tracks — the platform names "hundreds of ms per update" for us, and zero
+long tasks over a minute of scrubbing is an expected value oracle 2 can hold.
 
 ## A3. Map exports — captured; one nice-to-have left
 
