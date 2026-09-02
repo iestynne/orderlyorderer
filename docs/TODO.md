@@ -11,25 +11,22 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 
 **SPEC-007 and SPEC-008 are both built** — 294 tests green (`STATUS.md`). The
 scrubber has had four rounds of visual review and both its recorded performance
-faults are fixed (§A5); **the editing UI has had no rounds at all.** Everything
-at the top of this list needs a browser, and so needs iestyn:
+faults are fixed and confirmed by eye (§A5); **the editing UI has had no rounds
+at all.** The top of this list needs a browser, and so needs iestyn:
 
 1. **Look at the editing UI.** D24a is its only judge. Three of `docs/UI.md`
    §7's questions are new and resolve only by looking: whether the outline
    around edited actions reads well, whether live actions should carry one too,
    and whether an ignored click in add mode should still move the player icon.
-2. **Confirm §A5 by eye and by hand** — scrub 2-5 back and forth for a minute
-   and check it does not degrade, and that opening a `.sav` shows its list at
-   once. Neither is testable headless; both are what was actually wrong.
-3. **Read the perf baseline** — SPEC-007 §7, oracle 2, still `[O]`. §A5 is
-   fixed, so the number now measures the renderer rather than the leak. Open a
-   record, tick `perf test`, report the `frame` median/max against the 5 ms
-   budget. It is what decides Canvas 2D versus WebGL.
-4. **Floor entry thresholds — the *number*.** SPEC-008's skippable segments are
+2. **Floor entry thresholds — the *number*.** SPEC-008's skippable segments are
    the predicate, built and working; what is left is a search over it.
-5. **The two open pieces of editing UX** — §A6.
-6. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
+3. **The two open pieces of editing UX** — §A6.
+4. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
    the pattern, but SPEC-002/005/006 have not been checked.
+5. **Fix the perf harness, then read the baseline** — SPEC-007 §7, oracle 2,
+   still `[O]`. Deferred with the rest of the perf work (§A5): the number
+   decides Canvas 2D versus WebGL, that decision is not being made yet, and the
+   harness would answer it wrongly today.
 
 `[D]` Still open by eye, not blocking: the rest of `docs/UI.md` §7 — the
 trail's `dHue`, the stack's size, whether overlapped floors read on a 32- or
@@ -40,29 +37,40 @@ own capture control: press `S` or the button, share the PNG.
 
 ## A5. The two scrubber performance faults — fixed 2026-09-01
 
-`[F]` Both faults are fixed: **four causes**, three of them behind the
-scrubbing one and one behind the load. The **second** row below was not among
-the hypotheses — it turned up while reading the update path for the others.
-Rationale in `DECISIONS.md` D38-D41; each has a diagnostic test under
-`test/ui/`, checked by reverting the fix and watching it fail.
+`[F]` Both faults are fixed: **four causes**, three behind the scrubbing one
+and one behind the load; the **second** row was not among the hypotheses.
+Rationale in `DECISIONS.md` D38-D41, each with a diagnostic test under
+`test/ui/` checked by reverting the fix and watching it fail.
 
 | Fault | Was | Now |
 |---|---|---|
-| `willReadFrequently` never took effect, so every miniature rebuild read back from an accelerated canvas and Chrome demoted it for good | slower, then a cliff, never recovering | asked for at creation, on the floor bitmaps only (D38) |
+| `willReadFrequently` never took effect, so every miniature rebuild read back from an accelerated canvas and Chrome demoted it for good | slower, then a cliff, never recovering | asked for at creation, on the floors and on the atlas they are painted from (D38) |
 | The stack's shear ran one `drawImage` per source row | 2 048 draw calls per scrub update on 2-5, 4 800 on 2-6 | baked into the cached miniature: one blit per floor (D39) |
 | `keydown` and `resize` were left on `window` at unmount | one dead scrubber still seeking per mount ever made; two from StrictMode alone | one `AbortController`, aborted by `destroy()` (D40) |
 | Opening a `.sav` simulated all 41 records before drawing the list | ~3 s of blank window | the list first, the columns behind it (D41) |
 
-`[O]` **Unconfirmed by eye.** All four are reasoned and tested headless; none of
-them has been watched in a browser, which is the only judge of whether the
-degradation is actually gone (D24a). §A step 2. `[F]` A fifth, in the same
-family, landed with SPEC-008: `pathfind` allocated and cleared three
-tower-sized arrays per waypoint and copied the `Player` per neighbour, which
-halved re-evaluation time. That one is measured — SPEC-008 oracle 4.
+`[F]` **Confirmed by eye, 2026-09-02.** iestyn: the cliff is gone and load time
+is fixed. `[I]` **Long-range slider drags are still slower than he would like**
+— a full-length seek invalidates many floors, so one update rebuilds many
+miniatures. `[D]` **Deferred, and the reason is why deferring is safe:**
+short-range scrubbing is the common path and is fine. Features outrank it.
 
-`[P]` What is left of load time is `paintAll` (32 floors x 450 draws) and the
-32 miniature builds, both one-off and both now off the critical path for
-showing the list.
+`[F]` A fifth, in the same family, landed with SPEC-008: `pathfind` allocated
+three tower-sized arrays per waypoint and copied the `Player` per neighbour,
+which halved re-evaluation time. Measured — SPEC-008 oracle 4.
+
+`[P]` If it is picked up: the cost is proportional to floors touched, not to
+distance, so the lever is refiltering only the rows an edit changed. The rest
+of load time is `paintAll` and 32 miniature builds, both one-off.
+
+`[P]` **The harness is not trustworthy; record no baseline from it** (SPEC-007
+§7, §8 oracle 2). `pass` compares rAF deltas to the 5 ms budget, which nothing
+under ~200 Hz can meet: a rAF delta is floored by the refresh period, while
+§7's own "roughly 3x" is about CPU work inside a frame. And `record()` writes
+both tracks every call while being called twice per update with one side
+zeroed, so `seek` and `blit` are half zeros. Fix: budget `seek + blit`, report
+`frame` rather than judge on it, add long-task and Event Timing tracks — zero
+long tasks in a minute of scrubbing is a real expected value for oracle 2.
 
 ## A3. Map exports — captured; one nice-to-have left
 

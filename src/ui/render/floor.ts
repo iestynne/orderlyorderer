@@ -45,6 +45,17 @@ export const makeCanvas: CanvasFactory = (w, h, attrs) => {
   return { canvas, ctx };
 };
 
+/**
+ * `[D]` **Every bitmap this cache owns is CPU-backed.** The floors are read
+ * back by `mini`, and the atlas is only ever drawn *into* those floors — so an
+ * accelerated atlas would move the readback rather than remove it, one per tile
+ * repaint. `[F]` The largest atlas in the game is 2-6's, 256x202, which is
+ * under the size Chrome accelerates at today; asking anyway costs nothing here
+ * and stops that heuristic being load-bearing, because the atlas grows with the
+ * tower. D38.
+ */
+const CPU: CanvasAttrs = { willReadFrequently: true };
+
 /** Just enough of `ImageData` to be built and asserted without a DOM. */
 export interface Pixels {
   readonly width: number;
@@ -142,10 +153,9 @@ export class FloorCache {
     sheet: CanvasImageSource,
     private readonly make: CanvasFactory = makeCanvas,
   ) {
-    this.atlas = bake(tower, manifest, sheet, make);
+    this.atlas = bake(tower, manifest, sheet, (w, h) => make(w, h, CPU));
     for (let z = 0; z < tower.floors.length; z++) {
-      // `[F]` `mini` reads this one back on every edit, so the flag belongs here.
-      const { canvas, ctx } = make(FLOOR, FLOOR, { willReadFrequently: true });
+      const { canvas, ctx } = make(FLOOR, FLOOR, CPU);
       this.canvases.push(canvas);
       this.ctxs.push(ctx);
     }

@@ -467,6 +467,28 @@ build. It is deferred, not dropped: until it exists, a build requires
 `../local/game/`. Recorded because it is a real limitation of the published
 repo, not an oversight.
 
+**D42. The worktree protocol stops sessions stomping on each other. It does not
+stop them doing the same task twice — and nothing warns you.**
+`[F]` On 2026-09-01 two sessions fixed `TODO.md` §A5 within the hour, from the
+same `main`, in separate worktrees, neither aware of the other:
+`8a2fb00` and `6e6c79d`. Both diagnosed the ignored `willReadFrequently`
+correctly and diverged on the remedy — one routed readbacks through a shared
+scratch canvas so the floors stay accelerated, the other made the floors
+CPU-backed. `[F]` The merge was **clean**, because the second rewrote the file
+the first had edited: git kept one whole approach and silently dropped the
+other. No conflict, no warning, and an hour of work gone.
+
+`[D]` **Read the branches before starting, not just `main`.** `git log --all
+--oneline` and `git branch -a` cost a second and are the only thing that would
+have caught this — a sibling worktree's branch is visible from every other
+worktree. `[D]` And prefer the smaller claim in `TODO.md`: "§A5" named one item
+that two sessions could both reasonably take.
+
+`[I]` Not solved by this entry. What is missing is a claim that is visible
+*before* the work, and `TODO.md` is the only shared surface — but it is also
+the thing being edited, so claiming in it is itself a merge conflict. Recorded
+because it will happen again as more instances run in parallel.
+
 **D38. A canvas that is read back is created `willReadFrequently`. Nothing else
 is.**
 `[F]` A canvas hands out the 2D context it already holds and **ignores the

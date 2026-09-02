@@ -114,8 +114,8 @@ Plus four hand-played experiments (C1-C4) predicted independently by the sim
   bitmap fonts into one 883×176 atlas, 9 KB, gitignored in `build/`.
 - **Stage 3, the UI** — Vite, React, one canvas, two panels. Through **four
   rounds of review by eye** (D24a), an MVP by iestyn's assessment. Both perf
-  faults are fixed — four causes, D38-D41, none yet watched in a browser, which
-  is their only judge (`TODO.md` §A5).
+  faults are fixed — four causes, D38-D41 — and **confirmed by eye 2026-09-02**
+  (`TODO.md` §A5).
 - **Route editing** adds three modes, badges, the segment bracket with a pip per
   alternative, the failure overlay, undo and redo, and green/red once a route
   breaks. `docs/UI.md` §6; not yet looked at.
@@ -125,15 +125,14 @@ the code (D33). Looking at the app then found nine more: D24a earns its keep.
 
 ## Next
 
-1. **Look at the app.** Two things need a browser and so need iestyn: the
-   editing UI, which D24a has never been used on, and **§A5 by eye** — a minute
-   of scrubbing 2-5 that does not degrade.
-2. **Set the perf baseline** (SPEC-007 §7 oracle 2, `[O]`). Open a record, tick
-   `perf test`, read the `frame` line. §A5 is fixed, so it measures the
-   renderer rather than the leak.
-3. **Floor entry thresholds — the *number*.** Skippable segments are the
+1. **Look at the editing UI.** It needs a browser and so needs iestyn, and
+   D24a has never been used on it.
+2. **Floor entry thresholds — the *number*.** Skippable segments are the
    predicate and they work; what is left is a search over it.
-4. **The two open pieces of editing UX** — `TODO.md` §A6.
+3. **The two open pieces of editing UX** — `TODO.md` §A6.
+4. **Perf is deferred**, by decision (`TODO.md` §A5): long-range slider drags
+   are still slow, short-range is the common path and is fine. No baseline
+   until the harness's own two defects are fixed.
 
 ## Known blockers
 

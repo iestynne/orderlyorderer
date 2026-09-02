@@ -122,18 +122,18 @@ describe("the shear, baked into the miniature", () => {
 });
 
 describe("FloorCache", () => {
-  it("creates the floor bitmaps willReadFrequently, and the atlas without", () => {
+  it("creates the atlas and every floor bitmap on the CPU", () => {
     const { make, made } = stubFactory();
     new FloorCache(TOWER, MANIFEST, {} as CanvasImageSource, make);
 
-    // The atlas is drawn FROM and never read back, so it must not ask for it:
-    // the flag costs acceleration, and paying for it where it buys nothing is
-    // as much a mistake as not paying for it where it does.
-    expect(made[0]!.attrs).toBeUndefined();
+    // `mini` reads the floors back, and the atlas is drawn into the floors --
+    // so an accelerated atlas would move that readback to every tile repaint
+    // rather than remove it. Both have to ask at creation, because a canvas
+    // ignores the attributes of every getContext after its first (D38).
+    expect(made.length, "one atlas plus one bitmap per floor").toBe(1 + TOWER.floors.length);
+    for (const m of made) expect(m.attrs, `${m.w}x${m.h}`).toEqual({ willReadFrequently: true });
 
-    const floors = made.filter((m) => m.w === 240 && m.h === 240);
-    expect(floors.length).toBe(TOWER.floors.length);
-    for (const f of floors) expect(f.attrs).toEqual({ willReadFrequently: true });
+    expect(made.filter((m) => m.w === 240 && m.h === 240).length).toBe(TOWER.floors.length);
   });
 
   it("caches the sheared miniature and retires it only on the floor that changed", () => {
