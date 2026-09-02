@@ -336,12 +336,9 @@ so the undo stack is the sequence of its results and needs no inverse
 operations.
 
 `[D]` **Re-evaluation is the whole route, and measured rather than assumed.**
-Oracle 4 puts a head insert on the corpus's largest record at **12.7 ms median**,
-inside the one-frame target, so §5's "resume at the edited epoch's start" buys
-nothing that can be seen and is not built (D11). Two things made that number:
-`pathfind` reuses its BFS working set between calls instead of allocating and
-clearing three arrays per waypoint, and it no longer copies the `Player` per
-neighbour. Before them it was 27.7 ms.
+Oracle 4 puts a head insert on the corpus's largest record inside the one-frame
+target, so resuming at the edited epoch's start buys nothing that can be seen
+and is not built (D11).
 
 ---
 
@@ -439,9 +436,8 @@ Report: test summary; PASS/FAIL + actual value per named case;
 | Segments in an epoch, minimum | 1 |
 | Epochs in a freshly imported route | 1 |
 
-`[F]` The error-code count was **16** in draft 1 and SPEC-004 §7 lists fifteen.
-The contract was the one that was wrong; the test enumerates the type, so a code
-added or removed breaks it rather than passing quietly.
+`[F]` Fifteen is SPEC-004 §7's own list, and the test enumerates the type, so a
+code added or removed breaks this rather than passing quietly.
 
 **Invariants**
 
@@ -500,14 +496,18 @@ added or removed breaks it rather than passing quietly.
    At one frame an edit is indistinguishable from a scrub and no click rate can
    outrun it.
 
-   `[F]` **Measured: 12.7 ms median, 13.7 ms max**, inside the one-frame target
-   and well inside the ceiling. The first reading was **27.7 ms median, 36.9 ms
-   max** — inside the ceiling on the median and over it at the worst — and the
-   answer was the one this oracle names, narrowing the work rather than relaxing
-   the budget: `pathfind` allocated and cleared three tower-sized arrays per
-   waypoint and copied the `Player` per neighbour, which over 1 773 waypoints is
-   25 million writes and 150 MB of garbage. It now reuses one working set and
-   stamps `seen` with a generation counter.
+   `[F]` **Measured: median 12-14 ms, max under 18 ms** over repeated runs,
+   inside the one-frame target. `[F]` It is the cost of re-simulating the route
+   **in full**: 1 773 actions, **3 547** entries and **6 071** steps, a
+   pathfinder BFS per entry and a rules resolution per step. A head insert and
+   a whole-route re-simulation are therefore the same measurement, which is why
+   this is the case the oracle picks.
+
+   `[F]` Reaching it took the move this oracle names, narrowing the work rather
+   than relaxing the budget: `pathfind` allocated and cleared three tower-sized
+   arrays per waypoint and copied the `Player` per neighbour, which over one
+   route is 25 million writes and 150 MB of garbage. It reuses one working set
+   and stamps `seen` with a generation counter, which halved the number.
 
    `[F]` Taken after `TODO.md` §A5 was fixed, as this oracle requires: a run
    with the readback demotion and the leaked listeners live would have measured

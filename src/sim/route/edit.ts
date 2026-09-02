@@ -16,7 +16,7 @@
 import { RouteShapeError, activeSegment, type Action, type Epoch, type Route, type Segment } from "./document";
 
 export type Edit =
-  /** `[D]` Amends SPEC-008 §5's `at: Waypoint`: an action is a pair (§2.2). */
+  /** `[F]` An action is a pair, so an insert carries both halves (§2.2). */
   | { op: "insert"; epoch: number; segment: number; index: number; action: Action }
   | { op: "setDisabled"; epoch: number; segment: number; index: number; value: boolean }
   /** A new, empty parallel segment. */

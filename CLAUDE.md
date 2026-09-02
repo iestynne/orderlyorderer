@@ -52,8 +52,18 @@ If `../git-<WTTN>/` already exists, reuse it.
 
 **3. Work there, and only there.** Never edit a file under `../git/`.
 
-**4. Merge back, once `npm test` and `npm run typecheck` both pass.**
-Conflicts are resolved in the worktree; `main` only ever fast-forwards.
+**4. Stop, and hand the branch over.** Green tests are necessary and are not
+sufficient: **anything iestyn has to look at, he looks at before it lands.**
+A green suite is never a working UI (D24a, D30), and `main` is what a fresh
+session starts from, so untested work there is untested work every later
+session builds on.
+
+So when `npm test` and `npm run typecheck` pass, **report and wait.** Say what
+is on the branch, what still needs an eye, and how to look at it —
+`npm run dev` in the worktree, and the URL it prints. Do not merge.
+
+**5. Merge back only when iestyn says so.** Conflicts are resolved in the
+worktree; `main` only ever fast-forwards.
 
 ```sh
 git merge main            # in the worktree: take what other sessions landed.
@@ -66,7 +76,7 @@ worktree, `git merge main` again, retest, retry until it fast-forwards.
 `../git/` must have a clean working tree for this step; if it does not, stop
 and ask.
 
-**5. Report** the branch name, the worktree path, and what landed on `main`.
+**6. Report** the branch name, the worktree path, and what landed on `main`.
 
 ## Hard rules
 

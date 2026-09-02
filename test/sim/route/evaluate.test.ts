@@ -17,9 +17,8 @@ import { corpus, sameWaypoints, worst, UNLIMITED_GEMS, type Imported } from "./h
 const d = haveSaves ? describe : describe.skip;
 
 /**
- * SPEC-004 §7 lists fifteen codes, not the sixteen SPEC-008 §9 asked for; the
- * contract was the one that was wrong. Listed here so that a code added to or
- * removed from the simulator breaks this rather than passing quietly.
+ * SPEC-004 §7's list, enumerated so that a code added to or removed from the
+ * simulator breaks this rather than passing quietly.
  */
 const ERROR_CODES: ErrorCode[] = [
   "NO_PATH", "OFF_MAP", "NOT_ADJACENT",
@@ -231,7 +230,12 @@ d("SPEC-008 oracle 4 — re-evaluation against the ceiling", () => {
     runs.sort((a, b) => a - b);
     const median = runs[runs.length >> 1]!;
     const max = runs[runs.length - 1]!;
-    console.log(`oracle 4: head insert re-evaluated in ${median.toFixed(2)} ms median, ${max.toFixed(2)} ms max, ${runs.length} runs`);
+    // What the number is the cost OF: a head insert re-simulates everything,
+    // so this is the whole route, waypoint for waypoint and step for step.
+    console.log(
+      `oracle 4: ${check.waypoints.length} waypoints, ${check.mainline.steps.length} steps, ` +
+      `re-evaluated in ${median.toFixed(2)} ms median, ${max.toFixed(2)} ms max, ${runs.length} runs`,
+    );
     expect(median).toBeLessThan(33);
   });
 });

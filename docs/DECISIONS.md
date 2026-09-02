@@ -133,6 +133,20 @@ sees only the flattened active segments, never an epoch.
 `src/sim/types.ts`'s result of `simulate()`, consumed by `Cursor` and three
 `mapdiff` modules (D34). "Timeline" keeps its ordinary meaning in prose.
 
+`[D]` **An `Action` is a pair of waypoints, and the route's live position sits
+on the `Route`.** `[F]` SAVE_FORMAT §3's `2S+1` rule is positional: S pairs of
+`(from, to)` then the player's live position. An edit that adds or removes one
+entry therefore mis-pairs every entry after it and the game reads a different
+route — so neither an insert nor a disable can operate on a single waypoint.
+Pairing them makes `2S+1` an invariant of the structure rather than a rule each
+operation has to remember. `[F]` Both halves are data: SAVE_FORMAT §3's worked
+example has a pair whose `from` is not where the previous pair left the player,
+it being the tile they approached from, which decides adjacency and which side
+of a one-way wall they are on. The auto-pather reproduces neither, so a disabled
+action drops both. `[D]` The live position belongs to no action, so a segment
+holding it would be a segment of odd length and every editing operation would
+need an "except the last one" clause.
+
 `[D]` **A Segment is inert** — a list of actions, with no selection, no fallback
 and no opinion about failure. The three features are **selection policies on the
 Epoch**, not three mechanisms:
@@ -151,28 +165,6 @@ holds three.
 skipped epoch and an explicitly-selected empty segment must leave the mainline in
 identical states. If they ever diverge, the one-construct claim is false and the
 three features really are three mechanisms.
-
-**D42. An action is a pair of waypoints, and the live position is route-level.**
-
-`[F]` SAVE_FORMAT §3's `2S+1` rule is **positional**: S pairs of `(from, to)`
-then the player's live position. So an edit that adds or removes a single entry
-mis-pairs every entry after it and the game reads a different route — which
-means neither an insert nor a disable can operate on one waypoint. `[D]` The
-document therefore stores pairs, and `2S+1` becomes an invariant of the
-structure rather than a rule each operation has to remember.
-
-`[F]` **Both halves are data.** SAVE_FORMAT §3's own worked example has a pair
-whose `from` is not where the previous pair left the player: it is the tile they
-approached from, which decides adjacency and which side of a one-way wall they
-are on, and the auto-pather reproduces neither. A disabled action drops both.
-
-`[D]` The trailing live position lives on the `Route`, not as the tail of the
-last segment. It belongs to no action, so a segment holding it would be a
-segment of odd length and every editing operation would need an "except the last
-one" clause. `[F]` Corrects SPEC-008 draft 1, which had an action be a single
-waypoint and `flatten()` drop only the `to` — an even entry list the `2S+1`
-rule forbids. Oracle 2 is what would have caught it: 326 payloads reproduced
-byte for byte.
 
 **D37. On a name collision, the web app keeps the word and the tool renames.**
 `[I]` iestyn: the app is where the complexity is going to be, so it takes
