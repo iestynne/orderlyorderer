@@ -14,6 +14,7 @@ import {
   type SimInput,
   type Step,
   type Timeline,
+  type TowerJSON,
   type Waypoint,
 } from "./types";
 
@@ -171,20 +172,54 @@ export function simulate(input: SimInput, start?: SimStart): Timeline {
 }
 
 /**
+ * Where each floor's Battle Gates are, indexed once per tower.
+ *
+ * `[D]` Keyed on the `TowerJSON` itself, so the scan is shared by every
+ * simulation of that tower — the mainline, every fork, and every
+ * re-evaluation after an edit — rather than repeated per run.
+ *
+ * `[F]` It is the biggest scan the simulator had. A kill used to walk all 225
+ * cells of its floor looking for gates, and the corpus's longest route makes
+ * **1 389** kills: 312 000 cell reads, six times the whole pathfinder's
+ * neighbour count over the same route. Most floors hold no gate at all, so
+ * most of those kills now do nothing.
+ */
+interface Gate {
+  addr: Addr;
+  value: number;
+}
+
+const battleGates = new WeakMap<TowerJSON, Gate[][]>();
+
+function battleGatesOf(tower: TowerJSON): Gate[][] {
+  const cached = battleGates.get(tower);
+  if (cached !== undefined) return cached;
+  const byFloor: Gate[][] = [];
+  for (let z = 1; z <= tower.floors.length; z++) {
+    const floor = tower.floors[z - 1]!;
+    const gates: Gate[] = [];
+    for (let y = 1; y <= W; y++) {
+      for (let x = 1; x <= W; x++) {
+        const c = floor.cells[y - 1]![x - 1]!;
+        if (typeof c === "object" && c.type === "battle_gate") gates.push({ addr: addr(tower, z, x, y), value: c.value });
+      }
+    }
+    byFloor.push(gates);
+  }
+  battleGates.set(tower, byFloor);
+  return byFloor;
+}
+
+/**
  * SPEC-004 §6. One kill decrements every still-closed Battle Gate on the floor;
  * each reaching 0 opens. We compare a running count against the immutable
  * initial value, which agrees with the game because an opened gate stops being
  * decremented.
  */
 function openBattleGates(rs: RunState, z: number, edit: (a: Addr, after: CellState) => void): void {
-  const floor = rs.tower.floors[z - 1]!;
-  for (let y = 1; y <= W; y++) {
-    for (let x = 1; x <= W; x++) {
-      const c = floor.cells[y - 1]![x - 1]!;
-      if (typeof c !== "object" || c.type !== "battle_gate") continue;
-      const a = addr(rs.tower, z, x, y);
-      if (rs.cells[a] !== CellState.Original) continue;
-      if (rs.kills[z - 1]! >= c.value) edit(a, CellState.Gone);
-    }
+  const kills = rs.kills[z - 1]!;
+  for (const gate of battleGatesOf(rs.tower)[z - 1]!) {
+    if (rs.cells[gate.addr] !== CellState.Original) continue;
+    if (kills >= gate.value) edit(gate.addr, CellState.Gone);
   }
 }

@@ -5,7 +5,7 @@
 // every move costs 1 including stairs, so breadth-first order already gives
 // shortest paths.
 
-import { addr, coords, effectiveCell, inBounds, isEntity } from "./grid";
+import { addr, effectiveCell, inBounds, isEntity } from "./grid";
 import { oneWayAllows } from "./rules";
 import { W, type Addr, type HeldItem, type Player, type TowerJSON } from "./types";
 
@@ -54,14 +54,21 @@ function traversable(
   }
 }
 
-/** Where entering (z, x, y) actually leaves the player: stairs teleport once. */
-function arrival(tower: TowerJSON, cells: Uint8Array, z: number, x: number, y: number): { z: number; x: number; y: number } {
+/**
+ * Which floor entering (z, x, y) actually leaves the player on: stairs teleport
+ * once, everything else leaves them where they stepped.
+ *
+ * `[D]` Returns the floor rather than a position, because `x` and `y` are
+ * unchanged by a staircase and the caller already has them. An allocated
+ * `{z, x, y}` here was one object per traversable neighbour examined.
+ */
+function arrivalFloor(tower: TowerJSON, cells: Uint8Array, z: number, x: number, y: number): number {
   const c = effectiveCell(tower, cells, z, x, y);
   if (isEntity(c)) {
-    if (c.type === "stairs_up" && z + 1 <= tower.floors.length) return { z: z + 1, x, y };
-    if (c.type === "stairs_down" && z - 1 >= 1) return { z: z - 1, x, y };
+    if (c.type === "stairs_up" && z + 1 <= tower.floors.length) return z + 1;
+    if (c.type === "stairs_down" && z - 1 >= 1) return z - 1;
   }
-  return { z, x, y };
+  return z;
 }
 
 export interface PathStep {
@@ -149,7 +156,9 @@ export function pathfind(
   let tail = 1;
   while (head < tail) {
     const cur = queue[head++]!;
-    const { z, x, y } = coords(cur);
+    const x = (cur % W) + 1;
+    const y = (Math.floor(cur / W) % W) + 1;
+    const z = Math.floor(cur / (W * W)) + 1;
     from.x = x;
     from.y = y;
     for (const [dx, dy] of DIRS) {
@@ -166,8 +175,8 @@ export function pathfind(
 
       // A non-target cell must be passively enterable...
       if (!traversable(tower, cells, held, from, z, nx, ny)) continue;
-      const arr = arrival(tower, cells, z, nx, ny);
-      const landing = addr(tower, arr.z, arr.x, arr.y);
+      const az = arrivalFloor(tower, cells, z, nx, ny);
+      const landing = az === z ? stepCell : addr(tower, az, nx, ny);
 
       // Reached by *landing* on it off a staircase. The player never enters
       // the target cell directly in this case -- they enter the stairs and
@@ -177,9 +186,9 @@ export function pathfind(
 
       // ...and so must the cell a staircase drops us on.
       if (landing !== stepCell) {
-        from.x = arr.x;
-        from.y = arr.y;
-        const ok = traversable(tower, cells, held, from, arr.z, arr.x, arr.y);
+        from.x = nx;
+        from.y = ny;
+        const ok = traversable(tower, cells, held, from, az, nx, ny);
         from.x = x;
         from.y = y;
         if (!ok) continue;

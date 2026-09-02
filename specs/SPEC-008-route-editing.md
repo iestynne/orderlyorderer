@@ -496,18 +496,27 @@ code added or removed breaks this rather than passing quietly.
    At one frame an edit is indistinguishable from a scrub and no click rate can
    outrun it.
 
-   `[F]` **Measured: median 12-14 ms, max under 18 ms** over repeated runs,
-   inside the one-frame target. `[F]` It is the cost of re-simulating the route
-   **in full**: 1 773 actions, **3 547** entries and **6 071** steps, a
-   pathfinder BFS per entry and a rules resolution per step. A head insert and
-   a whole-route re-simulation are therefore the same measurement, which is why
-   this is the case the oracle picks.
+   `[F]` **Measured: 9.0 ms median, 11.2 ms max**, comfortably inside the
+   one-frame target. `[F]` It is the cost of re-simulating the route **in
+   full**: 1 773 actions, **3 547** entries and **6 071** steps. A head insert
+   and a whole-route re-simulation are therefore the same measurement, which is
+   why this is the case the oracle picks.
 
-   `[F]` Reaching it took the move this oracle names, narrowing the work rather
-   than relaxing the budget: `pathfind` allocated and cleared three tower-sized
-   arrays per waypoint and copied the `Player` per neighbour, which over one
-   route is 25 million writes and 150 MB of garbage. It reuses one working set
-   and stamps `seen` with a generation counter, which halved the number.
+   `[F]` Reaching it took the move this oracle names — narrowing the work rather
+   than relaxing the budget — three times, and **the search was never the cost**.
+   The first reading was 27.7 ms. Measured over this route:
+
+   | Where | Was | Fix |
+   |---|---|---|
+   | `pathfind` allocated and cleared three tower-sized arrays per call, and copied the `Player` per neighbour | 34 million writes, ~150 MB of garbage | one reused working set, `seen` a generation stamp |
+   | A kill rescanned all 225 cells of its floor for Battle Gates; the route makes **1 389** kills | 312 000 cell reads — six times the pathfinder's whole neighbour count | the gates indexed once per tower, D39 |
+   | `pathfind` allocated a `{z, x, y}` per node dequeued and per neighbour examined | ~40 000 objects | arithmetic, and a floor number rather than a position |
+
+   `[F]` **The BFS itself is small**: 2 354 calls, 13 413 nodes dequeued and
+   49 964 neighbours examined over the whole route, and **2 007 of the 2 354
+   calls find the goal from the start node** — the recorded `from` is adjacent
+   to the cell acted on, so most pathfinds are one step. What cost time was
+   allocation around the search, not the search.
 
    `[F]` Taken after `TODO.md` §A5 was fixed, as this oracle requires: a run
    with the readback demotion and the leaked listeners live would have measured
