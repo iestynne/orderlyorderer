@@ -71,12 +71,15 @@ export class Scrubber {
   private raf = 0;
   private settings: ScrubberSettings;
   /**
-   * `[F]` `bindInput` put `keydown` and `resize` on `window`, and `stop_()`
-   * removed neither — so every remount leaked a listener holding this Scrubber
-   * and its FloorCache, and StrictMode double-invokes effects, so there were
-   * two from the first mount. TODO §A5's second fault.
+   * `[D]` Every listener this object registers is registered with this
+   * controller's signal, so `destroy` drops all of them in one call and cannot
+   * miss one. `keydown` and `resize` are on `window`, which outlives the
+   * canvas: left behind, they hold the whole `FloorCache` alive and keep
+   * seeking a scrubber nobody can see, which is work every remount adds to.
+   * StrictMode double-invokes effects, so there were two from the first mount.
+   * D40.
    */
-  private readonly unbind: Array<() => void> = [];
+  private readonly input = new AbortController();
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -320,7 +323,7 @@ export class Scrubber {
   }
 
   start(): void {
-    if (this.raf !== 0) return;
+    if (this.raf !== 0 || this.input.signal.aborted) return;
     const loop = (now: number): void => {
       if (this.settings.perf && this.stops.length > 1) {
         const target = this.perfHarness.tick(now, this.stops.length);
@@ -332,10 +335,15 @@ export class Scrubber {
     this.raf = requestAnimationFrame(loop);
   }
 
-  stop_(): void {
+  /**
+   * Tear down for good: stop the loop and drop every listener with it. Not a
+   * pause — a destroyed scrubber does not restart, because the only caller is
+   * React unmounting the canvas it draws to.
+   */
+  destroy(): void {
     cancelAnimationFrame(this.raf);
     this.raf = 0;
-    for (const off of this.unbind.splice(0)) off();
+    this.input.abort();
   }
 
   resize(): void {
@@ -502,10 +510,7 @@ export class Scrubber {
   }
 
   private bindInput(): void {
-    const on = <K extends keyof WindowEventMap>(k: K, fn: (e: WindowEventMap[K]) => void): void => {
-      window.addEventListener(k, fn);
-      this.unbind.push(() => window.removeEventListener(k, fn));
-    };
+    const { signal } = this.input;
     const logical = (clientX: number, clientY: number): { x: number; y: number } => {
       const rect = this.canvas.getBoundingClientRect();
       return {
@@ -558,15 +563,15 @@ export class Scrubber {
         this.seek(stopFromY(e.clientY));
       }
     };
-    this.canvas.addEventListener("pointerdown", onDown);
+    this.canvas.addEventListener("pointerdown", onDown, { signal });
     this.canvas.addEventListener("pointermove", (e) => {
       if (dragging) this.seek(stopFromY(e.clientY));
-    });
+    }, { signal });
     this.canvas.addEventListener("pointerup", (e) => {
       dragging = false;
       if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
-    });
-    on("keydown", (e) => {
+    }, { signal });
+    window.addEventListener("keydown", (e) => {
       const step = e.shiftKey ? 10 : 1;
       // `[D]` Left/right only. Up/down were also bound, and inverted against
       // the slider they were meant to match -- but the fix is not to flip them:
@@ -590,7 +595,7 @@ export class Scrubber {
       else if (e.key === "1" || e.key === "2" || e.key === "3") this.setMode(MODES[Number(e.key) - 1]!);
       else return;
       e.preventDefault();
-    });
-    on("resize", () => this.resize());
+    }, { signal });
+    window.addEventListener("resize", () => this.resize(), { signal });
   }
 }

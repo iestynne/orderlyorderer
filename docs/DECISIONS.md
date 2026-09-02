@@ -152,7 +152,7 @@ skipped epoch and an explicitly-selected empty segment must leave the mainline i
 identical states. If they ever diverge, the one-construct claim is false and the
 three features really are three mechanisms.
 
-**D38. An action is a pair of waypoints, and the live position is route-level.**
+**D42. An action is a pair of waypoints, and the live position is route-level.**
 
 `[F]` SAVE_FORMAT §3's `2S+1` rule is **positional**: S pairs of `(from, to)`
 then the player's live position. So an edit that adds or removes a single entry
@@ -181,6 +181,17 @@ priority on code quality. `src/` under `sim/`, `ui/` and `store/` outranks
 renamed in the *app* to avoid `src/mapdiff/verify.ts`; the restructure above
 retired that clash, but the precedence is worth keeping for the next one. D34
 still decides *whether* two things may share a word; this decides *who moves*.
+
+**D40. Every listener a UI object registers goes on one `AbortController`, and
+teardown aborts it.**
+`[F]` `keydown` and `resize` were on `window`, which outlives the canvas, and
+nothing ever removed them: an unmounted scrubber stayed alive holding its whole
+`FloorCache` and went on seeking on every arrow key — once per mount ever made,
+and two before the player had touched anything, because StrictMode
+double-invokes effects. `[D]` A signal cannot miss a listener the way a matching
+`removeEventListener` can, and it covers listeners added on any target. `[D]`
+The method is `destroy`, not `stop`: it does not restart, and a name that
+suggests it might invites a caller to try.
 
 ## Data handling
 
@@ -463,6 +474,37 @@ D14b-1 anticipates a placeholder set so that anyone without the game archive can
 build. It is deferred, not dropped: until it exists, a build requires
 `../local/game/`. Recorded because it is a real limitation of the published
 repo, not an oversight.
+
+**D38. A canvas that is read back is created `willReadFrequently`. Nothing else
+is.**
+`[F]` A canvas hands out the 2D context it already holds and **ignores the
+attributes of every later `getContext`** — so the flag asked for at the
+`getImageData`, which is where it reads naturally, never took effect once. Chrome
+warned about it in the console twice and the warning was read as advice rather
+than as a report. `[F]` Repeated readbacks demote an accelerated canvas to
+software and it is never promoted back, which is the shape of "slower and
+slower, then a cliff, and never recovers". `[D]` So the flag is asked for at the
+one place a context is created, and only for the bitmaps actually read back —
+the 240x240 floors, not the atlas, which is drawn from and never read.
+
+**D39. A projection that never changes is baked into the cached bitmap, not
+applied per draw.**
+`[F]` The tower stack sheared each floor a source row at a time: 64 `drawImage`
+calls per floor, **2 048 per scrub update** on 2-5's 32 floors and 4 800 on the
+75-floor tower — for offsets identical in every frame, over a bitmap that
+changes only when a seek edits that floor. `[D]` The shear is whole pixels, so
+moving it into the miniature copies the same pixels to the same places: the
+frame is identical and a floor is one blit. Worth generalising — **anything
+constant per frame belongs in the thing that is already cached per frame.**
+
+**D41. Nothing on screen waits for a number that nothing on screen needs.**
+`[F]` Opening a `.sav` simulated every record before drawing the list — 2-5 is
+41 records and 156 546 steps, about three seconds of blank window — to fill
+three columns beside a name the player is choosing the record by. `[D]` The list
+is shown at once and the columns fill in behind it, a macrotask apart so the
+browser paints between rows. The order is a function of the names alone, so no
+row moves once it is on screen. `…` says a number is still coming; `—` says
+there is not going to be one.
 
 ## Workflow
 

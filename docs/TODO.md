@@ -9,23 +9,26 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 
 ## A. Next action
 
-**SPEC-007 and SPEC-008 are both built** — 281 tests green (`STATUS.md`). The
-scrubber has had four rounds of visual review; **the editing UI has had none.**
-Next, in order:
+**SPEC-007 and SPEC-008 are both built** — 294 tests green (`STATUS.md`). The
+scrubber has had four rounds of visual review and both its recorded performance
+faults are fixed (§A5); **the editing UI has had no rounds at all.** Everything
+at the top of this list needs a browser, and so needs iestyn:
 
-1. **Look at the editing UI.** D24a is its only judge and it has not been used
-   on it yet. Three of `docs/UI.md` §7's questions are new and resolve only by
-   looking: whether the outline around edited actions reads well, whether live
-   actions should carry one too, and whether an ignored click in add mode should
-   still move the player icon.
-2. **Set the perf baseline** — SPEC-007 §7, oracle 2, still `[O]`. The harness
-   is built and toggled from the settings block; nobody has read the number.
-   It is what decides Canvas 2D versus WebGL. §A5 is fixed, so a reading taken
-   now measures the renderer rather than the leak.
-3. **Floor entry thresholds — the *number*.** SPEC-008's skippable segments are
+1. **Look at the editing UI.** D24a is its only judge. Three of `docs/UI.md`
+   §7's questions are new and resolve only by looking: whether the outline
+   around edited actions reads well, whether live actions should carry one too,
+   and whether an ignored click in add mode should still move the player icon.
+2. **Confirm §A5 by eye and by hand** — scrub 2-5 back and forth for a minute
+   and check it does not degrade, and that opening a `.sav` shows its list at
+   once. Neither is testable headless; both are what was actually wrong.
+3. **Read the perf baseline** — SPEC-007 §7, oracle 2, still `[O]`. §A5 is
+   fixed, so the number now measures the renderer rather than the leak. Open a
+   record, tick `perf test`, report the `frame` median/max against the 5 ms
+   budget. It is what decides Canvas 2D versus WebGL.
+4. **Floor entry thresholds — the *number*.** SPEC-008's skippable segments are
    the predicate, built and working; what is left is a search over it.
-4. **The two open pieces of editing UX** — §A6.
-5. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
+5. **The two open pieces of editing UX** — §A6.
+6. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
    the pattern, but SPEC-002/005/006 have not been checked.
 
 `[D]` Still open by eye, not blocking: the rest of `docs/UI.md` §7 — the
@@ -35,28 +38,31 @@ trail's `dHue`, the stack's size, whether overlapped floors read on a 32- or
 `[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
 own capture control: press `S` or the button, share the PNG.
 
-## A5. Scrubber performance
+## A5. The two scrubber performance faults — fixed 2026-09-01
 
-`[F]` **Both faults found on 2026-09-01 are fixed.** Scrubbing degraded until
-the app was unusable, and the cause was that a canvas has exactly one context:
-`FloorCache.makeCanvas` created it without `willReadFrequently`, so
-`boxDownscale` asking the same canvas for the flag was ignored and Chrome
-demoted each floor to software after repeated `getImageData`, permanently.
-Readbacks now go through one shared scratch canvas that carries the flag.
-Second: `Scrubber.bindInput` leaked its `keydown` and `resize` listeners on
-every remount — StrictMode double-invokes effects, so there were two from the
-first mount — and `stop_()` now removes them.
+`[F]` Both faults are fixed: **four causes**, three of them behind the
+scrubbing one and one behind the load. The **second** row below was not among
+the hypotheses — it turned up while reading the update path for the others.
+Rationale in `DECISIONS.md` D38-D41; each has a diagnostic test under
+`test/ui/`, checked by reverting the fix and watching it fail.
 
-`[O]` **The perf baseline is still unread** — SPEC-007 §7 oracle 2. The harness
-is built and toggled from the settings block; nobody has looked at the number,
-and it is what decides Canvas 2D versus WebGL.
+| Fault | Was | Now |
+|---|---|---|
+| `willReadFrequently` never took effect, so every miniature rebuild read back from an accelerated canvas and Chrome demoted it for good | slower, then a cliff, never recovering | asked for at creation, on the floor bitmaps only (D38) |
+| The stack's shear ran one `drawImage` per source row | 2 048 draw calls per scrub update on 2-5, 4 800 on 2-6 | baked into the cached miniature: one blit per floor (D39) |
+| `keydown` and `resize` were left on `window` at unmount | one dead scrubber still seeking per mount ever made; two from StrictMode alone | one `AbortController`, aborted by `destroy()` (D40) |
+| Opening a `.sav` simulated all 41 records before drawing the list | ~3 s of blank window | the list first, the columns behind it (D41) |
 
-`[F]` **Loading is slow, and the cause is measured.** 2-5.sav takes ~3 s.
-Opening a `.sav` simulates **every** record just to fill the list's power, floor
-and stop columns: 41 records, **156 546 steps**, 1 144 ms in node alone. Fixes,
-cheapest first: simulate lazily per row, cache by record, or show the list at
-once and fill those columns in as they compute. `[P]` The rest is `paintAll`
-(32 floors x 450 draws) and 32 `boxDownscale` calls, both one-off.
+`[O]` **Unconfirmed by eye.** All four are reasoned and tested headless; none of
+them has been watched in a browser, which is the only judge of whether the
+degradation is actually gone (D24a). §A step 2. `[F]` A fifth, in the same
+family, landed with SPEC-008: `pathfind` allocated and cleared three
+tower-sized arrays per waypoint and copied the `Player` per neighbour, which
+halved re-evaluation time. That one is measured — SPEC-008 oracle 4.
+
+`[P]` What is left of load time is `paintAll` (32 floors x 450 draws) and the
+32 miniature builds, both one-off and both now off the critical path for
+showing the list.
 
 ## A3. Map exports — captured; one nice-to-have left
 

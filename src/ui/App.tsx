@@ -7,16 +7,15 @@
 
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { hasOrbMoves, routeFromRecord } from "../sav/route";
+import { routeFromRecord } from "../sav/route";
 import { LuaArray, parseTop } from "../sav/buffer";
 import { emitPayload, emitSaveFile, parseSaveFile, type SaveRecord } from "../sav/savefile";
-import { simulate } from "../sim/simulate";
-import { stopStepIndices } from "../sim/cursor";
 import { importRoute, UNLIMITED_GEMS, type OrdFile, type Route } from "../sim/route/document";
 import { ordFile, parse as parseOrd, payloadHash } from "../sim/route/ordfile";
 import type { TowerJSON } from "../sim/types";
 import { WorkingStore, type Session, type ViewState } from "../store/working";
 import { knownTowerIds, loadSheet, loadTower, manifest, towerIdFromFilename } from "./assets";
+import { blankSummaries, fillSummaries, type Summary } from "./records";
 import { RouteSession } from "./session";
 import { Scrubber, type ScrubberSettings } from "./scrubber";
 
@@ -37,36 +36,11 @@ const DEFAULT_VIEW: ViewState = {
   zoom: "auto",
 };
 
-interface Summary {
-  record: SaveRecord;
-  orbs: boolean;
-  power: number | null;
-  highest: number | null;
-  stops: number | null;
-}
-
-/** Player-named records sort above the AUTOSAVE_* ones: those names are the player's own index into their play. */
-function sortRecords(a: Summary, b: Summary): number {
-  const auto = (s: Summary): number => (s.record.name.startsWith("AUTOSAVE") ? 1 : 0);
-  return auto(a) - auto(b) || a.record.name.localeCompare(b.record.name);
-}
-
-function summarise(tower: TowerJSON, record: SaveRecord): Summary {
-  if (hasOrbMoves(record)) return { record, orbs: true, power: null, highest: null, stops: null };
-  try {
-    const route = routeFromRecord(record);
-    const t = simulate({ tower, gemsOwned: UNLIMITED_GEMS, route });
-    const last = t.steps.at(-1)?.player ?? t.initial;
-    return {
-      record,
-      orbs: false,
-      power: last.power,
-      highest: t.steps.reduce((m, s) => Math.max(m, s.player.z), t.initial.z),
-      stops: stopStepIndices(t, route.length).length,
-    };
-  } catch {
-    return { record, orbs: false, power: null, highest: null, stops: null };
-  }
+/** A computed column: still coming, absent, or a number. */
+function column(s: Summary, v: number | null, format: (n: number) => string = String): string {
+  if (s.orbs) return "";
+  if (!s.computed) return "…";
+  return v === null ? "—" : format(v);
 }
 
 function download(name: string, bytes: string | Uint8Array, type: string): void {
@@ -194,13 +168,24 @@ export default function App(): React.ReactElement {
     [start],
   );
 
+  // Which file the list belongs to. Opening another one abandons the fill that
+  // is still running against the old one rather than letting it write over it.
+  const openedRef = useRef(0);
+
   const openWith = useCallback(async (id: string, bytes: Uint8Array) => {
+    const mine = ++openedRef.current;
     try {
       const t = await loadTower(id);
-      const file = parseSaveFile(bytes);
+      const rows = blankSummaries(parseSaveFile(bytes).records);
       setTower(t);
-      setRecords(file.records.map((r) => summarise(t, r)).sort(sortRecords));
+      setRecords(rows);
       setPendingBytes(null);
+      await fillSummaries(
+        t,
+        rows,
+        (i, r) => setRecords((prev) => prev && prev.map((row, j) => (j === i ? r : row))),
+        () => openedRef.current !== mine,
+      );
     } catch (e) {
       setError(String(e));
     }
@@ -228,7 +213,7 @@ export default function App(): React.ReactElement {
     s.load(session);
     void storeRef.current?.markLoaded();
     return () => {
-      s.stop_();
+      s.destroy();
       scrubberRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately not `settings`: see update() below.
@@ -451,9 +436,9 @@ export default function App(): React.ReactElement {
                     )}
                   </td>
                   <td>{s.record.time ?? "—"}</td>
-                  <td>{s.orbs ? "uses orbs" : s.power?.toLocaleString("en-GB") ?? "—"}</td>
-                  <td>{s.highest ?? "—"}</td>
-                  <td>{s.stops ?? "—"}</td>
+                  <td>{s.orbs ? "uses orbs" : column(s, s.power, (n) => n.toLocaleString("en-GB"))}</td>
+                  <td>{column(s, s.highest)}</td>
+                  <td>{column(s, s.stops)}</td>
                 </tr>
               ))}
             </tbody>

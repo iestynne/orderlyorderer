@@ -7,17 +7,17 @@ Paste this at the start of a fresh conversation. App version **v0.7-455**.
 ## What this project is
 
 **Orderlyorderer** — a static web app for planning, recording and sharing routes
-through towers in *Towers of Scale*, a Love2D puzzle roguelike. The name is a nod
-to tower 2-5 *The Orderly Order*, and to the tool being about reordering things.
-TypeScript + Vite + React, no backend, with a pure simulation module. The app
-must reproduce the game's mechanics exactly; the oracle is that an app-generated
+through towers in *Towers of Scale*, a Love2D puzzle roguelike, named for tower
+2-5 *The Orderly Order* and for the tool being about reordering things.
+TypeScript + Vite + React, no backend, with a pure simulation module. It must
+reproduce the game's mechanics exactly; the oracle is that an app-generated
 savegame replays in the real game and reaches the predicted state.
 
 ## What the tool is for
 
 Not solving routes — **making a human's search less laborious**. The player
-builds and edits the route; the app supplies visualisation, editing affordances
-and small, predictable automations.
+builds and edits the route; the app supplies visualisation, affordances and
+small, predictable automations.
 
 The highest-value analysis is **floor entry thresholds** — the minimum power to
 enter and clear a region, given held items. Tower 2-5 is built entirely around
@@ -46,23 +46,23 @@ Each spec names which docs to load. Do not load them all.
 ## Read the source, do not run experiments
 
 The developer has granted access to the game's source and assets **for use in
-this tool only — not for redistribution**; a Love2D executable is a ZIP, so it
-unpacks with standard tools. This has been decisive: every mechanics question
-put to the source was answered by it, several of which the docs had **wrong**
-rather than merely uncertain. Reach for `../local/game/v0.7-455/*.lua` before
-designing an experiment; experiments retain only the role the source cannot
-fill, confirming we read the *right* code path (`TODO.md` §C).
+this tool only — not for redistribution**; a Love2D executable is a ZIP. This
+has been decisive: every mechanics question put to the source was answered by
+it, several of which the docs had **wrong** rather than merely uncertain. Reach
+for `../local/game/v0.7-455/*.lua` before designing an experiment; experiments
+retain only the role the source cannot fill, confirming we read the *right* code
+path (`TODO.md` §C).
 
 ## Done
 
 - **Savegame format fully decoded**, and writing works: a parse/emit round trip
   reproduces all four `.sav` files byte-for-byte, and nine generated variants
-  loaded in the game, one byte-identical to a hand-played save.
-- **The loader validates by re-simulation.** Three insufficiency tests (power,
-  gold, keys) were each refused, so a load is evidence the simulators agree.
+  loaded in the game, one byte-identical to a hand-played save. The loader also
+  validates by re-simulation — three insufficiency tests (power, gold, keys)
+  were each refused, so a load is evidence the simulators agree.
 - **SPEC-002 is implemented.** `tools/maps/` parses all 16 `res/maps/*` files
-  into committed tower JSON, byte-exact round trip on 16/16. The emitted JSON is
-  **one merged cell grid per floor** (§5.2), which is what SPEC-004 consumes.
+  into committed tower JSON, byte-exact round trip on 16/16, as **one merged
+  cell grid per floor** (§5.2) — which is what SPEC-004 consumes.
 - **Nine mechanics questions settled from the Lua**, several of which corrected
   the docs. The load-bearing one: `negative_keys` rewrites the entire key
   system, not just the Keysmasher — a two-counter model cannot replay EX-3 at
@@ -70,9 +70,9 @@ fill, confirming we read the *right* code path (`TODO.md` §C).
 - **SPEC-004 is implemented**, with every `[O]` closed and its step-0 expected
   values measured rather than predicted.
 - **SPEC-008 is implemented**, the whole of it: the `.ord` document, the
-  forward-pass evaluation with skips and forks, the nine editing operations,
-  export, the IndexedDB working store and the editing UI. Nine invariants and
-  four oracles pass; oracle 2 reproduces all **326** payloads byte for byte.
+  forward pass with skips and forks, the nine editing operations, export, the
+  working store and the editing UI. Nine invariants and four oracles pass;
+  oracle 2 reproduces all **326** payloads byte for byte.
 
 ## Specs
 
@@ -84,60 +84,60 @@ fill, confirming we read the *right* code path (`TODO.md` §C).
 | SPEC-005 map diff | **implemented**, draft 2. Oracle 3 passes: 62 040 cells across all 14 towers, zero differences. |
 | SPEC-007 tower scrubber | **implemented**, all three stages. Stages 1-2 green against the contract; stage 3 awaits an eye (D24a). |
 | SPEC-008 route editing | **implemented**, draft 2. Three features, one machinery. Oracles 1-4 pass; the UI awaits an eye (D24a). |
-| SPEC-003 headless Lua harness | stub, behind a decision gate. **Do not build:** its gate required manual verification to have become the bottleneck, and the replay sweep is now that oracle instead. |
+| SPEC-003 headless Lua harness | stub. **Do not build:** its gate required manual verification to have become the bottleneck, and the replay sweep is that oracle instead. |
 | SPEC-001 overlay detector | **cancelled**, in `specs/obsolete/`. Overlays are declared in the level data, not inferred. |
 
 ## The simulator agrees with the game
 
 The claim above — "an app-generated savegame replays in the real game and
-reaches the predicted state" — is measured in the other direction, which is
+reaches the predicted state" — is measured the other way round, which is
 cheaper and stronger:
 
 - **326 / 326** save records across 14 towers replay with **zero errors**, over
   ~470 000 simulated moves, and **14 / 14** hi-scores reproduce the game's own
   `score` file **exactly**.
-- **62 040 / 62 040** tiles of final tower state match 16 real map exports —
-  every one of the 14 towers that has a save — cell for cell, with **zero
-  differences** (SPEC-005 oracle 3).
+- **62 040 / 62 040** tiles of final tower state match 16 real map exports, cell
+  for cell, with **zero differences** (SPEC-005 oracle 3).
 
 Plus four hand-played experiments (C1-C4) predicted independently by the sim
 (`RESULTS.md`). Every entity type in the game is exercised except orbs.
 
 ## The app exists
 
-`SPEC-007` slice 1 and `SPEC-008` are built. **281 tests pass.**
+`SPEC-007` slice 1 and `SPEC-008` are built. **294 tests pass.**
 
 - **Stage 1, `Cursor`** — `src/sim/cursor.ts`, pure, 122 lines. Every named
   value in the contract reproduced first time, corpus maxima 1 773 stops and
-  1 849 cell edits both in `2-5 / "F 211g 98.3M win H [A]"`. Invariants 1-4 pass
-  over all 326 records; oracle 1 seeks to all 195 000 stops with no stale tile.
+  1 849 cell edits both in `2-5 / "F 211g 98.3M win H [A]"`. Invariants 1-4 and
+  oracle 1 pass over all 326 records, seeking all 195 000 stops.
 - **Stage 2, assets** — `tools/atlas/build.ts` packs 65 sprites and the four
   bitmap fonts into one 883×176 atlas, 9 KB, gitignored in `build/`.
 - **Stage 3, the UI** — Vite, React, one canvas, two panels. Through **four
-  rounds of review by eye** (D24a), and an MVP by iestyn's assessment. Both
-  performance faults are fixed (`TODO.md` §A5).
-- **Route editing** adds three modes, badges on added and disabled actions, the
-  segment bracket with a pip per alternative, the failure overlay, undo and redo,
-  and green/red once a route breaks. `docs/UI.md` §6; not yet looked at.
+  rounds of review by eye** (D24a), an MVP by iestyn's assessment. Both perf
+  faults are fixed — four causes, D38-D41, none yet watched in a browser, which
+  is their only judge (`TODO.md` §A5).
+- **Route editing** adds three modes, badges, the segment bracket with a pip per
+  alternative, the failure overlay, undo and redo, and green/red once a route
+  breaks. `docs/UI.md` §6; not yet looked at.
 
 **The D32 reimplementation test ran** and found a real bug — in the docs, not
-the code (D33). Looking at the app then found nine more no test could have
-caught: D24a earns its keep.
+the code (D33). Looking at the app then found nine more: D24a earns its keep.
 
 ## Next
 
-1. **Look at the editing UI.** D24a is the only judge it has, and it has had no
-   rounds yet. `TODO.md` §A6 names the three questions that resolve by looking.
-2. **Set the perf baseline** (SPEC-007 §7 oracle 2, `[O]`). The harness is built
-   and §A5 is fixed, so a reading now measures the renderer rather than a leak.
+1. **Look at the app.** Two things need a browser and so need iestyn: the
+   editing UI, which D24a has never been used on, and **§A5 by eye** — a minute
+   of scrubbing 2-5 that does not degrade.
+2. **Set the perf baseline** (SPEC-007 §7 oracle 2, `[O]`). Open a record, tick
+   `perf test`, read the `frame` line. §A5 is fixed, so it measures the
+   renderer rather than the leak.
 3. **Floor entry thresholds — the *number*.** Skippable segments are the
    predicate and they work; what is left is a search over it.
 4. **The two open pieces of editing UX** — `TODO.md` §A6.
 
 ## Known blockers
 
-None. The reverse-engineering phase is finished: every mechanic the simulator
-needs is read, implemented and validated. Three limitations block nothing today:
+None; the reverse-engineering phase is finished. Two limitations block nothing:
 
 - The app has **no real `gemsOwned`**: the total is grade gems plus the sum of
   per-tower crown tiers, and only the `crown` file supplies it (`TODO.md` §B2).

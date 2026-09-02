@@ -154,7 +154,7 @@ this is a green prefix and a red suffix; features 2 and 3 make it richer.
 actions** are subtler: a *no entry* badge marks the tile that would have been
 affected, and it stays on the floor rather than on the slider, the route that
 ran no longer containing that action. `[F]` The action is a recorded *pair*
-(D38), so disabling it removes the approach as well — the "left at the start
+(D42), so disabling it removes the approach as well — the "left at the start
 location" phrasing of earlier drafts described a mechanism that would have
 broken the `2S+1` rule. `[P]` An outline with a drop shadow around both tiles,
 possibly around live actions too for consistency. `[O]` Built; not yet judged

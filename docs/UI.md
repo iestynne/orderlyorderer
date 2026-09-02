@@ -18,15 +18,16 @@ backup. A working copy from a previous session is offered back, with when it was
 written and that warning again; one that crashed *during* load is discarded
 instead, and the app says so.
 
-Opening a `.sav` lists its records: name, timestamp where there is one, and
-three figures from simulating it — final power, highest floor, waypoint stops.
-Player-named records sort above the `AUTOSAVE_*` ones, those names being the
-player's own index into their play. A record using orbs is listed but not
-openable, and says why. The tower comes from the filename; if that names no
-tower we know, the app asks rather than guessing. An `.ord` names its own tower,
-and is asked which route only when it holds more than one. Choosing one replaces the empty state with the two panels, over a toolbar:
-close, undo and redo, the epoch commands of §6, save `.ord`, export `.sav`, a
-**screenshot** button writing the exact 1× frame to a PNG, and the keys.
+Opening a `.sav` lists its records at once: name, timestamp where there is one,
+and three figures simulated behind the list, `…` until each lands — final power,
+highest floor, waypoint stops. Player-named records sort above the `AUTOSAVE_*`
+ones, those names being the player's own index. A record using orbs is listed
+but not openable, and says why. The tower comes from the filename; if that names
+no tower we know, the app asks. An `.ord` names its own tower, and is asked
+which route only when it holds more than one. Choosing one replaces the empty
+state with the two panels, over a toolbar: close, undo and redo, the epoch
+commands of §6, save `.ord`, export `.sav`, a **screenshot** button writing the
+exact 1× frame to a PNG, and the keys.
 
 ## 2. Timeline panel
 
@@ -138,8 +139,7 @@ fresh, uniquely named file, never an overwrite, and refuses a route that fails.
 
 Answered ones move out — to `DECISIONS.md` if the reasoning matters, else above.
 
-- **The trail is anti-aliased and the stack filtered**, where the game smooths
-  nothing — though both are things the game never draws.
+- **The trail is anti-aliased and the stack filtered**, where the game is not.
 - **How big the stack should be**, and whether overlapped floors stay legible on
   a 32- or 75-floor tower.
 - **Freezing past and future floors** as you scrub: the past at its final state,

@@ -13,19 +13,43 @@ import type { AtlasManifest } from "../../../tools/atlas/build";
 import { CELL, FLOOR, LABEL_H, LABEL_W, LABEL_Y } from "./screen";
 import { bake, effectiveKey, labelOf, type BakedAtlas } from "./atlas";
 
+/** The 2D context attributes a canvas is created with, exposed so a test can see them. */
+export type CanvasAttrs = CanvasRenderingContext2DSettings;
+
+/** How every canvas in this module is made. Injectable so the cache can be driven headless. */
+export type CanvasFactory = (
+  w: number,
+  h: number,
+  attrs?: CanvasAttrs,
+) => { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D };
+
 /**
  * `alpha: true` throughout, and it matters. The atlas tile's two overhang rows
  * must stay transparent so a badge composites over the cell below instead of
  * blanking its top two rows, and the floor bitmap needs alpha to receive that.
+ *
+ * `[D]` **`willReadFrequently` is a property of a context, and a canvas has
+ * exactly one.** A canvas that already holds a 2D context returns *that*
+ * context from every later `getContext` call and silently ignores the
+ * attributes — so asking for the flag where the `getImageData` is, which is
+ * where it reads naturally, never took effect. It has to be asked for at
+ * creation, which is here. D38.
  */
-function makeCanvas(w: number, h: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+export const makeCanvas: CanvasFactory = (w, h, attrs) => {
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
-  const ctx = canvas.getContext("2d");
+  const ctx: CanvasRenderingContext2D | null = canvas.getContext("2d", attrs);
   if (!ctx) throw new Error("no 2d context");
   ctx.imageSmoothingEnabled = false;
   return { canvas, ctx };
+};
+
+/** Just enough of `ImageData` to be built and asserted without a DOM. */
+export interface Pixels {
+  readonly width: number;
+  readonly height: number;
+  readonly data: Uint8ClampedArray;
 }
 
 /**
@@ -33,23 +57,19 @@ function makeCanvas(w: number, h: number): { canvas: HTMLCanvasElement; ctx: Can
  * pixels it covers.
  *
  * `[D]` Canvas 2D exposes no mip levels and no anisotropic filtering, and its
- * own `imageSmoothingQuality` is bilinear — which, at the 10:1 reduction the
- * tower stack asks for, samples a tenth of the rows and aliases just as badly
- * as picking one. A box filter over the full source IS the supersample: it is
+ * own `imageSmoothingQuality` is bilinear — which, at the reduction the tower
+ * stack asks for, samples a fraction of the rows and aliases just as badly as
+ * picking one. A box filter over the full source IS the supersample: it is
  * what a mip chain converges to for an axis-aligned minification, computed
  * once per floor rather than per frame.
  *
  * `[F]` Fractional coverage is weighted, so non-integer ratios are correct too
  * and the stack width is free to be tuned by eye rather than snapped to 1/2.
  */
-export function boxDownscale(src: HTMLCanvasElement, w: number, h: number): HTMLCanvasElement {
-  const s = readback(src);
-  const out = document.createElement("canvas");
-  out.width = w;
-  out.height = h;
-  const d = new ImageData(w, h);
-  const xr = src.width / w;
-  const yr = src.height / h;
+export function boxFilter(s: Pixels, w: number, h: number): Pixels {
+  const data = new Uint8ClampedArray(w * h * 4);
+  const xr = s.width / w;
+  const yr = s.height / h;
 
   for (let y = 0; y < h; y++) {
     const y0 = y * yr;
@@ -62,12 +82,12 @@ export function boxDownscale(src: HTMLCanvasElement, w: number, h: number): HTML
       let b = 0;
       let a = 0;
       let wsum = 0;
-      for (let sy = Math.floor(y0); sy < Math.min(src.height, Math.ceil(y1)); sy++) {
+      for (let sy = Math.floor(y0); sy < Math.min(s.height, Math.ceil(y1)); sy++) {
         const wy = Math.min(y1, sy + 1) - Math.max(y0, sy);
-        for (let sx = Math.floor(x0); sx < Math.min(src.width, Math.ceil(x1)); sx++) {
+        for (let sx = Math.floor(x0); sx < Math.min(s.width, Math.ceil(x1)); sx++) {
           const wx = Math.min(x1, sx + 1) - Math.max(x0, sx);
           const weight = wy * wx;
-          const i = (sy * src.width + sx) * 4;
+          const i = (sy * s.width + sx) * 4;
           r += s.data[i]! * weight;
           g += s.data[i + 1]! * weight;
           b += s.data[i + 2]! * weight;
@@ -76,55 +96,43 @@ export function boxDownscale(src: HTMLCanvasElement, w: number, h: number): HTML
         }
       }
       const o = (y * w + x) * 4;
-      d.data[o] = r / wsum;
-      d.data[o + 1] = g / wsum;
-      d.data[o + 2] = b / wsum;
-      d.data[o + 3] = a / wsum;
+      data[o] = r / wsum;
+      data[o + 1] = g / wsum;
+      data[o + 2] = b / wsum;
+      data[o + 3] = a / wsum;
     }
   }
-  out.getContext("2d")!.putImageData(d, 0, 0);
-  return out;
+  return { width: w, height: h, data };
 }
 
 /**
- * `[F]` **A canvas has exactly one context, and `getContext` ignores the
- * attributes on every call after the first.** So asking a floor canvas for
- * `{ willReadFrequently: true }` in boxDownscale never took effect: the
- * context it returned was the one `makeCanvas` had already created without the
- * flag. Chrome demotes a GPU-backed canvas to software after repeated
- * `getImageData` and never promotes it back, which is the scrubbing fault of
- * TODO §A5 — slower and slower, then a cliff, never recovering.
+ * Offset row `r` right by `shear(r)`, widening the image to fit.
  *
- * `[D]` **Read back through one scratch canvas rather than flagging the
- * floors.** Setting the flag on the floor canvases would fix the demotion by
- * making it permanent and universal, when a floor is drawn to far more often
- * than it is read. One shared software canvas takes every readback the app
- * makes, at the cost of one extra `drawImage`, and the floor canvases stay
- * accelerated.
+ * `[D]` **The stack's shear is baked into the miniature, not applied at draw
+ * time.** It used to be one `drawImage` per source row — 2 048 calls per scrub
+ * update on 2-5's 32 floors, 4 800 on the 75-floor tower — for a projection
+ * that never changes and a bitmap that changes only when a seek edits that
+ * floor. The offsets are whole pixels (§5), so moving them into the cached
+ * bitmap copies the same pixels to the same places: the frame is identical and
+ * the update is one blit per floor. D39.
  */
-let scratch: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null = null;
-
-function readback(src: HTMLCanvasElement): ImageData {
-  if (scratch === null) {
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) throw new Error("no 2d context");
-    scratch = { canvas, ctx };
+export function shearRows(s: Pixels, shear: (row: number) => number): Pixels {
+  let max = 0;
+  for (let r = 0; r < s.height; r++) max = Math.max(max, shear(r));
+  const w = s.width + max;
+  const data = new Uint8ClampedArray(w * s.height * 4);
+  const stride = s.width * 4;
+  for (let r = 0; r < s.height; r++) {
+    const from = r * stride;
+    data.set(s.data.subarray(from, from + stride), (r * w + shear(r)) * 4);
   }
-  const { canvas, ctx } = scratch;
-  if (canvas.width < src.width || canvas.height < src.height) {
-    canvas.width = Math.max(canvas.width, src.width);
-    canvas.height = Math.max(canvas.height, src.height);
-  }
-  ctx.clearRect(0, 0, src.width, src.height);
-  ctx.drawImage(src, 0, 0);
-  return ctx.getImageData(0, 0, src.width, src.height);
+  return { width: w, height: s.height, data };
 }
 
 export class FloorCache {
   private readonly canvases: HTMLCanvasElement[] = [];
   private readonly ctxs: CanvasRenderingContext2D[] = [];
-  /** Supersampled miniatures for the tower stack, keyed `z:WxH`. */
+  /** Sheared, supersampled miniatures for the tower stack, keyed `z:WxH+shear`. */
   private readonly minis = new Map<string, HTMLCanvasElement>();
   readonly atlas: BakedAtlas;
 
@@ -132,10 +140,12 @@ export class FloorCache {
     private readonly tower: TowerJSON,
     manifest: AtlasManifest,
     sheet: CanvasImageSource,
+    private readonly make: CanvasFactory = makeCanvas,
   ) {
-    this.atlas = bake(tower, manifest, sheet, makeCanvas);
+    this.atlas = bake(tower, manifest, sheet, make);
     for (let z = 0; z < tower.floors.length; z++) {
-      const { canvas, ctx } = makeCanvas(FLOOR, FLOOR);
+      // `[F]` `mini` reads this one back on every edit, so the flag belongs here.
+      const { canvas, ctx } = make(FLOOR, FLOOR, { willReadFrequently: true });
       this.canvases.push(canvas);
       this.ctxs.push(ctx);
     }
@@ -150,15 +160,19 @@ export class FloorCache {
   }
 
   /**
-   * A floor supersampled down to `w x h` for the tower stack. Built on demand
-   * and cached, because the stack redraws every frame and a floor changes only
-   * when a seek edits one of its cells.
+   * A floor supersampled down to `w x h` and sheared, ready for the tower stack
+   * to blit whole. Built on demand and cached, because the stack redraws on
+   * every scrub update and a floor changes only when a seek edits one of its
+   * cells.
    */
-  mini(z: number, w: number, h: number): HTMLCanvasElement {
-    const key = `${z}:${w}x${h}`;
+  mini(z: number, w: number, h: number, shear: (row: number) => number): HTMLCanvasElement {
+    const key = `${z}:${w}x${h}+${shear(0)}`;
     let c = this.minis.get(key);
     if (!c) {
-      c = boxDownscale(this.image(z), w, h);
+      const px = shearRows(boxFilter(this.ctxs[z - 1]!.getImageData(0, 0, FLOOR, FLOOR), w, h), shear);
+      const made = this.make(px.width, px.height);
+      made.ctx.putImageData(new ImageData(px.data as Uint8ClampedArray<ArrayBuffer>, px.width, px.height), 0, 0);
+      c = made.canvas;
       this.minis.set(key, c);
     }
     return c;

@@ -286,21 +286,19 @@ function drawStack(
   // than one that emphasises: the floors are about to become hoverable, and a
   // target that moves when you approach it is the wrong kind of interface.
   const h = STACK_FLOOR_H;
+  // `[F]` The shear is what makes the horizontal footprint, so its rate and the
+  // floor height trade off exactly: at 2:1 a floor twice as tall costs no more
+  // width. `x` is a whole pixel per row, so nothing resamples along it -- only
+  // the vertical squash does, and that is pre-filtered into `mini`. The shear
+  // is pre-applied there too, so a floor is one blit rather than 64 (D39).
+  const shear = (r: number): number => Math.floor((h - 1 - r) / STACK_SHEAR);
 
   const drawFloor = (z: number): void => {
     const current = z === s.currentFloor;
     const top = base - (z - 1) * pitch - h;
     if (top + h < g.y || top > g.y + g.h) return;
-    // `[F]` The shear is what makes the horizontal footprint, so its rate and
-    // the floor height trade off exactly: at 2:1 a floor twice as tall costs no
-    // more width. `x` is still an integer per row, so nothing resamples along
-    // it -- only the vertical squash does, and that is pre-filtered into `mini`.
-    const shear = (r: number): number => Math.floor((h - 1 - r) / STACK_SHEAR);
 
-    const img = floors.mini(z, STACK_FLOOR_W, h);
-    for (let r = 0; r < h; r++) {
-      ctx.drawImage(img, 0, r, STACK_FLOOR_W, 1, x0 + shear(r), top + r, STACK_FLOOR_W, 1);
-    }
+    ctx.drawImage(floors.mini(z, STACK_FLOOR_W, h, shear), x0, top);
 
     // Outline every floor, following the shear. Floors overlap on a tall tower,
     // so this is the only thing separating one from the next.
