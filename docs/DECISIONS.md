@@ -152,6 +152,28 @@ skipped epoch and an explicitly-selected empty segment must leave the mainline i
 identical states. If they ever diverge, the one-construct claim is false and the
 three features really are three mechanisms.
 
+**D42. An action is a pair of waypoints, and the live position is route-level.**
+
+`[F]` SAVE_FORMAT §3's `2S+1` rule is **positional**: S pairs of `(from, to)`
+then the player's live position. So an edit that adds or removes a single entry
+mis-pairs every entry after it and the game reads a different route — which
+means neither an insert nor a disable can operate on one waypoint. `[D]` The
+document therefore stores pairs, and `2S+1` becomes an invariant of the
+structure rather than a rule each operation has to remember.
+
+`[F]` **Both halves are data.** SAVE_FORMAT §3's own worked example has a pair
+whose `from` is not where the previous pair left the player: it is the tile they
+approached from, which decides adjacency and which side of a one-way wall they
+are on, and the auto-pather reproduces neither. A disabled action drops both.
+
+`[D]` The trailing live position lives on the `Route`, not as the tail of the
+last segment. It belongs to no action, so a segment holding it would be a
+segment of odd length and every editing operation would need an "except the last
+one" clause. `[F]` Corrects SPEC-008 draft 1, which had an action be a single
+waypoint and `flatten()` drop only the `to` — an even entry list the `2S+1`
+rule forbids. Oracle 2 is what would have caught it: 326 payloads reproduced
+byte for byte.
+
 **D37. On a name collision, the web app keeps the word and the tool renames.**
 `[I]` iestyn: the app is where the complexity is going to be, so it takes
 priority on code quality. `src/` under `sim/`, `ui/` and `store/` outranks
@@ -452,6 +474,28 @@ D14b-1 anticipates a placeholder set so that anyone without the game archive can
 build. It is deferred, not dropped: until it exists, a build requires
 `../local/game/`. Recorded because it is a real limitation of the published
 repo, not an oversight.
+
+**D42. The worktree protocol stops sessions stomping on each other. It does not
+stop them doing the same task twice — and nothing warns you.**
+`[F]` On 2026-09-01 two sessions fixed `TODO.md` §A5 within the hour, from the
+same `main`, in separate worktrees, neither aware of the other:
+`8a2fb00` and `6e6c79d`. Both diagnosed the ignored `willReadFrequently`
+correctly and diverged on the remedy — one routed readbacks through a shared
+scratch canvas so the floors stay accelerated, the other made the floors
+CPU-backed. `[F]` The merge was **clean**, because the second rewrote the file
+the first had edited: git kept one whole approach and silently dropped the
+other. No conflict, no warning, and an hour of work gone.
+
+`[D]` **Read the branches before starting, not just `main`.** `git log --all
+--oneline` and `git branch -a` cost a second and are the only thing that would
+have caught this — a sibling worktree's branch is visible from every other
+worktree. `[D]` And prefer the smaller claim in `TODO.md`: "§A5" named one item
+that two sessions could both reasonably take.
+
+`[I]` Not solved by this entry. What is missing is a claim that is visible
+*before* the work, and `TODO.md` is the only shared surface — but it is also
+the thing being edited, so claiming in it is itself a merge conflict. Recorded
+because it will happen again as more instances run in parallel.
 
 **D38. A canvas that is read back is created `willReadFrequently`. Nothing else
 is.**

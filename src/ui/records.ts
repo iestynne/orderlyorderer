@@ -11,6 +11,7 @@
 import { hasOrbMoves, routeFromRecord } from "../sav/route";
 import type { SaveRecord } from "../sav/savefile";
 import { stopStepIndices } from "../sim/cursor";
+import { UNLIMITED_GEMS } from "../sim/route/document";
 import { simulate } from "../sim/simulate";
 import type { TowerJSON } from "../sim/types";
 
@@ -56,7 +57,7 @@ export function summarise(tower: TowerJSON, record: SaveRecord): Summary {
   if (blank.orbs) return blank;
   try {
     const route = routeFromRecord(record);
-    const t = simulate({ tower, gemsOwned: Number.POSITIVE_INFINITY, route });
+    const t = simulate({ tower, gemsOwned: UNLIMITED_GEMS, route });
     const last = t.steps.at(-1)?.player ?? t.initial;
     return {
       ...blank,

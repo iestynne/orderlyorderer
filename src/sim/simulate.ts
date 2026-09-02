@@ -41,21 +41,39 @@ function clonePlayer(p: Player): Player {
   return { ...p };
 }
 
-export function simulate(input: SimInput): Timeline {
+/**
+ * Where a resumed run picks up: SPEC-008 §4.
+ *
+ * `[D]` The engine gained one optional argument rather than a second entry
+ * point. A fork is "would this segment pass **from here**", and the state it
+ * starts from is the mainline's — which `Cursor` already holds, cell for cell.
+ * `[D]` `cells` and `kills` are **copied**, so a fork cannot write through to
+ * the mainline whose prefix it borrowed (invariant 8).
+ */
+export interface SimStart {
+  player: Player;
+  cells: Uint8Array;
+  kills: Int32Array;
+  /** Added to every `waypointIndex`, so a resumed run indexes the whole route. */
+  waypointBase?: number;
+}
+
+export function simulate(input: SimInput, start?: SimStart): Timeline {
   const { tower, gemsOwned, route } = input;
   const D = depth(tower);
   const flags = tower.metadata.computed_flags;
 
   const rs: RunState = {
     tower,
-    cells: new Uint8Array(D * W * W),
-    kills: new Int32Array(D),
+    cells: start ? Uint8Array.from(start.cells) : new Uint8Array(D * W * W),
+    kills: start ? Int32Array.from(start.kills) : new Int32Array(D),
     gemsOwned,
     negativeKeys: flags.negative_keys === true,
     uncappedElixirs: flags.uncapped_elixirs === true,
   };
 
-  const initial = initialPlayer(input);
+  const base = start?.waypointBase ?? 0;
+  const initial = start ? start.player : initialPlayer(input);
   let player = clonePlayer(initial);
   const steps: Step[] = [];
 
@@ -63,7 +81,7 @@ export function simulate(input: SimInput): Timeline {
     tower,
     initial,
     steps,
-    error: { waypointIndex, stepIndex, code, at, have, need },
+    error: { waypointIndex: base + waypointIndex, stepIndex, code, at, have, need },
   });
 
   for (let wi = 0; wi < route.length; wi++) {
@@ -137,7 +155,7 @@ export function simulate(input: SimInput): Timeline {
       }
 
       steps.push({
-        waypointIndex: wi,
+        waypointIndex: base + wi,
         from,
         to: ps.to,
         edits,

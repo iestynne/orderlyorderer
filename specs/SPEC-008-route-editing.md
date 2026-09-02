@@ -1,6 +1,6 @@
 # SPEC: Route Editing
 
-Status: **draft 1**, 2026-09-01.
+Status: **draft 2**, 2026-09-01. Implemented; tests exist against it.
 Depends on: SPEC-002 (tower JSON), SPEC-004 (simulation), SPEC-006 (`.sav`
 codec), SPEC-007 (`Cursor`, the scrubber).
 Load with this spec: `docs/DESIGN_ROUTE_EDITING.md`, `DECISIONS.md` D7, D11,
@@ -48,11 +48,14 @@ structure needs no new word: **`Route` → `Epoch` → `Segment` → `Action`.**
 ```
 src/sim/route/document.ts   epochs, segments, actions; flatten()
 src/sim/route/ordfile.ts    .ord parse and emit, canonical JSON, document hash
+src/sim/route/sha256.ts     the synchronous digest both hashes use
 src/sim/route/evaluate.ts   the forward pass: mainline plus per-segment forks
 src/sim/route/edit.ts       insert, disable, split, merge, switch, rename, reorder
 src/sim/route/export.ts     document -> .sav record
 src/store/working.ts        IndexedDB working store
-src/ui/...                  modes, selection, badges — behaviour in docs/UI.md
+src/ui/session.ts           document, evaluation, undo, selection, the marker
+src/ui/render/edit.ts       modes, badges, bracket, failure overlay
+src/ui/...                  behaviour in docs/UI.md
 ```
 
 `[D]` Route editing lives **inside `src/sim/`**, so D7's no-UI-import rule and
@@ -65,23 +68,32 @@ no logic.
 
 ## 2. The route document
 
-### 2.1 An action is a waypoint
+### 2.1 An action is a pair of waypoints
 
-`[D]` **The document stores the waypoint list verbatim.** `[F]` SPEC-006 §4
-reads a `.sav` record's `2S+1` entries as a flat `Waypoint[]` with nothing
-distinguishing them: `from` entries resolve to passive walks or no-ops, `to`
-entries are the state-changing ones. Storing that list unchanged makes import
-lossless and export trivial, and requires no inference at the boundary.
+`[D]` **The document stores the recorded pairs verbatim.** `[F]` SPEC-006 §4
+reads a `.sav` record's `2S+1` entries as a flat `Waypoint[]`: S pairs of
+`(from, to)` — one per move the auto-pather cannot reproduce — then the
+player's live position (SAVE_FORMAT §3). Splitting that list into S pairs plus
+a final position is positional, needs no inference, and is lossless both ways.
 
-`[D]` **Which waypoints are *actions* is derived from the simulation**, not
-stored. The `Timeline` already knows which steps changed state, so the editing
-and display unit is computed rather than guessed.
+`[D]` **The editing unit is the pair, not the entry.** `[F]` The `2S+1` rule is
+positional, so adding or removing a single entry mis-pairs every entry after it
+and the game reads a different route; an insert would break it and so would
+disabling one half of a pair. Pairing them makes `2S+1` an **invariant of the
+structure**, which is why `insert` and `setDisabled` are one operation each with
+no parity arithmetic anywhere.
 
-`[F]` This makes one piece of `docs/UI.md` free rather than special-cased.
-Disabling an action means disabling its `to` waypoint; the preceding `from`
-waypoint survives and still walks the player to the action's start location —
-which is exactly the described behaviour, "leave the player where the pathfinder
-says the last step before the action was."
+`[D]` **Both halves are data.** `[F]` SAVE_FORMAT §3's worked example has a pair
+whose `from` is not where the previous pair left the player: it is the tile they
+approached from, which decides adjacency and which side of a one-way wall they
+stand on, and the auto-pather reproduces neither. So a disabled action drops
+*both* of its waypoints, and the "leave the player at the action's start
+location" behaviour of DESIGN §3.1 is served by the badge on the disabled
+action's own cells, which the document still holds.
+
+`[D]` **Which actions are *live* is still derived from the simulation**, not
+stored: the evaluation says which epochs were skipped, and `disabled` says the
+rest.
 
 ### 2.2 Structure
 
@@ -98,6 +110,7 @@ interface Route {
   gemsOwned: number             // SPEC-004 §10.1
   source?: SaveSource           // absent for a route not imported from a .sav
   epochs: Epoch[]
+  final: Waypoint               // the player's live position; see below
 }
 
 interface SaveSource {
@@ -119,10 +132,15 @@ interface Segment {
 }
 
 interface Action {
-  z: number; x: number; y: number    // a SPEC-004 Waypoint, 1-based
+  from: Waypoint                     // where the move was made from
+  to: Waypoint                       // the cell acted on
   disabled?: boolean                 // absent means enabled
 }
 ```
+
+`[D]` `final` is **route-level, not the tail of the last segment**. It is the
+one entry belonging to no action, so a segment holding it would be a segment of
+odd length and every operation in §5 would need an "except the last one" clause.
 
 `[D]` `inserted` is **not** in the schema. It is session state meaning "new
 since the last save", cleared on save, so every `.ord` on disk has it false by
@@ -133,15 +151,27 @@ compressed blob. `[F]` SPEC-006 §6: Node's zlib reproduces only 82 of 326 of th
 game's compressed streams while the payload underneath is exact in all 326, so a
 hash over compressed bytes would report spurious mismatches.
 
+`[D]` The digest is a **synchronous** SHA-256 of our own, because the marker is
+computed on the edit path (DESIGN §2.3) and the browser's only built-in digest,
+`crypto.subtle`, is async — awaiting it would leave the marker one edit behind
+the document it describes. It is checked against `node:crypto` at every length
+across the block boundaries.
+
 ### 2.3 Flattening
 
 ```ts
 function flatten(route: Route): Waypoint[]
 ```
 
-`[D]` Concatenates the **active segment** of each epoch in order, dropping
-`disabled` actions. This is the only thing the simulator ever sees (D7); it
-never receives a segment.
+`[D]` The **active segment** of each epoch in order, each enabled action
+contributing `from` then `to`, and `route.final` last. Always odd, so it is
+always a legal `2S+1` entry list. This is the only thing the simulator ever
+sees (D7); it never receives a segment.
+
+`[F]` `flatten()` is a function of the document alone, so it cannot know which
+epochs a *skip* removed. The route that actually ran is `Evaluation.waypoints`,
+and that is what §7 exports.
+
 
 ### 2.4 Canonical serialization
 
@@ -153,6 +183,14 @@ serialization, compared against the hash taken at the last save (DESIGN §2.3).
 `[D]` Absent optional fields are omitted rather than written null, so that
 enabling a disabled action restores the byte-identical document — this is what
 invariant 4 asserts.
+
+`[D]` `gemsOwned` is a **finite** integer, and "unlimited" is the sentinel
+`Number.MAX_SAFE_INTEGER`. `[F]` JSON has no infinity: it would serialize as
+`null` and parse back as a broken route. Any value above every gem cost in the
+game behaves identically, and the sentinel is the largest integer JSON round
+trips exactly. `[F]` The app has no real number to put here yet — the total is
+grade gems plus the sum of per-tower crown tiers, and only the `crown` file
+supplies it (TODO §B2).
 
 ---
 
@@ -202,15 +240,17 @@ stale entry costs a recomputation rather than a wrong answer.
 
 ```ts
 interface Evaluation {
-  mainline: Timeline                       // over the flattened active route
+  mainline: Timeline                       // over the realised route
   epochs: EpochResult[]                    // one per epoch, in order
+  waypoints: Waypoint[]                    // the realised route: 2S+1 shaped
 }
 
 interface EpochResult {
   skipped: boolean                         // a skippable epoch whose segment failed
   error?: SimError                         // SPEC-004 §7, first failure in the active segment
-  forks: (SimError | null)[]               // one per inactive segment
+  forks: (SimError | null)[]               // indexed BY SEGMENT; see below
   startStep: number                        // index into mainline.steps
+  startWaypoint: number                    // index into waypoints
 }
 ```
 
@@ -232,7 +272,19 @@ from here*. Total work is the sum of segment lengths, not the product.
 several errors at once: one per skipped epoch and one per failing fork, each
 well-defined within its own run. This is the SPEC-004 §7 amendment.
 
-`[D]` **Forks must not mutate mainline state.** Invariant 8.
+`[D]` `forks` is indexed **by segment**, not packed to the inactive ones, so
+the UI can colour each alternative where it sits. The active segment's slot is
+always `null` and its outcome is `error`.
+
+`[D]` **Forks must not mutate mainline state.** Invariant 8. `[F]` The engine
+takes one optional argument saying where to resume from, and **copies** the
+cells and kills it is handed, which is what makes that structural rather than a
+rule to remember.
+
+`[D]` **An epoch after a stopped route still contributes its waypoints**, and
+its `EpochResult` carries no error because it never ran. `[F]` That is what
+keeps the whole red tail on the timeline instead of truncating the route at the
+break, which is the thing the player is looking at.
 
 ---
 
@@ -240,9 +292,9 @@ well-defined within its own run. This is the SPEC-004 §7 amendment.
 
 ```ts
 type Edit =
-  | { op: 'insert';       epoch: number; segment: number; index: number; at: Waypoint }
+  | { op: 'insert';       epoch: number; segment: number; index: number; action: Action }
   | { op: 'setDisabled';  epoch: number; segment: number; index: number; value: boolean }
-  | { op: 'addSegment';   epoch: number }               // a new parallel segment
+  | { op: 'addSegment';   epoch: number; name?: string } // a new parallel segment
   | { op: 'split';        epoch: number; index: number }
   | { op: 'merge';        epoch: number }               // with its successor
   | { op: 'setActive';    epoch: number; segment: number }
@@ -276,6 +328,21 @@ benchmarks exactly that.
 between two epochs. `[F]` This is why `docs/UI.md` requires a selected segment
 before editing.
 
+`[D]` `insert` carries the whole `Action`, both halves, rather than the target
+alone: the `from` is where the player stands when they click, which is
+evaluation state and not something `edit.ts` can see (D7). `index` is an
+**action** index, and every op is immutable — `apply` returns a new document,
+so the undo stack is the sequence of its results and needs no inverse
+operations.
+
+`[D]` **Re-evaluation is the whole route, and measured rather than assumed.**
+Oracle 4 puts a head insert on the corpus's largest record at **12.7 ms median**,
+inside the one-frame target, so §5's "resume at the edited epoch's start" buys
+nothing that can be seen and is not built (D11). Two things made that number:
+`pathfind` reuses its BFS working set between calls instead of allocating and
+clearing three arrays per waypoint, and it no longer copies the `Player` per
+neighbour. Before them it was 27.7 ms.
+
 ---
 
 ## 6. The working store
@@ -301,21 +368,30 @@ guess and names the thing that matters (DESIGN §2.2).
 ## 7. Export
 
 ```ts
-function toSaveRecord(route: Route): Uint8Array    // decompressed payload
+function toSaveRecord(route: Route, tower: TowerJSON, evaluation?: Evaluation): Uint8Array
 ```
 
-`[D]` Emits `flatten(route)` as a `2S+1` entry list through the SPEC-006 writer.
+`[D]` The tower is a parameter because a `Route` carries a tower **id**, and
+the refusal below is a simulation. The evaluation is optional and passed when
+the caller already has one, which the app always does.
+
+`[D]` Emits `Evaluation.waypoints` as a `2S+1` entry list through the SPEC-006
+writer — the route that ran, so a skipped epoch contributes nothing to the file
+just as it contributed nothing to the run.
 `[D]` **Export refuses when `evaluation.mainline.error` is set**, before writing
 anything. `[F]` The game's loader would refuse it anyway by re-simulation
 (`RESULTS.md`); this only makes the refusal ours, and legible.
 
-`[D]` **A disabled action is absent from the export**, being absent from
-`flatten()`. `[D]` Export never overwrites: every write is a fresh, uniquely
-named file.
+`[D]` **A disabled action is absent from the export**, both its waypoints,
+being absent from `flatten()`. `[D]` Export never overwrites: every write is a
+fresh, uniquely named file.
 
 ---
 
 ## 8. What moves into `docs/UI.md`
+
+`[F]` **Done: all of it is in `docs/UI.md` §7**, written in the same commit as
+the behaviour it describes.
 
 `[D]` **Implementing this spec includes writing these into `docs/UI.md`**, in
 the same commit as the behaviour they describe. They are not in `UI.md` now
@@ -335,9 +411,10 @@ From `docs/DESIGN_ROUTE_EDITING.md`:
 | §4.3 | Segment selection; the bracket over the current segment; scrubbing a failed segment and clamping at its failing action; the failure overlay built from `SimError`'s code plus `have`/`need` |
 | §5 | Choosing between parallel segments by clicking, and what the inactive ones show |
 
-`[O]` Three of these resolve only by building — whether the outline around
-actions reads well, whether it should apply to live actions too, and whether an
-ignored click in add mode should still move the player icon.
+`[O]` Three of these resolve only by building, and are built but not yet
+looked at (D24a) — whether the outline around actions reads well, whether it
+should apply to live actions too, and whether an ignored click in add mode
+should still move the player icon.
 
 ---
 
@@ -358,9 +435,13 @@ Report: test summary; PASS/FAIL + actual value per named case;
 | Records in a file, corpus range | 10 to 48 |
 | Entry count odd, every record (`2S+1`) | **326 / 326** |
 | Largest route, slider stops / cell edits | **1 773 / 1 849** (`2-5`, `F 211g 98.3M win H [A]`) |
-| `ErrorCode` values surfaced by an epoch result | **16** (SPEC-004 §7) |
+| `ErrorCode` values surfaced by an epoch result | **15** (SPEC-004 §7) |
 | Segments in an epoch, minimum | 1 |
 | Epochs in a freshly imported route | 1 |
+
+`[F]` The error-code count was **16** in draft 1 and SPEC-004 §7 lists fifteen.
+The contract was the one that was wrong; the test enumerates the type, so a code
+added or removed breaks it rather than passing quietly.
 
 **Invariants**
 
@@ -388,7 +469,10 @@ Report: test summary; PASS/FAIL + actual value per named case;
    byte-stable across repeated calls.
 8. **Fork isolation.** Evaluating inactive segments leaves `mainline` bit-identical
    to an evaluation with forks disabled.
-9. **No UI import in `src/sim/route/`.** A grep, asserted in test. D7.
+9. **No UI import in `src/sim/route/`.** A grep, asserted in test. D7. `[F]`
+   SPEC-007 invariant 5 is the same claim about the same tree, so there is one
+   grep and not two — and it now walks subdirectories, which is what it failed
+   to do the moment `src/sim/route/` existed.
 
 **Oracles**
 
@@ -416,20 +500,18 @@ Report: test summary; PASS/FAIL + actual value per named case;
    At one frame an edit is indistinguishable from a scrub and no click rate can
    outrun it.
 
-   `[P]` Plausible but unmeasured. `[F]` The corpus sweep simulates ~470 000
-   moves over 326 records inside `npm test`, and `[P]` the largest single route
-   is on the order of 1 % of that — ~5 900 steps, from SPEC-007's measured 3.3
-   steps per slider stop across 1 773 stops. `[O]` The first run settles it. If
-   the ceiling is missed, the next move is to narrow what a head insert
-   re-simulates, **not** to relax the budget.
+   `[F]` **Measured: 12.7 ms median, 13.7 ms max**, inside the one-frame target
+   and well inside the ceiling. The first reading was **27.7 ms median, 36.9 ms
+   max** — inside the ceiling on the median and over it at the worst — and the
+   answer was the one this oracle names, narrowing the work rather than relaxing
+   the budget: `pathfind` allocated and cleared three tower-sized arrays per
+   waypoint and copied the `Player` per neighbour, which over 1 773 waypoints is
+   25 million writes and 150 MB of garbage. It now reuses one working set and
+   stamps `seen` with a generation counter.
 
-   `[F]` **Measure this only after `TODO.md` §A5 is fixed.** Two scrubber
-   performance faults are open — a canvas demoted to software by repeated
-   readbacks, and leaked `window` listeners — and both degrade the app over
-   time. They are rendering faults and this oracle measures simulation, so they
-   do not invalidate it, but a run taken while they are live measures the leak
-   as well and would set a baseline nobody can reproduce. Same reasoning as
-   `STATUS.md`'s ordering of SPEC-007 oracle 2.
+   `[F]` Taken after `TODO.md` §A5 was fixed, as this oracle requires: a run
+   with the readback demotion and the leaked listeners live would have measured
+   those as well.
 
 **Not verified here.** Everything §8 moves into `docs/UI.md` — modes, badges,
 green/red regions, selection, the bracket, the failure overlay. `[D]` Judged by

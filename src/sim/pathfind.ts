@@ -7,7 +7,7 @@
 
 import { addr, coords, effectiveCell, inBounds, isEntity } from "./grid";
 import { oneWayAllows } from "./rules";
-import { W, type Addr, type Player, type TowerJSON } from "./types";
+import { W, type Addr, type HeldItem, type Player, type TowerJSON } from "./types";
 
 /** Fixed expansion order, so the chosen path is reproducible (§5.4, invariant 9). */
 const DIRS: ReadonlyArray<readonly [number, number]> = [
@@ -21,8 +21,19 @@ const DIRS: ReadonlyArray<readonly [number, number]> = [
  * §5.2. A non-target cell is traversable iff entering it would cause no cell
  * edit and no player-state change. The feather exception is exactly the set the
  * game marks feather_pathfind = true, verified to be {popup, spikes}.
+ *
+ * `from` is where the step is taken *from*, which is all a one-way wall needs:
+ * its rule is a comparison of the two coordinates and nothing else.
  */
-function traversable(tower: TowerJSON, cells: Uint8Array, p: Player, z: number, x: number, y: number): boolean {
+function traversable(
+  tower: TowerJSON,
+  cells: Uint8Array,
+  held: HeldItem | null,
+  from: { x: number; y: number },
+  z: number,
+  x: number,
+  y: number,
+): boolean {
   const c = effectiveCell(tower, cells, z, x, y);
   if (!isEntity(c)) return c === 0;
   switch (c.type) {
@@ -31,13 +42,13 @@ function traversable(tower: TowerJSON, cells: Uint8Array, p: Player, z: number, 
       return true;
     case "popup":
     case "spikes":
-      return p.held === "feather";
+      return held === "feather";
     case "barrier_u":
     case "barrier_d":
     case "barrier_l":
     case "barrier_r":
       // Entry direction is the sole constraint; there is no exit restriction.
-      return oneWayAllows(c.type, p, x, y);
+      return oneWayAllows(c.type, from, x, y);
     default:
       return false;
   }
@@ -56,6 +67,31 @@ function arrival(tower: TowerJSON, cells: Uint8Array, z: number, x: number, y: n
 export interface PathStep {
   /** The cell entered. Never the stairs arrival cell (SPEC-004 §4). */
   to: Addr;
+}
+
+/**
+ * The BFS working set, reused between calls.
+ *
+ * `[D]` Not an optimisation for its own sake. A tower of 32 floors is 7 200
+ * cells, and a fresh `prev`, `entered` and `seen` for every waypoint is three
+ * allocations and two full `fill(-1)` passes each — 1 773 times over the
+ * corpus's longest route, which is 25 million writes and 150 MB of garbage
+ * before a single cell is looked at. `seen` holds a **generation stamp**
+ * instead of a flag, so a call starts by incrementing a counter rather than by
+ * clearing 7 200 entries; `prev` and `entered` need no clearing because they
+ * are only ever read for a node this generation has stamped.
+ *
+ * `[F]` Safe to share: the simulator is synchronous and single-threaded, and a
+ * `pathfind` never runs inside another one.
+ */
+let scratch: { n: number; prev: Int32Array; entered: Int32Array; seen: Int32Array; queue: Int32Array; gen: number } | null = null;
+
+function workspace(n: number): NonNullable<typeof scratch> {
+  if (scratch === null || scratch.n < n) {
+    scratch = { n, prev: new Int32Array(n), entered: new Int32Array(n), seen: new Int32Array(n), queue: new Int32Array(n), gen: 0 };
+  }
+  scratch.gen++;
+  return scratch;
 }
 
 /**
@@ -85,66 +121,75 @@ export function pathfind(
    * case: a save's position-half entries record where the player stood, and
    * after taking stairs that is a staircase, 244 times in the corpus.
    */
-  const goalIsStairs = (() => {
-    const c = effectiveCell(tower, cells, target.z, target.x, target.y);
-    return isEntity(c) && (c.type === "stairs_up" || c.type === "stairs_down");
-  })();
+  const goalCell = effectiveCell(tower, cells, target.z, target.x, target.y);
+  const goalIsStairs = isEntity(goalCell) && (goalCell.type === "stairs_up" || goalCell.type === "stairs_down");
 
-  const prev = new Int32Array(n).fill(-1);
-  const entered = new Int32Array(n).fill(-1); // cell entered to reach this node
-  const seen = new Uint8Array(n);
-  seen[start] = 1;
+  const { prev, entered, seen, queue, gen } = workspace(n);
+  seen[start] = gen;
 
   /** Walk `prev` back from `node`, then append the move that entered `last`. */
   const reconstruct = (node: Addr, last: Addr): PathStep[] => {
     const out: PathStep[] = [{ to: last }];
-    let n = node;
-    while (n !== start) {
-      out.push({ to: entered[n]! });
-      n = prev[n]!;
+    let at = node;
+    while (at !== start) {
+      out.push({ to: entered[at]! });
+      at = prev[at]!;
     }
     out.reverse();
     return out;
   };
 
-  let queue: Addr[] = [start];
-  while (queue.length > 0) {
-    const next: Addr[] = [];
-    for (const cur of queue) {
-      const { z, x, y } = coords(cur);
-      for (const [dx, dy] of DIRS) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (!inBounds(tower, z, nx, ny)) continue;
-        const stepCell = addr(tower, z, nx, ny);
+  // One mutable position, rather than a Player copy per neighbour: a one-way
+  // wall reads two coordinates and the feather rule reads one field.
+  const from = { x: 0, y: 0 };
+  const held = player.held;
 
-        // Reached by stepping directly onto it. The target is exempt from
-        // traversability, so this check comes first -- except for a staircase
-        // target, where entering it would teleport the player straight back off
-        // and leave the waypoint unsatisfied.
-        if (stepCell === goal && !goalIsStairs) return reconstruct(cur, goal);
+  queue[0] = start;
+  let head = 0;
+  let tail = 1;
+  while (head < tail) {
+    const cur = queue[head++]!;
+    const { z, x, y } = coords(cur);
+    from.x = x;
+    from.y = y;
+    for (const [dx, dy] of DIRS) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (!inBounds(tower, z, nx, ny)) continue;
+      const stepCell = addr(tower, z, nx, ny);
 
-        // A non-target cell must be passively enterable...
-        if (!traversable(tower, cells, { ...player, x, y }, z, nx, ny)) continue;
-        const arr = arrival(tower, cells, z, nx, ny);
-        const landing = addr(tower, arr.z, arr.x, arr.y);
+      // Reached by stepping directly onto it. The target is exempt from
+      // traversability, so this check comes first -- except for a staircase
+      // target, where entering it would teleport the player straight back off
+      // and leave the waypoint unsatisfied.
+      if (stepCell === goal && !goalIsStairs) return reconstruct(cur, goal);
 
-        // Reached by *landing* on it off a staircase. The player never enters
-        // the target cell directly in this case -- they enter the stairs and
-        // are teleported -- so the final step's `to` is the staircase, and the
-        // goal test has to be made against the landing as well as the step.
-        if (landing === goal) return reconstruct(cur, stepCell);
+      // A non-target cell must be passively enterable...
+      if (!traversable(tower, cells, held, from, z, nx, ny)) continue;
+      const arr = arrival(tower, cells, z, nx, ny);
+      const landing = addr(tower, arr.z, arr.x, arr.y);
 
-        // ...and so must the cell a staircase drops us on.
-        if (landing !== stepCell && !traversable(tower, cells, { ...player, x: arr.x, y: arr.y }, arr.z, arr.x, arr.y)) continue;
-        if (seen[landing]) continue;
-        seen[landing] = 1;
-        prev[landing] = cur;
-        entered[landing] = stepCell;
-        next.push(landing);
+      // Reached by *landing* on it off a staircase. The player never enters
+      // the target cell directly in this case -- they enter the stairs and
+      // are teleported -- so the final step's `to` is the staircase, and the
+      // goal test has to be made against the landing as well as the step.
+      if (landing === goal) return reconstruct(cur, stepCell);
+
+      // ...and so must the cell a staircase drops us on.
+      if (landing !== stepCell) {
+        from.x = arr.x;
+        from.y = arr.y;
+        const ok = traversable(tower, cells, held, from, arr.z, arr.x, arr.y);
+        from.x = x;
+        from.y = y;
+        if (!ok) continue;
       }
+      if (seen[landing] === gen) continue;
+      seen[landing] = gen;
+      prev[landing] = cur;
+      entered[landing] = stepCell;
+      queue[tail++] = landing;
     }
-    queue = next;
   }
   return null;
 }

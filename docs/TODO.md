@@ -9,68 +9,68 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 
 ## A. Next action
 
-**SPEC-007 slice 1 is built and has been through four rounds of visual review**
-— 255 tests green (`STATUS.md`). It is an MVP by iestyn's own assessment, and
-both its recorded performance faults are fixed and confirmed by eye (§A5).
-Next, in order:
+**SPEC-007 and SPEC-008 are both built** — 294 tests green (`STATUS.md`). The
+scrubber has had four rounds of visual review and both its recorded performance
+faults are fixed and confirmed by eye (§A5); **the editing UI has had no rounds
+at all.** The top of this list needs a browser, and so needs iestyn:
 
-1. **Build SPEC-008, route editing** — §A6. Add and remove actions, skippable
-   segments, parallel segments. Specified; nothing implemented.
-2. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
+1. **Look at the editing UI.** D24a is its only judge. Three of `docs/UI.md`
+   §7's questions are new and resolve only by looking: whether the outline
+   around edited actions reads well, whether live actions should carry one too,
+   and whether an ignored click in add mode should still move the player icon.
+2. **Floor entry thresholds — the *number*.** SPEC-008's skippable segments are
+   the predicate, built and working; what is left is a search over it.
+3. **The two open pieces of editing UX** — §A6.
+4. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
    the pattern, but SPEC-002/005/006 have not been checked.
-3. **Fix the perf harness, then read the baseline** — SPEC-007 §7, oracle 2,
+5. **Fix the perf harness, then read the baseline** — SPEC-007 §7, oracle 2,
    still `[O]`. Deferred with the rest of the perf work (§A5): the number
-   decides Canvas 2D versus WebGL and that decision is not being made yet, and
-   the harness would answer it wrongly today.
-4. ~~Floor entry thresholds~~ — **reframed, not dropped.** SPEC-008's skippable
-   segments *are* a general-purpose threshold detector, so the analysis arrives
-   as a consequence of the editing work. The remaining piece is the *number*,
-   which is a search over that predicate rather than a separate computation.
+   decides Canvas 2D versus WebGL, that decision is not being made yet, and the
+   harness would answer it wrongly today.
 
-`[D]` Still open by eye, not blocking: `docs/UI.md` §6 — the trail's `dHue`,
-the stack's size, whether overlapped floors read on a 32- or 75-floor tower,
-and the deferred proposal to freeze past and future floors.
+`[D]` Still open by eye, not blocking: the rest of `docs/UI.md` §7 — the
+trail's `dHue`, the stack's size, whether overlapped floors read on a 32- or
+75-floor tower, and the deferred proposal to freeze past and future floors.
 
 `[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
 own capture control: press `S` or the button, share the PNG.
 
 ## A5. The two scrubber performance faults — fixed 2026-09-01
 
-`[F]` Both faults are fixed: **four causes**, three of them behind the
-scrubbing one and one behind the load. The **second** row below was not among
-the hypotheses — it turned up while reading the update path for the others.
-Rationale in `DECISIONS.md` D38-D41; each has a diagnostic test under
-`test/ui/`, checked by reverting the fix and watching it fail.
+`[F]` Both faults are fixed: **four causes**, three behind the scrubbing one
+and one behind the load; the **second** row was not among the hypotheses.
+Rationale in `DECISIONS.md` D38-D41, each with a diagnostic test under
+`test/ui/` checked by reverting the fix and watching it fail.
 
 | Fault | Was | Now |
 |---|---|---|
-| `willReadFrequently` never took effect, so every miniature rebuild read back from an accelerated canvas and Chrome demoted it for good | slower, then a cliff, never recovering | asked for at creation, on the floor bitmaps only (D38) |
+| `willReadFrequently` never took effect, so every miniature rebuild read back from an accelerated canvas and Chrome demoted it for good | slower, then a cliff, never recovering | asked for at creation, on the floors and on the atlas they are painted from (D38) |
 | The stack's shear ran one `drawImage` per source row | 2 048 draw calls per scrub update on 2-5, 4 800 on 2-6 | baked into the cached miniature: one blit per floor (D39) |
 | `keydown` and `resize` were left on `window` at unmount | one dead scrubber still seeking per mount ever made; two from StrictMode alone | one `AbortController`, aborted by `destroy()` (D40) |
 | Opening a `.sav` simulated all 41 records before drawing the list | ~3 s of blank window | the list first, the columns behind it (D41) |
 
 `[F]` **Confirmed by eye, 2026-09-02.** iestyn: the cliff is gone and load time
 is fixed. `[I]` **Long-range slider drags are still slower than he would like**
-— a full-length seek invalidates many floors at once, so it rebuilds many
-miniatures in one update. `[D]` **Deferred, and the reason is what makes it
-safe to defer:** short-range scrubbing is the common path, and it is fine.
-Features outrank it.
+— a full-length seek invalidates many floors, so one update rebuilds many
+miniatures. `[D]` **Deferred, and the reason is why deferring is safe:**
+short-range scrubbing is the common path and is fine. Features outrank it.
+
+`[F]` A fifth, in the same family, landed with SPEC-008: `pathfind` allocated
+three tower-sized arrays per waypoint and copied the `Player` per neighbour,
+which halved re-evaluation time. Measured — SPEC-008 oracle 4.
 
 `[P]` If it is picked up: the cost is proportional to floors touched, not to
-distance, so the lever is rebuilding a miniature from only the rows an edit
-changed rather than the whole floor. The rest of load time is `paintAll` and 32
-miniature builds, both one-off and both off the critical path now.
+distance, so the lever is refiltering only the rows an edit changed. The rest
+of load time is `paintAll` and 32 miniature builds, both one-off.
 
-`[P]` **The perf harness is not trustworthy, so do not record a baseline from
-it** (SPEC-007 §7, §8 oracle 2). Two defects: `pass` compares rAF deltas to the
-5 ms budget, which no display below ~200 Hz can satisfy — a rAF delta is
-floored by the refresh period, and §7's own "roughly 3x" arithmetic is about
-CPU work inside a frame; and `record()` pushes into both tracks on every call
-while being called twice per update with one side zeroed, so the `seek` and
-`blit` medians are half zeros. The fix is to budget `seek + blit`, report
-`frame` as a safety net rather than a pass/fail, and add long-task and Event
-Timing tracks — the platform names "hundreds of ms per update" for us, and zero
-long tasks over a minute of scrubbing is an expected value oracle 2 can hold.
+`[P]` **The harness is not trustworthy; record no baseline from it** (SPEC-007
+§7, §8 oracle 2). `pass` compares rAF deltas to the 5 ms budget, which nothing
+under ~200 Hz can meet: a rAF delta is floored by the refresh period, while
+§7's own "roughly 3x" is about CPU work inside a frame. And `record()` writes
+both tracks every call while being called twice per update with one side
+zeroed, so `seek` and `blit` are half zeros. Fix: budget `seek + blit`, report
+`frame` rather than judge on it, add long-task and Event Timing tracks — zero
+long tasks in a minute of scrubbing is a real expected value for oracle 2.
 
 ## A3. Map exports — captured; one nice-to-have left
 
@@ -86,17 +86,17 @@ is a nice-to-have. Towers 2-6 and 3-1 have no saves (B3), so nothing to export.
 
 ## A6. SPEC-008 route editing — two open pieces of UX
 
-`[D]` The spec and `DESIGN_ROUTE_EDITING.md` are written; these are the two
-questions they deliberately leave to design rather than answer.
+`[D]` SPEC-008 is implemented; these are the two questions it deliberately
+leaves to design rather than answers. Neither blocks the editor as it stands.
 
 - **Importing a route from a `.sav` into an existing `.ord`.** What makes one
   `.ord` usable for all of a player's work. Includes reconciliation: the `.ord`
   stores the payload hash of the record it came from, so a match is clean and a
   mismatch means the player has played on and the metadata must be re-anchored
   by prefix alignment.
-- **Autosave behaviour for the working store.** Cadence, what counts as an edit,
-  whether to request `navigator.storage.persist()`, and how the player is told
-  the difference between crash recovery and a backup (D35).
+- **Autosave behaviour for the working store.** It writes on every edit today,
+  which is what DESIGN §2.2 asks for and may be more than is wanted on a long
+  route. Also unanswered: whether to request `navigator.storage.persist()`.
 
 ## B. Loose ends from the oracle work
 

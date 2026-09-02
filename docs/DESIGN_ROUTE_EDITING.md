@@ -1,6 +1,7 @@
 # DESIGN: Route Editing
 
-Draft 6, 2026-09-01. Rationale and behaviour for the three editing features.
+Draft 7, 2026-09-01. Rationale and behaviour for the three editing features.
+Built: `docs/UI.md` §6 is now the description of what exists.
 The testable contract is `specs/SPEC-008-route-editing.md`; the two must not
 overlap (D30). Depends on SPEC-004.
 
@@ -150,11 +151,14 @@ so a change's consequence is visible at a glance. For simple adds and removes
 this is a green prefix and a red suffix; features 2 and 3 make it richer.
 
 `[I]` **Added actions** carry a `+` badge with a drop shadow. **Disabled
-actions** are subtler: the player is left at the action's start location — where
-the pathfinder says the last step before it was, e.g. adjacent to an enemy — and
-a *no entry* badge marks the tile that would have been affected. `[P]` An
-outline with a drop shadow around both tiles, possibly around live actions too
-for consistency. `[O]` Needs building to see how it reads.
+actions** are subtler: a *no entry* badge marks the tile that would have been
+affected, and it stays on the floor rather than on the slider, the route that
+ran no longer containing that action. `[F]` The action is a recorded *pair*
+(D42), so disabling it removes the approach as well — the "left at the start
+location" phrasing of earlier drafts described a mechanism that would have
+broken the `2S+1` rule. `[P]` An outline with a drop shadow around both tiles,
+possibly around live actions too for consistency. `[O]` Built; not yet judged
+by eye.
 
 `[I]` **Three mutually-exclusive mode buttons** at the top-right of the left
 panel — a play icon for scrubbing, minus for toggling, plus for inserting.
@@ -370,10 +374,12 @@ power per step is a contiguous `Float64Array` read (`MAX_POWER` is
 2. `[O]` What gets auto-marked on the power graph, and against which metrics.
    Power is not the only threshold resource — keys, pickaxes and gold gate
    progress too, as do resource-limited modifiers like the Vorpal Blade.
-3. `[O]` Splitting a segment is specified; **merging two back together** is not.
-4. `[O]` Whether segments can be moved between epochs, or only
-   created and deleted in place.
-5. `[O]` Two in §3.1 and one in §4.2 that resolve by building, not by argument.
+3. `[O]` Whether segments can be moved between epochs, or only created and
+   deleted in place. `[F]` Merging, which was open here, is specified and built:
+   two adjacent one-segment epochs become one, and invariant 3 asserts it undoes
+   a split.
+4. `[O]` Two in §3.1 and one in §4.2, built and awaiting an eye rather than an
+   argument.
 
 ---
 

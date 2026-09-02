@@ -77,7 +77,19 @@ function centre(slot: number, pt: TrailPoint, scroll: number, layout: Layout, ca
   return { x: o.x + (pt.x - 1) * CELL + CELL / 2, y: o.y + (pt.y - 1) * CELL + CELL / 2 };
 }
 
-function colour(past: boolean, fade: number): string {
+/**
+ * `[I]` **Green where the route passes and red where it fails**, so a change's
+ * consequence is visible at a glance.
+ *
+ * `[D]` Only once something has actually broken. A route that runs clean keeps
+ * the lavender past/future pair it was reviewed with, because colouring an
+ * unbroken route green says nothing that the absence of red does not already
+ * say -- and it would spend the strongest signal the strip has on the case
+ * where there is nothing to see.
+ */
+function colour(past: boolean, fade: number, verdict: "clean" | "passes" | "fails"): string {
+  if (verdict === "fails") return `hsla(0, 62%, 66%, ${fade.toFixed(3)})`;
+  if (verdict === "passes") return `hsla(128, 46%, 62%, ${fade.toFixed(3)})`;
   const hue = BASE_HUE + (past ? -D_HUE : D_HUE);
   return `hsla(${hue}, 62%, ${past ? 72 : 66}%, ${fade.toFixed(3)})`;
 }
@@ -100,6 +112,8 @@ export function drawTrail(
   scroll: number,
   layout: Layout,
   captions: boolean,
+  /** The first stop the route fails at, or null where it runs clean. */
+  failedFrom: number | null = null,
 ): void {
   const link = (i: number, past: boolean): void => {
     const a = points[i];
@@ -128,7 +142,7 @@ export function drawTrail(
     ctx.stroke();
 
     ctx.lineWidth = 1;
-    ctx.strokeStyle = colour(past, fade);
+    ctx.strokeStyle = colour(past, fade, failedFrom === null ? "clean" : i >= failedFrom ? "fails" : "passes");
     ctx.stroke();
   };
 
