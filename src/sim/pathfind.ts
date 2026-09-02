@@ -90,6 +90,15 @@ export interface PathStep {
  *
  * `[F]` Safe to share: the simulator is synchronous and single-threaded, and a
  * `pathfind` never runs inside another one.
+ *
+ * `[D]` `queue` is a **flat buffer walked by two indices**, not a list things
+ * are removed from: dequeuing is `queue[head++]`, so nothing shifts and nothing
+ * is freed. It holds `n` entries and can never need more, because an address is
+ * pushed only when `seen` does not yet carry this generation's stamp and is
+ * stamped in the same breath — so each of the `n` addresses enters at most
+ * once, the start included. **That bound is load-bearing**: writing past the end
+ * of an `Int32Array` is a silent no-op in JavaScript, so an unstamped push
+ * would not throw, it would quietly drop a node and report no path.
  */
 let scratch: { n: number; prev: Int32Array; entered: Int32Array; seen: Int32Array; queue: Int32Array; gen: number } | null = null;
 
