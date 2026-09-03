@@ -15,9 +15,12 @@ import { CELL, FLOOR } from "./screen";
 import { tileOrigin, visitOfStop, type Visit } from "./left";
 import type { Layout } from "./screen";
 
-/** `[O]` Not settled; expected to be adjusted by eye (UI.md §3). */
-export const D_HUE = 26;
-const BASE_HUE = 262; // lavender
+/**
+ * `[F]` The trail used to be two lavenders separated by this many degrees of
+ * hue. It is green and red now, and the past/future distinction rides on
+ * lightness instead — so the constant is gone and the question it stood for
+ * with it.
+ */
 
 /**
  * `[D]` The trail is a **narrow window**, not a whole-route overlay: fully
@@ -72,26 +75,22 @@ export function slotOf(
   return slot < 0 ? null : slot;
 }
 
-function centre(slot: number, pt: TrailPoint, scroll: number, layout: Layout, captions: boolean): { x: number; y: number } {
-  const o = tileOrigin(slot, scroll, layout, captions);
+function centre(slot: number, pt: TrailPoint, scroll: number, layout: Layout): { x: number; y: number } {
+  const o = tileOrigin(slot, scroll, layout);
   return { x: o.x + (pt.x - 1) * CELL + CELL / 2, y: o.y + (pt.y - 1) * CELL + CELL / 2 };
 }
 
 /**
- * `[I]` **Green where the route passes and red where it fails**, so a change's
- * consequence is visible at a glance.
+ * `[I]` **Green where the route passes and red where it fails**, from the
+ * start: a route that runs clean is green all the way, and red begins at the
+ * action that breaks it.
  *
- * `[D]` Only once something has actually broken. A route that runs clean keeps
- * the lavender past/future pair it was reviewed with, because colouring an
- * unbroken route green says nothing that the absence of red does not already
- * say -- and it would spend the strongest signal the strip has on the case
- * where there is nothing to see.
+ * The past/future distinction survives inside each colour as a shift of
+ * lightness, which is what `dHue` used to carry between two lavenders.
  */
-function colour(past: boolean, fade: number, verdict: "clean" | "passes" | "fails"): string {
-  if (verdict === "fails") return `hsla(0, 62%, 66%, ${fade.toFixed(3)})`;
-  if (verdict === "passes") return `hsla(128, 46%, 62%, ${fade.toFixed(3)})`;
-  const hue = BASE_HUE + (past ? -D_HUE : D_HUE);
-  return `hsla(${hue}, 62%, ${past ? 72 : 66}%, ${fade.toFixed(3)})`;
+function colour(past: boolean, fade: number, verdict: "passes" | "fails"): string {
+  const hue = verdict === "fails" ? 0 : 128;
+  return `hsla(${hue}, ${verdict === "fails" ? 62 : 46}%, ${past ? 68 : 56}%, ${fade.toFixed(3)})`;
 }
 
 /**
@@ -111,7 +110,6 @@ export function drawTrail(
   current: number,
   scroll: number,
   layout: Layout,
-  captions: boolean,
   /** The first stop the route fails at, or null where it runs clean. */
   failedFrom: number | null = null,
 ): void {
@@ -124,8 +122,8 @@ export function drawTrail(
     // A point in another scroll unit has no tile on screen, so that hop of the
     // trail is simply not drawn.
     if (sa === null || sb === null) return;
-    const p = centre(sa, a, scroll, layout, captions);
-    const q = centre(sb, b, scroll, layout, captions);
+    const p = centre(sa, a, scroll, layout);
+    const q = centre(sb, b, scroll, layout);
     if (Math.max(p.x, q.x) < 0 || Math.min(p.x, q.x) > layout.w) return;
 
     const fade = 1 - Math.abs(i - current) / FADE_STOPS;
@@ -142,7 +140,7 @@ export function drawTrail(
     ctx.stroke();
 
     ctx.lineWidth = 1;
-    ctx.strokeStyle = colour(past, fade, failedFrom === null ? "clean" : i >= failedFrom ? "fails" : "passes");
+    ctx.strokeStyle = colour(past, fade, failedFrom !== null && i >= failedFrom ? "fails" : "passes");
     ctx.stroke();
   };
 
@@ -166,13 +164,12 @@ export function playerScreenPos(
   current: number,
   scroll: number,
   layout: Layout,
-  captions: boolean,
 ): { x: number; y: number } | null {
   const pt = points[current];
   if (!pt) return null;
   const slot = slotOf(pt, visits, unit);
   if (slot === null) return null;
-  const o = tileOrigin(slot, scroll, layout, captions);
+  const o = tileOrigin(slot, scroll, layout);
   if (o.x + FLOOR < 0 || o.x > layout.w) return null;
   return { x: o.x + (pt.x - 1) * CELL, y: o.y + (pt.y - 1) * CELL };
 }

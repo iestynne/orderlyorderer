@@ -85,7 +85,7 @@ function stubFloors(depth: number, manifest: AtlasManifest, tower: TowerJSON): a
 
 d("stage 3 — the draw path runs over real records", () => {
   const manifest = buildAtlas(GAME_DIR).manifest;
-  const layout = layoutFor(1920, 1080, { pixelPerfect: true, linearFilter: false, captions: true, zoom: "auto" as const });
+  const layout = layoutFor(1920, 1080, { pixelPerfect: true, linearFilter: false, zoom: "auto" as const });
 
   it("draws every visit of a long route with no exception", () => {
     const save = loadAllSaves().find((s) => s.towerId === "2-5")!;
@@ -117,8 +117,8 @@ d("stage 3 — the draw path runs over real records", () => {
       scroll = scrollFor(slotOfVisit(unit0, visits, current), scroll, layout, stripWidth(layout, PANEL_W));
       const unit = units[scrollUnitOfVisit(units, current)]!;
       const slot = slotOfVisit(unit, visits, current);
-      drawTimeline(ctx, floors, manifest, {} as any, save.tower, unit, slot, scroll, layout, true, PANEL_W);
-      drawTrail(ctx, points, visits, unit, i, scroll, layout, true);
+      drawTimeline(ctx, floors, manifest, {} as any, save.tower, unit, slot, scroll, layout, PANEL_W);
+      drawTrail(ctx, points, visits, unit, i, scroll, layout);
       drawRightPanel(ctx, manifest, {} as any, floors, {
         tower: save.tower,
         player: cursor.player,
@@ -128,8 +128,7 @@ d("stage 3 — the draw path runs over real records", () => {
         ticks: [],
         failedFrom: null,
         currentFloor: cursor.player.z,
-        captions: true,
-        perf: false,
+          perf: false,
         perfLine: "",
       }, layout);
     }
@@ -248,7 +247,6 @@ d("stage 3 — the draw path runs over real records", () => {
       ticks: [],
       currentFloor: 1,
       failedFrom: null,
-      captions: true,
       perf: false,
       perfLine: "",
     }, layout);

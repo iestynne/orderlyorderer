@@ -42,19 +42,19 @@ and not the route segments of §6. D34.
 Tiles lie in two rows, each offset half a tile-width from the last, in a
 bricklayer pattern; every one has a border and a gap. At least three are
 visible, a wider window showing more. When the strip does move it glides, easing
-over about half a second and landing on whole pixels. The captions can be
-switched off, which gives their height back to the floors.
+over about half a second and landing on whole pixels. Every tile carries a name
+strip under it, which is also where the current action is summarised (§6).
 
 ## 3. The route trail
 
 A line runs through the route's waypoints over the floors, connecting them
 directly rather than following the walked path. It crosses between tiles, so
-stairs read as one continuous line; those crossings are dashed as travel. Both
-halves are lavender, separated only by hue: the past shifted towards blue, the
-future towards red. Both carry a black outline, and both fade to nothing two
-stops either side of the scrub position — a narrow reminder, not a whole-route
-overlay. **Once the route breaks**, that pair is replaced by green as far as it
-gets and red from the action that breaks it, and not before. The future draws
+stairs read as one continuous line; those crossings are dashed as travel. It is
+**green where the route passes and red from the action that breaks it**, so a
+clean route is green all the way. The past is lighter than the future, which is
+the only distinction between them. Both carry a black outline, and both fade to
+nothing two stops either side of the scrub position — a narrow reminder, not a
+whole-route overlay. The future draws
 before the past and the segment at the scrub position draws last; the player is
 drawn at the current waypoint in the state *after* that action, with its power
 beneath it.
@@ -94,8 +94,8 @@ four digits. Gems are an amount **spent**, which the row says on hover rather
 than in a word. Dark keys, gold and the held item are absent where the game
 omits them too.
 
-**Settings.** Behind a cog at the top-right of the left panel: a performance
-test, and floor captions.
+**Settings.** Behind a cog at the top-right of the left panel. It draws over
+everything, and a click anywhere off it closes it and does nothing else.
 
 ## 5. Presentation
 
@@ -109,53 +109,58 @@ draw — the trail and the editing marks now, the overlays later.
 
 ## 6. Editing
 
-A route acts on the same cell more than once — walking a spike tile twice, or
+A route acts on the same cell more than once — walking a spike tile twice,
 back through a one-way — so a badge on the floor cannot say *which* of those
 actions it means. The **action list**, right of the slider, is what makes an
 edit unambiguous: a window of the route centred on the current action, which
-wears a thin lavender outline.
+wears a thin lavender outline. Time runs upward, as it does on the slider.
 
-A row is what the action **did**, not where: its number, an icon for the thing
-acted on, and its toggles on the right. An attack shows the enemy, the held item
-where that changed the outcome, and the gold earned; a gate shows the gate, and
-the Master Key where that opened it; a dig shows the wall and the pickaxe spent;
-a pickup shows the item; a spike or one-way shows the tile. Hovering a row
-highlights it on the timeline.
+A row is what the action **did**, not where, in fixed columns so the list
+reads down: its number, the item it carried or spent, the thing it acted on,
+and the gold it earned stamped on the bag — negative at a Money Gate, the only
+thing that takes gold away. An added action wears a `+` beside its checkbox.
+Hovering a row highlights it on the timeline; the wheel scrolls the list, and
+nothing else does.
 
 **Every edit happens at the current action**, which is why there are no modes.
 
-- A row's checkbox switches its action off. A disabled row greys out and takes
-  the minus badge; it keeps its number and its place on the slider, and scrubs
-  through unchanged, because it no longer does anything.
+- A row's checkbox switches its action off. Unticked it fills dim red, so a
+  disabled action can be found by scanning the column; the row greys out but
+  keeps its number and its place on the slider, and scrubs through unchanged.
 - **Inserting is a click on a floor cell**, and it lands directly after the
-  current action. Hovering that cell first shows both halves of what would
-  happen: the `+` badge on the cell, and a greyed pending row in the list right
-  after the current one, gapped above and below and carrying `+` on its left.
-  Clicking commits it, and the row keeps a `+` on the right beside its checkbox
-  for as long as it is unsaved. A cell that implies no action shows nothing at
+  current action. A slot for it is always held open there, so nothing jumps as
+  the pointer moves; hovering a cell shows the `+` badge on it and drops a
+  greyed preview into the slot. A cell that implies no action shows nothing at
   all; one the rules would refuse shows the **no-entry sign**.
 - `Z` and `Y` undo and redo insertions, as the game's own undo and redo do.
   They reach back over the current run of them and no further: insert four
   here, scrub away, insert four there, and `Z` takes back four.
+- Clicking a row moves to it without scrolling the list, and **dragging down
+  the list keeps moving** — a finer scrub than the slider gives.
 
-The current action is drawn twice, so the list and the timeline agree: the
-target tile is outlined on the floor, and the row is repeated a tile and a half
-below it in a two-pixel lavender-on-black frame. That copy is a display, not a
-control. Where the route breaks, the failing action carries the no-entry sign
-at its left; where the current action is disabled, both drawings are ghosted.
+The current action is drawn twice, so the list and the timeline agree: its
+cell is outlined on the floor, and its row is repeated at the right of that
+floor's name strip, joined to the player by a thick line. That copy is a
+display, not a control, and it sits in the strip rather than over the grid so
+it never covers a cell worth clicking. Where the route breaks, the failing
+action carries the no-entry sign — in its row, and on the slider track, where
+it clicks through to that exact action. Where the current action is disabled,
+all of it is ghosted.
 
 Anything that changes the document sets the **unsaved-changes marker**, in the
 toolbar and the tab title; scrubbing and the option toggles do neither. **Save
 `.ord`** clears it. **Export `.sav`** writes a fresh, uniquely named file, never
 an overwrite, and refuses a route that fails. Segments have their own
-affordances — split, merge, alternatives, skippable — and they are **off** while
-adding and removing actions is the thing being learned.
+affordances — split, merge, alternatives, skippable — and they are **off**
+while adding and removing actions is the thing being learned.
 
 ## 7. Open questions
 
 Answered ones move out — to `DECISIONS.md` if the reasoning matters, else above.
 
 - **The trail is anti-aliased and the stack filtered**, where the game is not.
+- **The toolbar is wider than it needs to be.** It stops at the left panel now;
+  what is in it could move, and then it need not be a strip at all.
 - **How big the stack should be**, and whether overlapped floors stay legible on
   a 32- or 75-floor tower.
 - **Freezing past and future floors** as you scrub: the past at its final state,

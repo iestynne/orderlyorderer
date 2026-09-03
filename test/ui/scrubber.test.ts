@@ -44,7 +44,6 @@ function fakeTarget(): FakeTarget {
 const SETTINGS: ScrubberSettings = {
   pixelPerfect: true,
   linearFilter: false,
-  captions: true,
   perf: false,
   zoom: "auto",
 };
@@ -90,7 +89,7 @@ describe("Scrubber.destroy", () => {
   it("leaves nothing behind on window or on the canvas", () => {
     const { win, canvas, scrubber } = mount();
     expect(win.listenerCount(), "keydown and resize").toBe(2);
-    expect(canvas.listenerCount(), "pointer down/move/up/leave").toBe(4);
+    expect(canvas.listenerCount(), "pointer down/move/up/leave and wheel").toBe(5);
 
     scrubber.destroy();
     expect(win.listenerCount()).toBe(0);

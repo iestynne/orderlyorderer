@@ -64,26 +64,27 @@ export const PANEL_PAD = 6;
 /** Two lines of header at the top of the panel, which the columns start below. */
 export const PANEL_HEAD = 30;
 
-export function tileHeight(captions: boolean): number {
-  return captions ? FLOOR + CAPTION : FLOOR;
-}
-
-export function rowPitch(captions: boolean): number {
-  return tileHeight(captions) + GAP;
-}
-
 /**
- * The smallest logical viewport the §5 minimum fits in.
+ * A tile is its floor plus its name strip.
  *
- * `[D]` Deliberately computed with captions ON whatever the setting is, so that
- * toggling captions cannot change the integer scale. It did, and the whole UI
- * jumped size — a switch about one 18 px bar has no business resizing the
- * lettering and the floors.
+ * `[D]` **The strip is not optional.** It used to be, and turning it off gave
+ * its height back to the floors — but it is where the current action's summary
+ * is drawn now (docs/UI.md §6), and the alternative was drawing that over the
+ * grid, on squares the player may want to click.
  */
+export function tileHeight(): number {
+  return FLOOR + CAPTION;
+}
+
+export function rowPitch(): number {
+  return tileHeight() + GAP;
+}
+
+/** The smallest logical viewport the §5 minimum fits in. */
 export function minLogical(): { w: number; h: number } {
   return {
     w: PANEL_W + PANEL_PAD * 2 + (MIN_TILES - 1) * STAGGER + FLOOR + GAP * 2,
-    h: rowPitch(true) + tileHeight(true) + GAP,
+    h: rowPitch() + tileHeight() + GAP,
   };
 }
 
@@ -92,7 +93,6 @@ export interface ScreenSettings {
   pixelPerfect: boolean;
   /** `[F]` The game's linear_filter: choose the upscale filter. */
   linearFilter: boolean;
-  captions: boolean;
   /** `[D]` "auto" is the largest scale that fits; a number overrides it. */
   zoom: number | "auto";
 }

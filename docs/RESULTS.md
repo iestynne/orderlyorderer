@@ -40,6 +40,16 @@ Coverage is broad rather than incidental: the sweep exercises every entity type
 in the game except orbs, including 1 392 Reinforced-wall digs, 1 848 Battle
 Gate entries, 8 416 pop-ups, 7 135 Gem Gates and all four one-way directions.
 
+`[F]` **One record in the corpus is not a played route.** `1-3`'s
+`POP-UP-FORMAT` was written by hand while reverse-engineering the pop-up
+encoding, against a reading of the format that turned out to be **wrong**. It is
+kept because it replays clean like the other 325 and renumbering the corpus
+would cost more than it is worth — but it is the one record expected to behave
+oddly, and it does: its first recorded interaction is the pop-up chain
+committing *behind* the player on a square the tower has as empty floor, which
+makes it the single action in 198 496 that SPEC-008 §4.2 can only describe as a
+walk. A surprising result there is the file, not the simulator.
+
 ### Hand-played experiments, C1-C4
 
 Each played in the real game, then predicted independently by the simulator from

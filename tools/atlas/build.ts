@@ -15,10 +15,22 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { basename, join } from "node:path";
 import { decodePng, encodePng } from "../../src/mapdiff/png";
 import { readImageFont, type Rgba } from "../../src/ui/imagefont";
+import { ICONS } from "./icons";
 
 export const CELL = 16;
-/** Atlas columns. 8 x 16px keeps the sprite block 128 wide, as does the font block. */
-const COLUMNS = 8;
+
+/**
+ * Atlas columns.
+ *
+ * `[D]` **As many as the fonts already make room for.** The sheet's width is
+ * set by its widest bitmap font, which is 883 px; at the 8 columns the sprite
+ * block used to use, 128 of those were sprites and the other 755 were nothing.
+ * Deriving the count from the width costs no bytes the atlas was not already
+ * spending and packs every sprite into two rows.
+ */
+function columnsFor(width: number): number {
+  return Math.max(8, Math.floor(width / CELL));
+}
 
 /**
  * `[F]` main.lua:82-96. Charsets verbatim, including digits.png's duplicated
@@ -117,6 +129,26 @@ function crop(src: Rgba, x0: number, y0: number, w: number, h: number): Rgba {
   return out;
 }
 
+/** `#` white ink for the runtime to tint, `o` black outline a tint leaves alone. */
+function fromPixelMap(map: readonly string[]): Rgba {
+  const h = map.length;
+  const w = Math.max(...map.map((r) => r.length));
+  const out: Rgba = { width: w, height: h, pixels: new Uint8Array(w * h * 4) };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const ch = map[y]![x];
+      if (ch !== "#" && ch !== "o") continue;
+      const v = ch === "#" ? 255 : 0;
+      const i = (y * w + x) * 4;
+      out.pixels[i] = v;
+      out.pixels[i + 1] = v;
+      out.pixels[i + 2] = v;
+      out.pixels[i + 3] = 255;
+    }
+  }
+  return out;
+}
+
 function toRgba(bytes: Uint8Array): Rgba {
   const p = decodePng(bytes);
   return { width: p.width, height: p.height, pixels: p.pixels };
@@ -177,19 +209,26 @@ export function buildAtlas(gameDir: string): BuildResult {
     return { name, def, img, font: readImageFont(img, def.charset, def.spacing) };
   });
 
-  const spriteRows = Math.ceil(sprites.length / COLUMNS);
-  const width = Math.max(COLUMNS * CELL, ...fonts.map((f) => f.img.width));
+  // The app's own icons ride along, so they can be inspected exactly as the
+  // game's sprites are. Ink is packed white for the runtime to tint.
+  const icons = Object.entries(ICONS).map(([name, map]) => ({ name, img: fromPixelMap(map) }));
+
+  const width = Math.max(8 * CELL, ...fonts.map((f) => f.img.width));
+  const COLUMNS = columnsFor(width);
+  const spriteRows = Math.ceil((sprites.length + icons.length) / COLUMNS);
   const fontTop = spriteRows * CELL;
   const height = fontTop + fonts.reduce((h, f) => h + f.img.height, 0);
 
   const dst: Rgba = { width, height, pixels: new Uint8Array(width * height * 4) };
   const manifest: AtlasManifest = { game_version: version, width, height, cell: CELL, sprites: {}, fonts: {}, entities: parseEntitySprites(readFileSync(join(gameDir, "entitydef.lua"), "utf8")) };
 
-  sprites.forEach((s, i) => {
+  [...sprites, ...icons].forEach((s, i) => {
     const x = (i % COLUMNS) * CELL;
     const y = Math.floor(i / COLUMNS) * CELL;
     blit(dst, s.img, x, y);
-    manifest.sprites[s.name] = { x, y, w: CELL, h: CELL };
+    // An icon is smaller than a cell, and its rect says so: the runtime draws
+    // 9 or 11 px of it, not a 16 px cell with air around the art.
+    manifest.sprites[s.name] = { x, y, w: s.img.width, h: s.img.height };
   });
 
   let y = fontTop;

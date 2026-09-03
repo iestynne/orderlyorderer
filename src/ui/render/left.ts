@@ -146,10 +146,10 @@ export function visitAt(visits: Visit[], step: number): number {
   return 0;
 }
 
-export function tileOrigin(index: number, scroll: number, layout: Layout, captions: boolean): { x: number; y: number } {
+export function tileOrigin(index: number, scroll: number, layout: Layout): { x: number; y: number } {
   return {
     x: PANEL_PAD + GAP + index * STAGGER - scroll,
-    y: GAP + (index % 2) * (tileHeight(captions) + GAP),
+    y: GAP + (index % 2) * (tileHeight() + GAP),
   };
 }
 
@@ -216,7 +216,6 @@ export function drawTimeline(
   currentSlot: number,
   scroll: number,
   layout: Layout,
-  captions: boolean,
   panelW: number,
 ): void {
   const width = stripWidth(layout, panelW);
@@ -227,7 +226,7 @@ export function drawTimeline(
   ctx.clip();
 
   unit.floors.forEach((z, i) => {
-    const { x, y } = tileOrigin(i, scroll, layout, captions);
+    const { x, y } = tileOrigin(i, scroll, layout);
     if (x + FLOOR < PANEL_PAD || x > PANEL_PAD + width + GAP * 2) return;
 
     // Every tile has a border and a small gap around it (UI.md §2). The
@@ -235,14 +234,14 @@ export function drawTimeline(
     // was invisible against fifteen other bordered tiles.
     const b = i === currentSlot ? 3 : BORDER;
     ctx.fillStyle = i === currentSlot ? "#cfc4ff" : "#3a3a44";
-    ctx.fillRect(x - b, y - b, FLOOR + b * 2, tileHeight(captions) + b * 2);
+    ctx.fillRect(x - b, y - b, FLOOR + b * 2, tileHeight() + b * 2);
     ctx.drawImage(floors.image(z), x, y);
 
-    if (captions) {
-      ctx.fillStyle = "#15151a";
-      ctx.fillRect(x, y + FLOOR, FLOOR, CAPTION);
-      drawText(ctx, sheet, standard, tower.floors[z - 1]?.name ?? `Floor ${z}`, x + 3, y + FLOOR + 5);
-    }
+    // The name strip. The current action's summary is drawn into its right-hand
+    // end afterwards, over the name if the two collide (docs/UI.md §6).
+    ctx.fillStyle = "#15151a";
+    ctx.fillRect(x, y + FLOOR, FLOOR, CAPTION);
+    drawText(ctx, sheet, standard, tower.floors[z - 1]?.name ?? `Floor ${z}`, x + 3, y + FLOOR + 5);
   });
   ctx.restore();
 }

@@ -29,6 +29,7 @@ import {
   type Visit,
 } from "./render/left";
 import {
+  ROW_H,
   actionsGeometry,
   checkboxAt,
   drawActionCard,
@@ -40,16 +41,18 @@ import {
   type ActionRow,
 } from "./render/actions";
 import {
+  bakeIcons,
   cogHitbox,
   drawCellMark,
   drawCog,
   drawSettingsPanel,
-  noEntrySprite,
   settingsHitboxes,
+  settingsPanel,
+  type Icons,
 } from "./render/marks";
 import { drawRightPanel, panelX, sliderGeometry, statusRowAt, stopToY, yToStop } from "./render/right";
 import { drawTrail, playerScreenPos, trailPoints, type TrailPoint } from "./render/trail";
-import { Screen, CELL, FLOOR, PANEL_W, visibleTiles, type Layout, type ScreenSettings } from "./render/screen";
+import { Screen, ACTIONS_W, CELL, FLOOR, PANEL_PAD, PANEL_W, visibleTiles, type Layout, type ScreenSettings } from "./render/screen";
 import { drawText, fontFrom, type AtlasFontRef } from "./render/atlas";
 import { textWidth } from "./imagefont";
 import { PerfHarness, type PerfReport } from "./perf";
@@ -89,7 +92,7 @@ export class Scrubber {
   private scrollTarget = 0;
   private lastFrame = 0;
   private tintedPlayer: HTMLCanvasElement | null = null;
-  private noEntry: HTMLCanvasElement | null = null;
+  private icons!: Icons;
   private dirty = true;
   private raf = 0;
   private settings: ScrubberSettings;
@@ -98,6 +101,19 @@ export class Scrubber {
   private hoverRow: number | null = null;
   /** Rebuilt when the stop, the document or the hover changes — never per frame. */
   private rows: ActionRow[] = [];
+  private pending: ActionSummary | null = null;
+  /**
+   * The first action the list shows.
+   *
+   * `[D]` **An anchor, not a function of the current action.** Centring on every
+   * seek meant clicking a row scrolled the list out from under the pointer. It
+   * moves only when the current action would leave the window, or when the
+   * wheel moves it.
+   */
+  private rowFirst = 0;
+  /** The drawn row the pending slot sits above; frozen while dragging. */
+  private gapAbove = 0;
+  private draggingList = false;
   /**
    * `[D]` Every listener this object registers is registered with this
    * controller's signal, so `destroy` drops all of them in one call and cannot
@@ -128,10 +144,11 @@ export class Scrubber {
   load(session: RouteSession): void {
     this.session = session;
     this.floors = new FloorCache(session.tower, this.manifest, this.sheet);
-    this.noEntry = noEntrySprite(this.manifest, this.sheet);
+    this.icons = bakeIcons(this.manifest, this.sheet);
     this.stop = session.view.stop;
     this.scroll = 0;
     this.scrollTarget = 0;
+    this.publishPanelWidth();
     this.rebuild();
     this.start();
   }
@@ -199,11 +216,15 @@ export class Scrubber {
     const g = this.listGeometry();
     const total = this.session.sites.length;
     const capacity = visibleRows(g);
-    const pending = this.hover?.kind === "action" ? this.previewSummary() : null;
-    const first = windowStart(this.stop, total, capacity - (pending ? 1 : 0));
-    const rows: ActionRow[] = [];
 
-    for (let i = first; i < total && rows.length < capacity; i++) {
+    // The window follows the current action only when it would otherwise leave.
+    if (this.stop < this.rowFirst || this.stop >= this.rowFirst + capacity) {
+      this.rowFirst = windowStart(this.stop, total, capacity);
+    }
+    this.rowFirst = Math.max(0, Math.min(Math.max(0, total - capacity), this.rowFirst));
+
+    const rows: ActionRow[] = [];
+    for (let i = this.rowFirst; i < total && rows.length < capacity; i++) {
       const site = this.session.sites[i]!;
       const summary = this.session.summarise(this.cursor, i);
       if (summary === null) continue;
@@ -214,13 +235,21 @@ export class Scrubber {
         inserted: this.session.badgeOf(site.action) === "inserted",
         current: i === this.stop,
       });
-      // The pending row sits directly after the current action, which is where
-      // an insert would land.
-      if (pending !== null && i === this.stop) {
-        rows.push({ number: i + 2, summary: pending, enabled: true, inserted: false, current: false, pending: true });
-      }
     }
     this.rows = rows;
+    this.pending = this.hover?.kind === "action" ? this.previewSummary() : null;
+    if (!this.draggingList) this.gapAbove = this.stop - this.rowFirst;
+  }
+
+  /** The wheel scrolls the list; nothing else does. */
+  private scrollList(rows: number): void {
+    const capacity = visibleRows(this.listGeometry());
+    const total = this.session.sites.length;
+    const next = Math.max(0, Math.min(Math.max(0, total - capacity), this.rowFirst + rows));
+    if (next === this.rowFirst) return;
+    this.rowFirst = next;
+    this.rebuildRows();
+    this.dirty = true;
   }
 
   /** What the hovered cell would become, described exactly as a real row is. */
@@ -365,14 +394,28 @@ export class Scrubber {
 
   resize(): void {
     this.screen.resize();
+    this.publishPanelWidth();
     this.rebuildRows();
     this.dirty = true;
+  }
+
+  /**
+   * How wide the right panel is in CSS pixels, for the toolbar to stop at.
+   *
+   * `[D]` The canvas is the only thing that knows the current integer scale, so
+   * it is what tells the chrome. A custom property rather than React state:
+   * this changes on resize, which is not a document change and must not
+   * re-render anything.
+   */
+  private publishPanelWidth(): void {
+    const l = this.screen.layout;
+    const css = Math.round(((PANEL_W + PANEL_PAD * 2) * l.cssW) / l.w);
+    this.canvas.parentElement?.style.setProperty("--right-panel", `${css}px`);
   }
 
   private draw(): void {
     const t0 = performance.now();
     const { ctx, layout } = this.screen;
-    const captions = this.settings.captions;
     const visit = this.points[this.stop]?.visit ?? 0;
     const units = this.scrollUnitsFor(layout);
     const unit = units[scrollUnitOfVisit(units, visit)]!;
@@ -390,18 +433,12 @@ export class Scrubber {
     const fonts: Fonts = { standard: fontFrom(this.manifest, "FONT_STANDARD"), digits: fontFrom(this.manifest, "FONT_DIGITS") };
     const failedFrom = this.session.failedFrom;
 
-    drawTimeline(ctx, this.floors, this.manifest, this.sheet, tower, unit, currentSlot, this.scroll, layout, captions, PANEL_W);
-    drawTrail(ctx, this.points, this.visits, unit, this.stop, this.scroll, layout, captions, failedFrom);
-    this.drawCurrentAction(unit, fonts);
+    drawTimeline(ctx, this.floors, this.manifest, this.sheet, tower, unit, currentSlot, this.scroll, layout, PANEL_W);
+    drawTrail(ctx, this.points, this.visits, unit, this.stop, this.scroll, layout, failedFrom);
     this.drawHover(unit);
     this.drawPlayer(unit);
-    drawCog(ctx, layout, PANEL_W, this.settingsOpen);
-    if (this.settingsOpen) {
-      drawSettingsPanel(ctx, this.sheet, fonts.standard, layout, PANEL_W, [
-        { label: "perf test", on: this.settings.perf },
-        { label: "floor captions", on: this.settings.captions },
-      ]);
-    }
+    this.drawCurrentAction(unit, fonts);
+    drawCog(ctx, this.icons, layout, PANEL_W, this.settingsOpen);
 
     const player = this.cursor.player;
     drawRightPanel(ctx, this.manifest, this.sheet, this.floors, {
@@ -413,13 +450,17 @@ export class Scrubber {
       ticks: this.ticks,
       currentFloor: player.z,
       failedFrom,
-      captions,
       perf: this.settings.perf,
       perfLine: this.perfHarness.line,
     }, layout);
 
-    drawActionList(ctx, this.sheet, this.manifest, fonts, this.listGeometry(), this.rows, this.noEntry, this.hoverRow);
+    drawActionList(ctx, this.sheet, this.manifest, fonts, this.listGeometry(), this.rows, this.gapAbove, this.pending, this.icons, this.hoverRow);
     this.drawFailureMarker(layout);
+
+    // Last of all, so nothing covers it: it is a thing the player has opened.
+    if (this.settingsOpen) {
+      drawSettingsPanel(ctx, this.icons, this.sheet, fonts.standard, layout, PANEL_W, this.toggles());
+    }
 
     this.screen.present();
     this.perfHarness.record({ seek: 0, blit: performance.now() - t0 });
@@ -429,9 +470,13 @@ export class Scrubber {
   /** `[I]` The failing action gets the no-entry sign on the track, and clicks through. */
   private drawFailureMarker(layout: Layout): void {
     const at = this.session.failedFrom;
-    if (at === null || this.noEntry === null) return;
+    if (at === null || this.icons.noEntry === null) return;
     const b = this.failureHitbox(layout, at);
-    this.screen.ctx.drawImage(this.noEntry, b.x, b.y);
+    this.screen.ctx.drawImage(this.icons.noEntry, b.x, b.y);
+  }
+
+  private toggles(): Array<{ label: string; on: boolean }> {
+    return [{ label: "perf test", on: this.settings.perf }];
   }
 
   private failureHitbox(layout: Layout, at: number): { x: number; y: number; w: number; h: number } {
@@ -440,23 +485,40 @@ export class Scrubber {
   }
 
   /**
-   * `[I]` The current action, drawn twice: its tile outlined on the floor, and
-   * its row repeated a tile and a half below, so the list and the timeline
-   * visibly agree. A disabled one is ghosted, both times.
+   * `[I]` The current action, drawn twice: its cell outlined on the floor, and
+   * its row repeated **at the right of that floor's name strip** — a fixed
+   * place, never over squares the player may want to click. A line runs from
+   * the summary to the player, so the two are read as one thing. A disabled
+   * action is ghosted throughout.
    */
   private drawCurrentAction(unit: ScrollUnit, fonts: Fonts): void {
     const { ctx } = this.screen;
     const site = this.session.sites[this.stop];
-    const row = this.rows.find((r) => r.pending !== true && r.number === this.stop + 1);
+    const row = this.rows.find((r) => r.number === this.stop + 1);
     if (!site || !row) return;
-    const pos = this.cellOrigin(unit, site.action.to);
-    if (!pos) return;
+    const slot = unit.floors.indexOf(site.action.to.z);
+    if (slot < 0) return;
+    const tile = tileOrigin(slot, this.scroll, this.screen.layout);
+    if (tile.x + FLOOR < 0 || tile.x > this.screen.layout.w) return;
 
     ctx.globalAlpha = site.live ? 1 : 0.45;
-    ctx.strokeStyle = "#cfc4ff";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(pos.x + 0.5, pos.y + 0.5, CELL - 1, CELL - 1);
-    drawActionCard(ctx, this.sheet, this.manifest, fonts, row, pos.x, pos.y + Math.round(CELL * 1.5), this.noEntry);
+    const cardX = tile.x + FLOOR - ACTIONS_W;
+    const cardY = tile.y + FLOOR + 1;
+
+    // The line first, so the card and the player both sit on top of it.
+    const player = playerScreenPos(this.points, this.visits, unit, this.stop, this.scroll, this.screen.layout);
+    if (player) {
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(cardX + ACTIONS_W / 2, cardY);
+      ctx.lineTo(player.x + CELL / 2, player.y + CELL + 2);
+      ctx.stroke();
+      ctx.strokeStyle = "#cfc4ff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    drawActionCard(ctx, this.sheet, this.manifest, fonts, row, cardX, cardY, this.icons);
     ctx.globalAlpha = 1;
   }
 
@@ -464,22 +526,32 @@ export class Scrubber {
     if (this.hover === null || this.hover.kind === "none") return;
     const pos = this.cellOrigin(unit, this.hover.cell);
     if (!pos) return;
-    drawCellMark(this.screen.ctx, this.hover.kind === "action" ? "inserted" : "invalid", pos.x, pos.y, this.noEntry);
+    drawCellMark(this.screen.ctx, this.icons, this.hover.kind === "action" ? "inserted" : "invalid", pos.x, pos.y);
   }
 
   /** Where a cell of a floor is on screen, or null when its floor is not shown. */
   private cellOrigin(unit: ScrollUnit, w: Waypoint): { x: number; y: number } | null {
     const slot = unit.floors.indexOf(w.z);
     if (slot < 0) return null;
-    const o = tileOrigin(slot, this.scroll, this.screen.layout, this.settings.captions);
+    const o = tileOrigin(slot, this.scroll, this.screen.layout);
     if (o.x + FLOOR < 0 || o.x > this.screen.layout.w) return null;
     return { x: o.x + (w.x - 1) * CELL, y: o.y + (w.y - 1) * CELL };
   }
 
   private drawPlayer(unit: ScrollUnit): void {
     const { ctx, layout } = this.screen;
-    const pos = playerScreenPos(this.points, this.visits, unit, this.stop, this.scroll, layout, this.settings.captions);
+    const pos = playerScreenPos(this.points, this.visits, unit, this.stop, this.scroll, layout);
     if (!pos) return;
+    // `[I]` The lavender ring was still hard to find among fifteen white
+    // sprites, so it is bedded on black: two pixels of dark either side is what
+    // separates it from whatever the floor happens to be under it.
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(pos.x - 2, pos.y - 2, CELL + 4, CELL + 4);
+    ctx.strokeRect(pos.x, pos.y, CELL, CELL);
+    ctx.strokeStyle = "#cfc4ff";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(pos.x - 1, pos.y - 1, CELL + 2, CELL + 2);
     const sprite = this.playerSprite();
     if (sprite) ctx.drawImage(sprite, pos.x, pos.y);
     const digits = fontFrom(this.manifest, "FONT_DIGITS");
@@ -527,7 +599,7 @@ export class Scrubber {
   private cellAt(x: number, y: number): Waypoint | null {
     const unit = this.currentUnit();
     for (const [slot, z] of unit.floors.entries()) {
-      const o = tileOrigin(slot, this.scroll, this.screen.layout, this.settings.captions);
+      const o = tileOrigin(slot, this.scroll, this.screen.layout);
       if (x < o.x || x >= o.x + FLOOR || y < o.y || y >= o.y + FLOOR) continue;
       return { z, x: Math.floor((x - o.x) / CELL) + 1, y: Math.floor((y - o.y) / CELL) + 1 };
     }
@@ -547,7 +619,7 @@ export class Scrubber {
       p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
     const stopFromY = (clientY: number): number =>
       yToStop(logical(0, clientY).y, this.stops.length, sliderGeometry(this.screen.layout));
-    let dragging = false;
+    let draggingSlider = false;
 
     const onDown = (e: PointerEvent): void => {
       const p = logical(e.clientX, e.clientY);
@@ -558,14 +630,21 @@ export class Scrubber {
         this.dirty = true;
         return;
       }
+      // `[I]` While the settings panel is open, a click anywhere off it closes
+      // it **and does nothing else** -- dismissing a panel should never also
+      // scrub, or insert an action under it.
       if (this.settingsOpen) {
-        for (const [i, b] of settingsHitboxes(layout, PANEL_W, 2).entries()) {
+        const toggles = this.toggles();
+        for (const [i, b] of settingsHitboxes(layout, PANEL_W, toggles.length).entries()) {
           if (!inBox(p, b)) continue;
-          this.onSettings(
-            i === 0 ? { ...this.settings, perf: !this.settings.perf } : { ...this.settings, captions: !this.settings.captions },
-          );
+          if (i === 0) this.onSettings({ ...this.settings, perf: !this.settings.perf });
           return;
         }
+        if (!inBox(p, settingsPanel(layout, PANEL_W, toggles.length))) {
+          this.settingsOpen = false;
+          this.dirty = true;
+        }
+        return;
       }
       // The failing action, clickable on the track for inspection.
       const failed = this.session.failedFrom;
@@ -574,11 +653,18 @@ export class Scrubber {
         return;
       }
       const g = this.listGeometry();
-      const i = rowAt(g, this.rows, p.x, p.y);
+      const i = rowAt(g, this.rows.length, this.gapAbove, p.x, p.y);
       if (i !== null) {
-        const box = checkboxAt(g, this.rows, i);
-        if (box && inBox(p, box)) this.toggleRow(i);
-        else if (this.rows[i]!.pending !== true) this.seek(this.rows[i]!.number - 1);
+        if (inBox(p, checkboxAt(g, i, this.gapAbove))) {
+          this.toggleRow(i);
+          return;
+        }
+        // `[I]` Dragging down the list keeps moving the selection: a finer
+        // scrub than the slider gives. The pending slot is held where it was
+        // until the button comes up, so rows do not slide under the pointer.
+        this.draggingList = true;
+        this.canvas.setPointerCapture(e.pointerId);
+        this.seek(this.rows[i]!.number - 1);
         return;
       }
       const cell = this.cellAt(p.x, p.y);
@@ -587,19 +673,24 @@ export class Scrubber {
         return;
       }
       if (p.x >= panelX(layout) - 2 && p.x <= panelX(layout) + 14) {
-        dragging = true;
+        draggingSlider = true;
         this.canvas.setPointerCapture(e.pointerId);
         this.seek(stopFromY(e.clientY));
       }
     };
 
     const onMove = (e: PointerEvent): void => {
-      if (dragging) {
+      if (draggingSlider) {
         this.seek(stopFromY(e.clientY));
         return;
       }
       const p = logical(e.clientX, e.clientY);
-      const row = rowAt(this.listGeometry(), this.rows, p.x, p.y);
+      const g = this.listGeometry();
+      const row = rowAt(g, this.rows.length, this.gapAbove, p.x, p.y);
+      if (this.draggingList) {
+        if (row !== null) this.seek(this.rows[row]!.number - 1);
+        return;
+      }
       if (row !== this.hoverRow) {
         this.hoverRow = row;
         this.dirty = true;
@@ -618,9 +709,23 @@ export class Scrubber {
       this.dirty = true;
     }, { signal });
     this.canvas.addEventListener("pointerup", (e) => {
-      dragging = false;
+      draggingSlider = false;
+      if (this.draggingList) {
+        this.draggingList = false;
+        // The slot catches up now that nothing is being dragged over it.
+        this.rebuildRows();
+        this.dirty = true;
+      }
       if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
     }, { signal });
+    this.canvas.addEventListener("wheel", (e) => {
+      const p = logical(e.clientX, e.clientY);
+      const g = this.listGeometry();
+      if (p.x < g.x || p.x > g.x + g.w) return;
+      e.preventDefault();
+      // Up is back in time, matching the list's own direction.
+      this.scrollList(e.deltaY > 0 ? -1 : 1);
+    }, { signal, passive: false });
 
     window.addEventListener("keydown", (e) => {
       const step = e.shiftKey ? 10 : 1;

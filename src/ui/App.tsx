@@ -68,7 +68,6 @@ export default function App(): React.ReactElement {
   const [settings, setSettings] = useState<ScrubberSettings>({
     pixelPerfect: true,
     linearFilter: false,
-    captions: true,
     perf: false,
     zoom: "auto",
   });
@@ -82,17 +81,22 @@ export default function App(): React.ReactElement {
   }, []);
 
   // `[D]` The working store is opened once and asked what it holds. A stored
-  // session whose `loadCompleted` is false means the previous load crashed, so
-  // the offer is to start clean rather than to restore into the same crash.
+  // session whose `loadCompleted` is false means a *restore* crashed part-way,
+  // so the offer is to start clean rather than to restore into the same crash.
+  //
+  // `[F]` The flag is cleared when a restore is **accepted**, not when the app
+  // starts. Clearing it at startup made every launch that opened nothing look
+  // like a crash to the launch after it: open the app, reload, and the second
+  // reload reported a failure that had never happened.
   useEffect(() => {
     let live = true;
     WorkingStore.open()
       .then(async (store) => {
         storeRef.current = store;
-        const stored = await store.markLoading();
+        const stored = await store.read();
         if (!live || stored === null) return;
         if (!stored.loadCompleted) {
-          setNotice("The last session did not finish loading, so it has been left closed. Open a file to start clean.");
+          setNotice("A working copy could not be loaded last time, so it has been discarded. Open a file to start clean.");
           await store.clear();
           return;
         }
@@ -116,6 +120,9 @@ export default function App(): React.ReactElement {
       setRecords(null);
       setPendingOrd(null);
       setRestorable(null);
+      // Whatever the shell was saying was about getting here, and we are here.
+      setNotice(null);
+      setError(null);
       setSession(s);
     },
     [],
@@ -324,7 +331,10 @@ export default function App(): React.ReactElement {
                 onClick={() => {
                   const route = restorable.document.routes[restorable.view.route];
                   if (!route) return;
-                  void loadTower(route.tower)
+                  // Only now is a load in flight, so only now is the flag cleared.
+                  void storeRef.current
+                    ?.markLoading()
+                    .then(() => loadTower(route.tower))
                     .then((t) => start(restorable.document, t, restorable.view, restorable.inserted, restorable.savedHash))
                     .catch((e: Error) => setError(String(e)));
                 }}

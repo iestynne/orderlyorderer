@@ -157,16 +157,21 @@ code {
   gap: 10px;
 }
 
+/* The strip is the LEFT panel's, not the window's: it used to run under the
+   right panel and cut the bottom off the slider and the action list. The width
+   comes from the canvas, which is the only thing that knows the current integer
+   scale -- Scrubber sets it after every resize. */
 .tools {
   position: fixed;
   left: 10px;
-  right: 10px;
+  right: calc(var(--right-panel, 0px) + 10px);
   bottom: 8px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   background: var(--panel);
+  border: 1px solid var(--line);
   padding: 4px 10px;
   border-radius: 4px;
 }

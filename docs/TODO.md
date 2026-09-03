@@ -31,10 +31,14 @@ The top of this list needs a browser, and so needs iestyn:
 trail's `dHue`, the stack's size, whether overlapped floors read on a 32- or
 75-floor tower, and the deferred proposal to freeze past and future floors.
 
-`[O]` **All three budgeted docs are over D31's 150** — `UI.md` 165,
-`STATUS.md` and this one 152. The app grew a second feature and they grew with
-it; what is over is behaviour and outstanding work, not padding, so it is
-flagged rather than cut. Either the budget moves or something leaves the docs.
+`[O]` **The toolbar wants emptying.** `[I]` iestyn: it is a strip along the
+bottom because of what is in it, and it stops at the left panel now so it no
+longer eats the slider's height — but move its contents somewhere better and it
+need not be a strip at all.
+
+`[O]` **All three budgeted docs are over D31's 150** — `UI.md` 170,
+`STATUS.md` and this one about 155. What is over is behaviour and outstanding
+work, not padding. Either the budget moves or something leaves the docs.
 
 `[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
 own capture control: press `S` or the button, share the PNG.

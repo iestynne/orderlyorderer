@@ -35,13 +35,31 @@ function fontImage(file: string): Rgba {
 }
 
 d("SPEC-007 §8 — the sprite atlas", () => {
-  it("packs 66 sprites, every one 16x16", () => {
+  it("packs 70 sprites: the game's, the marker, and the app's own four", () => {
     const { manifest } = atlas();
-    const rects = Object.values(manifest.sprites);
-    // 65 sprite files plus the one cell cut out of markers.png: the no-entry
-    // sign, which the app uses for "the rules refuse this" (SHEET_SPRITES).
-    expect(rects.length).toBe(66);
-    expect(rects.every((r) => r.w === 16 && r.h === 16)).toBe(true);
+    const rects = Object.entries(manifest.sprites);
+    // 65 sprite files, the one cell cut out of markers.png (the no-entry sign,
+    // for "the rules refuse this"), and the four icons the game has no art for.
+    expect(rects.length).toBe(70);
+    const game = rects.filter(([name]) => !name.startsWith("icon_"));
+    expect(game.length).toBe(66);
+    expect(game.every(([, r]) => r.w === 16 && r.h === 16)).toBe(true);
+    // An icon's rect is its own size, not a padded cell: the runtime draws 9 or
+    // 11 px of it and nothing else.
+    const icons = rects.filter(([name]) => name.startsWith("icon_"));
+    expect(icons.length).toBe(4);
+    expect(icons.every(([, r]) => r.w === r.h && r.w < 16)).toBe(true);
+  });
+
+  // `[F]` The sheet's width is set by its widest bitmap font. At the 8 columns
+  // the sprite block used to use, 128 px of that were sprites and 755 were
+  // nothing; deriving the column count from the width packs them into two rows
+  // and took the atlas from 883x176 to 883x64.
+  it("wastes no width: the sprite rows are as wide as the font rows", () => {
+    const { manifest } = atlas();
+    const rows = new Set(Object.values(manifest.sprites).map((r) => r.y));
+    expect(rows.size).toBe(2);
+    expect(manifest.height).toBeLessThan(80);
   });
 
   it("re-decodes to the size the manifest claims", () => {

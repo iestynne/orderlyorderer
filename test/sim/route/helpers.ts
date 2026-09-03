@@ -14,6 +14,14 @@ import { loadAllSaves } from "../../sav/helpers";
 
 export { UNLIMITED_GEMS };
 
+/**
+ * `[F]` `1-3/POP-UP-FORMAT` is not a played route: it was written by hand
+ * during the pop-up reverse-engineering, against an encoding that turned out to
+ * be wrong (`RESULTS.md`). It replays clean and is kept, but it is where an odd
+ * result should be blamed on the file first.
+ */
+export const HAND_WRITTEN = "1-3/POP-UP-FORMAT";
+
 export interface Imported {
   id: string;
   towerId: string;

@@ -48,15 +48,16 @@ describe("SPEC-007 §8 — named geometry", () => {
     expect(SAME_ROW_PITCH).toBe(FLOOR + GAP);
   });
 
-  it("tile block is 240x258 with captions and 240x240 without", () => {
-    expect([FLOOR, tileHeight(true)]).toEqual([240, 258]);
-    expect([FLOOR, tileHeight(false)]).toEqual([240, 240]);
+  // `[F]` The name strip is no longer optional: it is where the current
+  // action's summary is drawn, and the alternative was drawing that over the
+  // grid, on cells the player may want to click (docs/UI.md §6).
+  it("a tile is 240x258 — the floor plus its name strip", () => {
+    expect([FLOOR, tileHeight()]).toEqual([240, 258]);
     expect(CAPTION).toBe(18);
   });
 
-  it("row pitch is 262 with captions and 244 without", () => {
-    expect(rowPitch(true)).toBe(262);
-    expect(rowPitch(false)).toBe(244);
+  it("row pitch is 262", () => {
+    expect(rowPitch()).toBe(262);
   });
 
   // `[F]` The column used to be 186, the game's own 426 minus a 240 floor. It

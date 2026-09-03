@@ -123,7 +123,6 @@ export interface RightPanelState {
   currentFloor: number;
   /** The first stop the route fails at, or null where it runs clean. */
   failedFrom: number | null;
-  captions: boolean;
   perf: boolean;
   perfLine: string;
 }
@@ -187,8 +186,11 @@ export function drawRightPanel(
   // Power opposite them, which is the one status row that needs the width.
   drawText(ctx, sheet, standard, s.tower.metadata.name, x0, 5);
   drawText(ctx, sheet, standard, s.floorName, x0, 16);
+  // `[I]` The word stays, to the right of the number: a bare figure that large
+  // needs saying what it is.
   const power = powerToString(s.player.power);
-  drawText(ctx, sheet, standard, power, x0 + PANEL_W - textWidth(standard, power), 5);
+  const label = " Power";
+  drawText(ctx, sheet, standard, power + label, x0 + PANEL_W - textWidth(standard, power + label), 5);
 
   drawSlider(ctx, sheet, standard, s, layout);
   drawStack(ctx, floors, standard, sheet, s, layout);
@@ -204,14 +206,15 @@ export function drawRightPanel(
  */
 export function statusRowAt(tower: TowerJSON, player: Player, layout: Layout, x: number, y: number): StatusRow | null {
   if (x < statusX(layout) || x > statusX(layout) + STATUS_W) return null;
-  const g = sliderGeometry(layout);
-  const i = Math.floor((y - g.y) / STATUS_ROW_H);
+  const i = Math.floor((y - STATUS_TOP) / STATUS_ROW_H);
   const rows = statusRows(tower, player);
   return i >= 0 && i < rows.length ? rows[i]! : null;
 }
 
 /** Tall enough for a 16 px sprite with air around it. */
 export const STATUS_ROW_H = 18;
+/** Immediately below the Power line at the top of the panel. */
+export const STATUS_TOP = 17;
 
 /**
  * `[D]` **Time runs upward: stop 0 is at the bottom.** The route is climbing a
@@ -375,9 +378,11 @@ function drawStatus(
   s: RightPanelState,
   layout: Layout,
 ): void {
-  const g = sliderGeometry(layout);
   const right = statusX(layout) + STATUS_W;
-  let y = g.y;
+  // Directly under the Power line, not down at the columns: the status rows
+  // are one block with Power at its head, and a line of air between them read
+  // as a missing row.
+  let y = STATUS_TOP;
 
   for (const row of statusRows(s.tower, s.player)) {
     const r = spriteRect(manifest, row.sprite);

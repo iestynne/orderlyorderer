@@ -1,10 +1,17 @@
-// docs/UI.md §6 — the marks route editing puts on the canvas: the two badges,
-// the no-entry sign, the settings cog, and the failure wording.
+// docs/UI.md §6 — the marks route editing puts on the canvas: the add badge,
+// the enable checkbox, the no-entry sign, and the settings cog.
 //
-// `[D]` **Three states, three marks, no overlap.** A `+` says the player added
-// this; a minus says the player switched it off; the game's own no-entry sign
-// says *the rules refuse this*. The first two are the player's doing and the
-// third is not, so they must not look alike (D38's sheet, cut in the atlas).
+// `[D]` **Two states the player owns, one the rules own.** A `+` says the
+// player added this and an unticked box says they switched it off; the game's
+// own no-entry sign says *the rules refuse this*. The first two are the
+// player's doing and the third is not, so they must not look alike.
+//
+// `[D]` **Every icon is a sprite, tinted once.** The app's own four are pixel
+// maps in `tools/atlas/icons.ts`, packed into `atlas.png` beside the game's —
+// so they are inspected the same way, and so nothing here draws a path. Canvas
+// 2D has no per-draw colour multiply, so a tint is baked: `multiply` lays the
+// colour over the sprite and `destination-in` puts the sprite's own alpha back,
+// which leaves the black outline black and turns the white ink the tint.
 //
 // `[F]` None of this is under SPEC-008's Verification Contract, which says so:
 // it is judged by looking (D24a, D30).
@@ -14,109 +21,114 @@ import type { SimError } from "../../sim/types";
 import { drawText, type AtlasFontRef } from "./atlas";
 import { CELL, GAP, PANEL_PAD, type Layout } from "./screen";
 
-export type Mark = "inserted" | "disabled" | "invalid";
-
 const GREEN = "#8fe08f";
-const RED = "#e08f8f";
+const LAVENDER = "#cfc4ff";
+const GREY = "#9a97ad";
+/** `[I]` Dim red, so an unticked box stands out as switched off rather than blank. */
+const DIM_RED = "#7a3030";
 /** `[I]` Deep red, so the sign reads as a refusal rather than as decoration. */
 const DEEP_RED = "rgb(190, 40, 40)";
 
-/**
- * The no-entry sign, tinted once.
- *
- * Canvas 2D has no per-draw colour multiply, so the tint is baked the way the
- * player's is: `multiply` lays the colour over the sprite, then
- * `destination-in` puts the sprite's own alpha back.
- */
-let tinted: HTMLCanvasElement | null = null;
+export interface Icons {
+  plus: HTMLCanvasElement | null;
+  box: HTMLCanvasElement | null;
+  tick: HTMLCanvasElement | null;
+  cog: HTMLCanvasElement | null;
+  cogOpen: HTMLCanvasElement | null;
+  noEntry: HTMLCanvasElement | null;
+  /** The enable box, which is square, so one number sizes every hitbox. */
+  boxSize: number;
+  badge: number;
+}
 
-export function noEntrySprite(manifest: AtlasManifest, sheet: CanvasImageSource): HTMLCanvasElement | null {
-  if (tinted) return tinted;
-  const r = manifest.sprites["no_entry"];
+/** Baked once when a record is opened, never per frame. */
+export function bakeIcons(manifest: AtlasManifest, sheet: CanvasImageSource): Icons {
+  return {
+    plus: tint(manifest, sheet, "icon_plus", GREEN),
+    box: tint(manifest, sheet, "icon_box", GREY),
+    tick: tint(manifest, sheet, "icon_tick", LAVENDER),
+    cog: tint(manifest, sheet, "icon_cog", LAVENDER),
+    cogOpen: tint(manifest, sheet, "icon_cog", "#15151a"),
+    noEntry: tint(manifest, sheet, "no_entry", DEEP_RED),
+    boxSize: manifest.sprites["icon_box"]?.w ?? 9,
+    badge: manifest.sprites["icon_plus"]?.w ?? 9,
+  };
+}
+
+function tint(manifest: AtlasManifest, sheet: CanvasImageSource, name: string, colour: string): HTMLCanvasElement | null {
+  const r = manifest.sprites[name];
   if (!r) return null;
   const c = document.createElement("canvas");
-  c.width = CELL;
-  c.height = CELL;
+  c.width = r.w;
+  c.height = r.h;
   const g = c.getContext("2d");
   if (!g) return null;
   g.imageSmoothingEnabled = false;
-  g.drawImage(sheet, r.x, r.y, r.w, r.h, 0, 0, CELL, CELL);
+  g.drawImage(sheet, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   g.globalCompositeOperation = "multiply";
-  g.fillStyle = DEEP_RED;
-  g.fillRect(0, 0, CELL, CELL);
+  g.fillStyle = colour;
+  g.fillRect(0, 0, r.w, r.h);
   g.globalCompositeOperation = "destination-in";
-  g.drawImage(sheet, r.x, r.y, r.w, r.h, 0, 0, CELL, CELL);
-  tinted = c;
-  return tinted;
+  g.drawImage(sheet, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  return c;
 }
 
-/** A 9 px badge: `+` for an addition, `-` for a disabled action. */
-export function drawBadge(ctx: CanvasRenderingContext2D, mark: "inserted" | "disabled", x: number, y: number): void {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-  ctx.beginPath();
-  ctx.arc(x + 5, y + 5, 4.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = mark === "inserted" ? GREEN : RED;
-  ctx.beginPath();
-  ctx.arc(x + 4, y + 4, 4.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#15151a";
-  ctx.fillRect(x + 1, y + 3, 7, 2);
-  if (mark === "inserted") ctx.fillRect(x + 3, y + 1, 2, 7);
+/** The `+` an added action wears. */
+export function drawPlus(ctx: CanvasRenderingContext2D, icons: Icons, x: number, y: number): void {
+  if (icons.plus) ctx.drawImage(icons.plus, x, y);
 }
 
-/** The outline an edited or refused cell wears on the floor, plus its badge. */
+/**
+ * The enable box. `[I]` Unticked is **filled dim red** rather than merely
+ * empty: a switched-off action should be findable by scanning the column, and
+ * an empty outline is not.
+ */
+export function drawCheckbox(ctx: CanvasRenderingContext2D, icons: Icons, x: number, y: number, on: boolean): void {
+  if (!on) {
+    ctx.fillStyle = DIM_RED;
+    ctx.fillRect(x + 1, y + 1, icons.boxSize - 2, icons.boxSize - 2);
+  }
+  if (icons.box) ctx.drawImage(icons.box, x, y);
+  if (on && icons.tick) ctx.drawImage(icons.tick, x, y);
+}
+
+/** What a hovered cell would do: add an action, or be refused. */
 export function drawCellMark(
   ctx: CanvasRenderingContext2D,
-  mark: Mark,
+  icons: Icons,
+  mark: "inserted" | "invalid",
   x: number,
   y: number,
-  noEntry: HTMLCanvasElement | null,
 ): void {
   ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
   ctx.fillRect(x + 1, y + 1, CELL, CELL);
-  ctx.strokeStyle = mark === "inserted" ? GREEN : mark === "disabled" ? RED : DEEP_RED;
+  ctx.strokeStyle = mark === "inserted" ? GREEN : DEEP_RED;
   ctx.lineWidth = 1;
   ctx.strokeRect(x + 0.5, y + 0.5, CELL - 1, CELL - 1);
   if (mark === "invalid") {
-    if (noEntry) ctx.drawImage(noEntry, x, y);
+    if (icons.noEntry) ctx.drawImage(icons.noEntry, x, y);
     return;
   }
-  drawBadge(ctx, mark, x + CELL - 8, y - 1);
+  drawPlus(ctx, icons, x + CELL - icons.badge, y - 1);
 }
 
 // --- the settings cog, where the mode buttons used to be ------------------
 
-export const COG = 17;
+export const COG_BOX = 15;
 
 export function cogHitbox(layout: Layout, panelW: number): { x: number; y: number; w: number; h: number } {
-  return { x: layout.w - panelW - PANEL_PAD - GAP - COG, y: GAP, w: COG, h: COG };
+  return { x: layout.w - panelW - PANEL_PAD - GAP - COG_BOX, y: GAP, w: COG_BOX, h: COG_BOX };
 }
 
-export function drawCog(ctx: CanvasRenderingContext2D, layout: Layout, panelW: number, open: boolean): void {
+export function drawCog(ctx: CanvasRenderingContext2D, icons: Icons, layout: Layout, panelW: number, open: boolean): void {
   const b = cogHitbox(layout, panelW);
-  ctx.fillStyle = open ? "#cfc4ff" : "#22222c";
+  ctx.fillStyle = open ? LAVENDER : "#22222c";
   ctx.fillRect(b.x, b.y, b.w, b.h);
   ctx.strokeStyle = "#0c0c10";
   ctx.lineWidth = 1;
   ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
-
-  // `[P]` A drawn cog, not art. iestyn replaces it if it does not sit with the
-  // game's own icons.
-  const cx = b.x + COG / 2;
-  const cy = b.y + COG / 2;
-  ctx.fillStyle = open ? "#15151a" : "#cfc4ff";
-  for (let i = 0; i < 8; i++) {
-    const a = (i * Math.PI) / 4;
-    ctx.fillRect(Math.round(cx + Math.cos(a) * 5) - 1, Math.round(cy + Math.sin(a) * 5) - 1, 2, 2);
-  }
-  ctx.beginPath();
-  ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = open ? "#cfc4ff" : "#22222c";
-  ctx.beginPath();
-  ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
-  ctx.fill();
+  const art = open ? icons.cogOpen : icons.cog;
+  if (art) ctx.drawImage(art, b.x + ((b.w - art.width) >> 1), b.y + ((b.h - art.height) >> 1));
 }
 
 export interface Toggle {
@@ -124,51 +136,52 @@ export interface Toggle {
   on: boolean;
 }
 
-const PANEL_ROW = 13;
+const PANEL_ROW = 14;
+const PANEL_INSET = 5;
 
-export function settingsHitboxes(layout: Layout, panelW: number, n: number): Array<{ x: number; y: number; w: number; h: number }> {
+export function settingsPanel(layout: Layout, panelW: number, n: number): { x: number; y: number; w: number; h: number } {
   const b = cogHitbox(layout, panelW);
-  const w = 112;
-  const x = b.x + COG - w;
-  return Array.from({ length: n }, (_, i) => ({ x, y: b.y + COG + 3 + i * PANEL_ROW, w, h: PANEL_ROW }));
+  const w = 116;
+  return { x: b.x + b.w - w, y: b.y + b.h + 3, w, h: n * PANEL_ROW + PANEL_INSET * 2 };
 }
 
+export function settingsHitboxes(layout: Layout, panelW: number, n: number): Array<{ x: number; y: number; w: number; h: number }> {
+  const p = settingsPanel(layout, panelW, n);
+  return Array.from({ length: n }, (_, i) => ({
+    x: p.x + PANEL_INSET,
+    y: p.y + PANEL_INSET + i * PANEL_ROW,
+    w: p.w - PANEL_INSET * 2,
+    h: PANEL_ROW,
+  }));
+}
+
+/**
+ * `[I]` A **brighter, thicker** border, and drawn last so nothing covers it:
+ * it is a transient thing the player has opened, so it has to look like it is
+ * in front, and a click anywhere off it closes it.
+ */
 export function drawSettingsPanel(
   ctx: CanvasRenderingContext2D,
+  icons: Icons,
   sheet: CanvasImageSource,
   font: AtlasFontRef,
   layout: Layout,
   panelW: number,
   toggles: readonly Toggle[],
 ): void {
-  const boxes = settingsHitboxes(layout, panelW, toggles.length);
-  const first = boxes[0];
-  if (!first) return;
+  const p = settingsPanel(layout, panelW, toggles.length);
   ctx.fillStyle = "#15151a";
-  ctx.fillRect(first.x, first.y - 2, first.w, toggles.length * PANEL_ROW + 4);
-  ctx.strokeStyle = "#3a3a44";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(first.x + 0.5, first.y - 1.5, first.w - 1, toggles.length * PANEL_ROW + 3);
+  ctx.fillRect(p.x, p.y, p.w, p.h);
+  ctx.strokeStyle = LAVENDER;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
 
+  const boxes = settingsHitboxes(layout, panelW, toggles.length);
   toggles.forEach((t, i) => {
     const b = boxes[i]!;
-    drawCheckbox(ctx, b.x + 4, b.y + 2, t.on);
-    drawText(ctx, sheet, font, t.label, b.x + 18, b.y + 2);
+    drawCheckbox(ctx, icons, b.x, b.y + 2, t.on);
+    drawText(ctx, sheet, font, t.label, b.x + icons.boxSize + 5, b.y + 3);
   });
-}
-
-/** A 9 px box with a tick, used by the settings panel and by every action row. */
-export function drawCheckbox(ctx: CanvasRenderingContext2D, x: number, y: number, on: boolean): void {
-  ctx.strokeStyle = "#9a97ad";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x + 0.5, y + 0.5, 8, 8);
-  if (!on) return;
-  ctx.strokeStyle = "#cfc4ff";
-  ctx.beginPath();
-  ctx.moveTo(x + 2, y + 4.5);
-  ctx.lineTo(x + 4, y + 6.5);
-  ctx.lineTo(x + 7, y + 2);
-  ctx.stroke();
 }
 
 /**
