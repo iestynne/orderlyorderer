@@ -100,12 +100,15 @@ export class Cursor {
  * corpus that do carry an edit are all pop-up walls reinforcing behind the
  * departing player, and those fold into the following action's state.
  */
-export function stopStepIndices(timeline: Timeline, routeLength: number): number[] {
-  if (routeLength % 2 !== 1) {
-    throw new RangeError(`route length ${routeLength} is even; the 2S+1 rule requires odd`);
-  }
-  // stepsThrough[w] = steps produced by route entries 0..w. Steps are emitted
-  // in waypoint order, so one forward pass fills it.
+/**
+ * `stepsThrough[w]` = how many steps the simulator had produced by the time
+ * route entry `w` was consumed.
+ *
+ * Steps are emitted in waypoint order, so one forward pass fills it. SPEC-008
+ * §4.1 needs the same table to place a stop on an action that produced no
+ * waypoint at all, which is why it is exported rather than inlined here (D11).
+ */
+export function stepsThroughWaypoints(timeline: Timeline, routeLength: number): Int32Array {
   const stepsThrough = new Int32Array(routeLength);
   let n = 0;
   let w = 0;
@@ -114,7 +117,14 @@ export function stopStepIndices(timeline: Timeline, routeLength: number): number
     n++;
   }
   while (w < routeLength) stepsThrough[w++] = n;
+  return stepsThrough;
+}
 
+export function stopStepIndices(timeline: Timeline, routeLength: number): number[] {
+  if (routeLength % 2 !== 1) {
+    throw new RangeError(`route length ${routeLength} is even; the 2S+1 rule requires odd`);
+  }
+  const stepsThrough = stepsThroughWaypoints(timeline, routeLength);
   const stops: number[] = [];
   for (let i = 1; i < routeLength - 1; i += 2) stops.push(stepsThrough[i]!);
   stops.push(stepsThrough[routeLength - 1]!);

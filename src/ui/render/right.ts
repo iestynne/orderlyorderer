@@ -10,7 +10,7 @@ import type { AtlasManifest } from "../../../tools/atlas/build";
 import { drawText, fontFrom, type AtlasFontRef } from "./atlas";
 import { textWidth } from "../imagefont";
 import type { FloorCache } from "./floor";
-import { PANEL_PAD, PANEL_W, SLIDER_W, STACK_W, STATUS_W, type Layout } from "./screen";
+import { ACTIONS_W, PANEL_HEAD, PANEL_PAD, PANEL_W, SLIDER_W, STACK_W, STATUS_W, type Layout } from "./screen";
 
 /** `[F]` util.lua:3-22. Dot separators every three digits; never an abbreviation. */
 export function powerToString(n: number): string {
@@ -81,39 +81,34 @@ export function stackHeight(depth: number, availH: number): number {
 }
 
 export interface StatusRow {
-  /** A sprite stem drawn in place of the row's NAME, or null for a text label. */
-  sprite: string | null;
-  label: string;
-  /** The row's value, right-aligned into the centre gutter. */
+  /** The sprite naming the row, drawn at the column's right edge. */
+  sprite: string;
+  /** The value, right-aligned to the left of the sprite. Empty for the held row. */
   value: string;
-  /**
-   * ...or a sprite in the value position, for a row whose value *is* an item.
-   *
-   * `[D]` The held item is the only such row: what you are carrying is the
-   * value, and "held" is the name of the row. Drawing the icon on the name side
-   * made it read as a label for an empty value.
-   */
-  valueSprite?: string;
+  /** What the row means, for the hover tooltip: the words the column has no room for. */
+  title: string;
 }
 
 /**
+ * The narrow column: everything but Power, which leads on its own line.
+ *
  * `[F]` Conditional rows, matching the game: dark keys are hidden under
  * negative_keys (the counter is meaningless on EX-3), gold appears only under
  * the money_system flag, and the held item only when something is held.
+ *
+ * `[D]` Every row is a sprite and a number, with no word anywhere. Gems are an
+ * amount **spent** — the total moves as gems come in on other towers, so spent
+ * is what a route is planned against — and that is now said in the row's hover
+ * text rather than in a label the column has no width for.
  */
 export function statusRows(tower: TowerJSON, p: Player): StatusRow[] {
   const flags = tower.metadata.computed_flags;
-  const rows: StatusRow[] = [
-    { sprite: null, label: "Power", value: powerToString(p.power) },
-    { sprite: "key", label: "", value: String(p.lightKeys) },
-  ];
-  if (flags.negative_keys !== true) rows.push({ sprite: "dark_key", label: "", value: String(p.darkKeys) });
-  rows.push({ sprite: "pickaxe", label: "", value: String(p.pickaxes) });
-  if (flags.money_system === true) rows.push({ sprite: null, label: "Money", value: `${p.gold}G` });
-  // Gems are shown as an amount SPENT: the total moves as gems are collected in
-  // other towers, so spent is the number a route is planned against (§2.3).
-  rows.push({ sprite: "gem", label: "spent", value: String(p.gemsSpent) });
-  if (p.held !== null) rows.push({ sprite: null, label: "held", value: "", valueSprite: p.held });
+  const rows: StatusRow[] = [{ sprite: "key", value: String(p.lightKeys), title: "light keys" }];
+  if (flags.negative_keys !== true) rows.push({ sprite: "dark_key", value: String(p.darkKeys), title: "dark keys" });
+  rows.push({ sprite: "pickaxe", value: String(p.pickaxes), title: "pickaxes" });
+  if (flags.money_system === true) rows.push({ sprite: "money", value: String(p.gold), title: "gold" });
+  rows.push({ sprite: "gem", value: String(p.gemsSpent), title: "gems spent" });
+  if (p.held !== null) rows.push({ sprite: p.held, value: "", title: `held: ${p.held}` });
   return rows;
 }
 
@@ -151,10 +146,26 @@ export function panelX(layout: Layout): number {
   return layout.w - PANEL_W - PANEL_PAD;
 }
 
+/** Left edge of the tower stack: past the slider and the action list. */
+export function stackX(layout: Layout): number {
+  return panelX(layout) + SLIDER_W + ACTIONS_W;
+}
+
+/** Left edge of the narrow status column, at the panel's right. */
+export function statusX(layout: Layout): number {
+  return panelX(layout) + PANEL_W - STATUS_W;
+}
+
+/**
+ * The columns all start below the header and run to the foot of the panel.
+ *
+ * `[D]` The 78 px that used to be reserved at the bottom was the settings
+ * block, which now lives behind the cog (docs/UI.md §4), so the slider, the
+ * action list and the stack each get it back.
+ */
 export function sliderGeometry(layout: Layout): { x: number; y: number; h: number } {
-  // Below the two-line header AND the action counter, which sits under it.
-  const top = 46;
-  return { x: panelX(layout), y: top, h: Math.max(40, layout.h - top - 78) };
+  const top = PANEL_HEAD + 13; // ...and the action counter, which sits under the header.
+  return { x: panelX(layout), y: top, h: Math.max(40, layout.h - top - 8) };
 }
 
 export function drawRightPanel(
@@ -172,15 +183,35 @@ export function drawRightPanel(
   ctx.fillStyle = "#15151a";
   ctx.fillRect(x0 - PANEL_PAD, 0, PANEL_W + PANEL_PAD * 2, layout.h);
 
-  // Headed, as the game is, with the tower name over the floor name.
+  // Headed, as the game is, with the tower name over the floor name -- and
+  // Power opposite them, which is the one status row that needs the width.
   drawText(ctx, sheet, standard, s.tower.metadata.name, x0, 5);
   drawText(ctx, sheet, standard, s.floorName, x0, 16);
+  const power = powerToString(s.player.power);
+  drawText(ctx, sheet, standard, power, x0 + PANEL_W - textWidth(standard, power), 5);
 
   drawSlider(ctx, sheet, standard, s, layout);
   drawStack(ctx, floors, standard, sheet, s, layout);
-  drawStatus(ctx, sheet, manifest, standard, digits, s, layout);
-  drawSettings(ctx, sheet, standard, s, layout);
+  drawStatus(ctx, sheet, manifest, digits, s, layout);
 }
+
+/**
+ * Which status row a point is over, for the hover tooltip, or null.
+ *
+ * `[D]` The column has no room for a word, so the words are on hover. The
+ * canvas cannot carry per-region tooltips itself, so the host element's
+ * `title` is set from this — one attribute, moved as the pointer moves.
+ */
+export function statusRowAt(tower: TowerJSON, player: Player, layout: Layout, x: number, y: number): StatusRow | null {
+  if (x < statusX(layout) || x > statusX(layout) + STATUS_W) return null;
+  const g = sliderGeometry(layout);
+  const i = Math.floor((y - g.y) / STATUS_ROW_H);
+  const rows = statusRows(tower, player);
+  return i >= 0 && i < rows.length ? rows[i]! : null;
+}
+
+/** Tall enough for a 16 px sprite with air around it. */
+export const STATUS_ROW_H = 18;
 
 /**
  * `[D]` **Time runs upward: stop 0 is at the bottom.** The route is climbing a
@@ -266,7 +297,7 @@ function drawStack(
   layout: Layout,
 ): void {
   const g = sliderGeometry(layout);
-  const x0 = panelX(layout) + SLIDER_W + 4;
+  const x0 = stackX(layout);
   ctx.save();
   ctx.beginPath();
   ctx.rect(x0, g.y, STACK_W, g.h);
@@ -332,77 +363,32 @@ function drawStack(
   ctx.restore();
 }
 
+/**
+ * The narrow column down the panel's right edge: a value, then the sprite that
+ * names it, both right-aligned so the magnitudes line up and read downward.
+ */
 function drawStatus(
   ctx: CanvasRenderingContext2D,
   sheet: CanvasImageSource,
   manifest: AtlasManifest,
-  standard: AtlasFontRef,
   digits: AtlasFontRef,
   s: RightPanelState,
   layout: Layout,
 ): void {
   const g = sliderGeometry(layout);
-  const x0 = panelX(layout) + SLIDER_W + STACK_W + 4;
-  // Numbers right-aligned into a centre gutter, labels to the right of it, so
-  // the magnitudes line up and read down the column (UI.md §4).
-  const gutter = x0 + 96;
-  let y = g.y + 4;
+  const right = statusX(layout) + STATUS_W;
+  let y = g.y;
 
   for (const row of statusRows(s.tower, s.player)) {
-    const hasIcon = row.sprite !== null || row.valueSprite !== undefined;
-
-    // The value side of the gutter: a number, or — for the held item — the
-    // icon of the thing itself, right-aligned exactly as a number would be.
-    if (row.valueSprite !== undefined) {
-      const r = spriteRect(manifest, row.valueSprite);
-      if (r) ctx.drawImage(sheet, r.x, r.y, r.w, r.h, gutter - 16, y - 4, 16, 16);
-    } else if (row.value !== "") {
-      const font = row.label === "Power" ? standard : digits;
-      drawText(ctx, sheet, font, row.value, gutter - textWidth(font, row.value), y + (font === digits ? 1 : 0));
+    const r = spriteRect(manifest, row.sprite);
+    if (r) ctx.drawImage(sheet, r.x, r.y, r.w, r.h, right - 16, y, 16, 16);
+    if (row.value !== "") {
+      drawText(ctx, sheet, digits, row.value, right - 19 - textWidth(digits, row.value), y + 5);
     }
-
-    // The name side: a sprite standing in for the word, as the game does, or
-    // the word itself.
-    if (row.sprite !== null) {
-      const r = spriteRect(manifest, row.sprite);
-      if (r) ctx.drawImage(sheet, r.x, r.y, r.w, r.h, gutter + 4, y - 4, 16, 16);
-      if (row.label !== "") drawText(ctx, sheet, standard, row.label, gutter + 23, y);
-    } else {
-      drawText(ctx, sheet, standard, row.label, gutter + 4, y);
-    }
-    y += hasIcon ? 17 : 11;
+    y += STATUS_ROW_H;
   }
 }
 
-function drawSettings(
-  ctx: CanvasRenderingContext2D,
-  sheet: CanvasImageSource,
-  font: AtlasFontRef,
-  s: RightPanelState,
-  layout: Layout,
-): void {
-  const x0 = panelX(layout);
-  let y = layout.h - 38;
-  for (const [label, on] of [
-    ["perf test", s.perf],
-    ["captions", s.captions],
-  ] as const) {
-    ctx.fillStyle = on ? "#b9aef0" : "#3a3a44";
-    ctx.fillRect(x0, y, 9, 9);
-    ctx.fillStyle = "#15151a";
-    ctx.fillRect(x0 + 2, y + 2, 5, 5);
-    if (on) {
-      ctx.fillStyle = "#b9aef0";
-      ctx.fillRect(x0 + 3, y + 3, 3, 3);
-    }
-    drawText(ctx, sheet, font, label, x0 + 14, y + 1);
-    y += 12;
-  }
-  if (s.perf) drawText(ctx, sheet, font, s.perfLine, x0 + 92, layout.h - 37);
-  drawText(ctx, sheet, font, "Unofficial. Not by the developer of Towers of Scale.", x0, layout.h - 12);
-}
-
-export const SETTINGS_HITBOXES = (layout: Layout): Array<{ x: number; y: number; w: number; h: number }> => [
-  { x: panelX(layout), y: layout.h - 38, w: STATUS_W, h: 9 },
-  { x: panelX(layout), y: layout.h - 26, w: STATUS_W, h: 9 },
-];
+// The settings block is gone from the panel: its two checkboxes live behind
+// the cog at the top-right of the left panel now (docs/UI.md §4), which is what
+// gave the slider, the action list and the stack their bottom 78 px back.

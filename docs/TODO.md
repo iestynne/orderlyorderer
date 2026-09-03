@@ -9,28 +9,32 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 
 ## A. Next action
 
-**SPEC-007 and SPEC-008 are both built** — 294 tests green (`STATUS.md`). The
-scrubber has had four rounds of visual review and both its recorded performance
-faults are fixed and confirmed by eye (§A5); **the editing UI has had no rounds
-at all.** The top of this list needs a browser, and so needs iestyn:
+**SPEC-007 and SPEC-008 are both built** — 308 tests green (`STATUS.md`). The
+scrubber has had four rounds of visual review and its performance faults are
+fixed and confirmed by eye (§A5); **the editing UI has had no rounds at all.**
+The top of this list needs a browser, and so needs iestyn:
 
-1. **Look at the editing UI.** D24a is its only judge. Three of `docs/UI.md`
-   §7's questions are new and resolve only by looking: whether the outline
-   around edited actions reads well, whether live actions should carry one too,
-   and whether an ignored click in add mode should still move the player icon.
-2. **Floor entry thresholds — the *number*.** SPEC-008's skippable segments are
-   the predicate, built and working; what is left is a search over it.
+1. **Look at the editing UI.** D24a is its only judge, and the **Action List**
+   is what it has to judge: its width, how many rows it wants, and how a
+   disabled action should be ghosted. `docs/UI.md` §7.
+2. **Floor entry thresholds — the *number*.** Skippable segments are the
+   predicate; what is left is a search over it.
 3. **The two open pieces of editing UX** — §A6.
-4. **Look for restated rules elsewhere.** SPEC-004 §6 is clean and D33 forbids
-   the pattern, but SPEC-002/005/006 have not been checked.
+4. **Look for restated rules elsewhere** — D33 forbids the pattern, and
+   SPEC-002/005/006 have not been checked.
 5. **Fix the perf harness, then read the baseline** — SPEC-007 §7, oracle 2,
-   still `[O]`. Deferred with the rest of the perf work (§A5): the number
-   decides Canvas 2D versus WebGL, that decision is not being made yet, and the
-   harness would answer it wrongly today.
+   still `[O]`. Deferred with the rest of the perf work (§A5): it decides
+   Canvas 2D versus WebGL, that decision is not being made yet, and the harness
+   would answer it wrongly today.
 
 `[D]` Still open by eye, not blocking: the rest of `docs/UI.md` §7 — the
 trail's `dHue`, the stack's size, whether overlapped floors read on a 32- or
 75-floor tower, and the deferred proposal to freeze past and future floors.
+
+`[O]` **All three budgeted docs are over D31's 150** — `UI.md` 165,
+`STATUS.md` and this one 152. The app grew a second feature and they grew with
+it; what is over is behaviour and outstanding work, not padding, so it is
+flagged rather than cut. Either the budget moves or something leaves the docs.
 
 `[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
 own capture control: press `S` or the button, share the PNG.

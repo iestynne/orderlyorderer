@@ -42,11 +42,27 @@ export const SAME_ROW_PITCH = 244;
 /** `[D]` Lowered from 4 on 2026-08-31 so a 1080p window reaches 2x. UI.md §6. */
 export const MIN_TILES = 3;
 
-export const STATUS_W = 186; // `[F]` 426 - 240: the game's own status panel width
+/**
+ * The player-status column, right of the stack.
+ *
+ * `[F]` **Only Power needs width.** Measured over the whole corpus, the widest
+ * value any other row ever holds is four digits — gold peaks at 3 343, gems at
+ * 230, keys and pickaxes at two digits — while Power reaches eleven digits
+ * observed and fifteen characters at the cap, printed with the game's dot
+ * separators. So Power leads on its own line across the top of the panel and
+ * every other row lives in a column wide enough for five digits, a gap, and a
+ * 16 px sprite. The 186 px the column used to take was Power's, spent on rows
+ * that never needed it.
+ */
+export const STATUS_W = 48;
 export const SLIDER_W = 16;
+/** The action list. Tuned by eye; §6 of docs/UI.md is what judges it. */
+export const ACTIONS_W = 128;
 export const STACK_W = 232;
-export const PANEL_W = SLIDER_W + STACK_W + STATUS_W; // 434
+export const PANEL_W = SLIDER_W + ACTIONS_W + STACK_W + STATUS_W; // 424
 export const PANEL_PAD = 6;
+/** Two lines of header at the top of the panel, which the columns start below. */
+export const PANEL_HEAD = 30;
 
 export function tileHeight(captions: boolean): number {
   return captions ? FLOOR + CAPTION : FLOOR;

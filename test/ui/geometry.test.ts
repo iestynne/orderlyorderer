@@ -16,6 +16,10 @@ import {
   MIN_TILES,
   SAME_ROW_PITCH,
   STAGGER,
+  ACTIONS_W,
+  PANEL_W,
+  SLIDER_W,
+  STACK_W,
   STATUS_W,
   layoutFor,
   rowPitch,
@@ -55,9 +59,22 @@ describe("SPEC-007 §8 — named geometry", () => {
     expect(rowPitch(false)).toBe(244);
   });
 
-  it("the status column is 186 — the game's own, 426 minus a 240 floor", () => {
-    expect(STATUS_W).toBe(186);
-    expect(426 - FLOOR).toBe(STATUS_W);
+  // `[F]` The column used to be 186, the game's own 426 minus a 240 floor. It
+  // is 48 now: Power leads on its own line across the top of the panel, and no
+  // other row ever needs more than four digits, a gap and a 16 px sprite —
+  // measured over the corpus, gold peaks at 3 343 and gems at 230. The 138 px
+  // that freed is the action list.
+  it("the status column is 48, wide enough for five digits and a sprite", () => {
+    expect(STATUS_W).toBe(48);
+    // Five digits at the digit font's widest, a 3 px gap and a 16 px sprite.
+    expect(5 * 5 + 3 + 16).toBeLessThanOrEqual(STATUS_W);
+  });
+
+  it("the panel is its four columns and nothing else", () => {
+    expect(SLIDER_W + ACTIONS_W + STACK_W + STATUS_W).toBe(PANEL_W);
+    // The action list took the width the status column gave up, and a little
+    // more: the panel is 10 px narrower than it was, so the strip gained too.
+    expect(PANEL_W).toBe(424);
   });
 
   it("visit i is drawn at x = i * 122 - scroll", () => {

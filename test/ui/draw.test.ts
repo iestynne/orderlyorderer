@@ -10,6 +10,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { fontFrom } from "../../src/ui/render/atlas";
+import { textWidth } from "../../src/ui/imagefont";
+import { STATUS_W } from "../../src/ui/render/screen";
 import { routeFromRecord } from "../../src/sav/route";
 import { Cursor, stopStepIndices } from "../../src/sim/cursor";
 import { simulate } from "../../src/sim/simulate";
@@ -319,15 +322,26 @@ d("stage 3 — the draw path runs over real records", () => {
       gemsSpent: 4, held: null, pendingPopup: null, win: 0 as const, submittedScore: 0,
     };
     // EX-3 runs negative_keys, so the dark-key counter is meaningless and absent.
-    const labels = statusRows(ex3, player).map((r) => r.sprite ?? r.label);
-    expect(labels).not.toContain("dark_key");
-    expect(labels).toContain("key");
+    const sprites = statusRows(ex3, player).map((r) => r.sprite);
+    expect(sprites).not.toContain("dark_key");
+    expect(sprites).toContain("key");
     // No money system on EX-3, and nothing held.
-    expect(statusRows(ex3, player).some((r) => r.label === "Money")).toBe(false);
-    // The held item is the row VALUE, not the row name: the icon belongs in the
-    // gutter where the numbers are.
-    const heldRow = statusRows(ex3, { ...player, held: "shield" }).find((r) => r.label === "held")!;
-    expect(heldRow.valueSprite).toBe("shield");
-    expect(heldRow.sprite).toBeNull();
+    expect(sprites).not.toContain("money");
+    expect(statusRows(ex3, { ...player, held: "shield" }).map((r) => r.sprite)).toContain("shield");
+  });
+
+  // `[F]` Power leads on its own line precisely because it is the only row that
+  // needs the width; the column is sized for the rest, and this is what says so.
+  it("no narrow status row is wider than the column it lives in", () => {
+    const tower = loadAllSaves()[0]!.tower;
+    const digits = fontFrom(manifest, "FONT_DIGITS");
+    const player = {
+      z: 1, x: 1, y: 1, power: 999999999999, gold: 99999, lightKeys: 99, darkKeys: 99, pickaxes: 99,
+      gemsSpent: 9999, held: "shield" as const, pendingPopup: null, win: 0 as const, submittedScore: 0,
+    };
+    for (const row of statusRows(tower, player)) {
+      // value, a 3 px gap, and the 16 px sprite at the column's right edge.
+      expect(textWidth(digits, row.value) + 3 + 16, row.title).toBeLessThanOrEqual(STATUS_W);
+    }
   });
 });

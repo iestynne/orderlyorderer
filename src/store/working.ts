@@ -18,16 +18,17 @@ const STORE = "working";
 const KEY = "session";
 const VERSION = 1;
 
-export type Mode = "scrub" | "remove" | "add";
-
-/** What the player is looking at. Restored so that reopening resumes the session. */
+/**
+ * What the player is looking at. Restored so that reopening resumes the session.
+ *
+ * `[F]` There is no mode here and no selection. Every edit is made against the
+ * action the slider is on (docs/UI.md §6), so the position **is** the mode; the
+ * selection comes back with the segment affordances.
+ */
 export interface ViewState {
   /** Index into the document's routes. */
   route: number;
   stop: number;
-  mode: Mode;
-  /** The segment editing applies to, or null for "follow the scrub position". */
-  selection: { epoch: number; segment: number } | null;
   captions: boolean;
   zoom: number | "auto";
 }

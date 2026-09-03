@@ -37,6 +37,19 @@ export const FONTS: Record<string, { file: string; charset: string; spacing: num
   NEG_FONT_DIGITS: { file: "digits_neg.png", charset: "0123456789kMG-", spacing: -1 },
 };
 
+/**
+ * Sprites cut out of a larger sheet, by 16x16 cell in the human-readable
+ * scheme: column and row 1-based from the top left (D1).
+ *
+ * `[F]` `markers.png` is 128x64 — 8 columns by 4 rows — and (4, 4) is the
+ * no-entry sign. `[D]` The app uses it for **the rules refusing a move**, which
+ * is a different thing from the player switching an action off; that wears the
+ * minus badge. Two states that look alike would be worse than either.
+ */
+export const SHEET_SPRITES: ReadonlyArray<{ name: string; file: string; col: number; row: number }> = [
+  { name: "no_entry", file: "markers.png", col: 4, row: 4 },
+];
+
 export interface Rect {
   x: number;
   y: number;
@@ -95,6 +108,15 @@ export function parseEntitySprites(lua: string): Record<string, string[]> {
   return out;
 }
 
+function crop(src: Rgba, x0: number, y0: number, w: number, h: number): Rgba {
+  const out: Rgba = { width: w, height: h, pixels: new Uint8Array(w * h * 4) };
+  for (let y = 0; y < h; y++) {
+    const from = ((y0 + y) * src.width + x0) * 4;
+    out.pixels.set(src.pixels.subarray(from, from + w * 4), y * w * 4);
+  }
+  return out;
+}
+
 function toRgba(bytes: Uint8Array): Rgba {
   const p = decodePng(bytes);
   return { width: p.width, height: p.height, pixels: p.pixels };
@@ -128,14 +150,27 @@ export function buildAtlas(gameDir: string): BuildResult {
     ? readFileSync(join(gameDir, ".version"), "utf8").trim()
     : basename(gameDir);
 
-  // Only the 16x16 tiles. The seven odd-sized files -- the logo, the title
-  // pieces, the 1x1 particle, the 20x20 mouse cursor, the marker sheet -- are
-  // menu and title-screen furniture the scrubber never draws.
+  // Only the 16x16 tiles. The odd-sized files -- the logo, the title pieces,
+  // the 1x1 particle, the 20x20 mouse cursor -- are menu and title-screen
+  // furniture the scrubber never draws. The marker sheet is the exception, and
+  // is cut up by name below.
   const sprites = readdirSync(join(res, "sprite"))
     .filter((f) => f.endsWith(".png"))
     .sort()
     .map((f) => ({ name: basename(f, ".png"), img: toRgba(new Uint8Array(readFileSync(join(res, "sprite", f)))) }))
     .filter((s) => s.img.width === CELL && s.img.height === CELL);
+
+  // ...plus the named cells cut out of the sheets, which are not 16x16 files
+  // and so are not picked up by the sweep above.
+  for (const cut of SHEET_SPRITES) {
+    const sheet = toRgba(new Uint8Array(readFileSync(join(res, "sprite", cut.file))));
+    const x = (cut.col - 1) * CELL;
+    const y = (cut.row - 1) * CELL;
+    if (x + CELL > sheet.width || y + CELL > sheet.height) {
+      throw new Error(`${cut.file} has no cell (${cut.col}, ${cut.row}) at ${sheet.width}x${sheet.height}`);
+    }
+    sprites.push({ name: cut.name, img: crop(sheet, x, y, CELL, CELL) });
+  }
 
   const fonts = Object.entries(FONTS).map(([name, def]) => {
     const img = toRgba(new Uint8Array(readFileSync(join(res, "font", def.file))));

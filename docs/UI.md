@@ -14,9 +14,8 @@ target that also takes a file dropped anywhere on the window. A `.sav` is
 imported from; an `.ord` is reopened. The empty state names where saves live,
 and carries the unofficial notice and a line saying routes live in `.ord` files
 the player keeps while the browser's working copy is crash recovery, not a
-backup. A working copy from a previous session is offered back, with when it was
-written and that warning again; one that crashed *during* load is discarded
-instead, and the app says so.
+backup. A working copy from a previous session is offered back with that warning again;
+one that crashed *during* load is discarded instead, and the app says so.
 
 Opening a `.sav` lists its records at once: name, timestamp where there is one,
 and three figures simulated behind the list, `…` until each lands — final power,
@@ -25,9 +24,8 @@ ones, those names being the player's own index. A record using orbs is listed
 but not openable, and says why. The tower comes from the filename; if that names
 no tower we know, the app asks. An `.ord` names its own tower, and is asked
 which route only when it holds more than one. Choosing one replaces the empty
-state with the two panels, over a toolbar: close, undo and redo, the epoch
-commands of §6, save `.ord`, export `.sav`, a **screenshot** button writing the
-exact 1× frame to a PNG, and the keys.
+state with the two panels, over a toolbar: close, save `.ord`, export `.sav`, a
+**screenshot** button writing the exact 1× frame to a PNG, and the keys.
 
 ## 2. Timeline panel
 
@@ -64,76 +62,94 @@ beneath it.
 ## 4. Control panel
 
 The right panel holds a fixed shape at any window size while the left panel
-takes the rest. It is headed, as the game is, with the tower name over the
-floor name.
+takes the rest. Left to right: the scrub slider, the **action list** of §6, the
+tower stack, and the player status — the last two overlapping, because only
+Power is wide.
 
 **Scrub slider.** Vertical, running **upward**: the first action is at the
-bottom, as floor 1 is in the stack beside it. It stops once per action plus once
-at the final position, not once per simulated step. Ticks mark floor changes; a
-counter reads which action you are on. The handle is an hourglass on its side,
-crossing the track at its waist: wide enough to grab, pinched so it never hides
-its tick. The track carries §3's verdict, green then red, and nothing while the
-route runs clean.
+bottom, as floor 1 is in the stack beside it. It stops once per action —
+disabled ones included, which keep their number and their place — plus once at
+the final position. Ticks mark floor changes; a counter reads which action you
+are on. The handle is an hourglass on its side, crossing the track at its waist:
+wide enough to grab, pinched so it never hides its tick. The track carries §3's
+verdict, green then red, and nothing while the route runs clean; where it breaks
+it carries the **no-entry sign**, which clicks through to that exact action.
 
 **Tower stack.** The whole tower as a vertical stack of floors, each squashed
 and raked over at **2:1**, reusing the timeline's floor images so the two agree.
 The squash is filtered, not sampled: each pixel averages the pixels it stands
 for. **The whole tower always fits — nothing scrolls.** Floors are spaced to
-fill the panel and centred in it, so a tall tower's floors overlap, each showing
-a band of itself behind a 2 px outline; a short tower spreads out instead, to a
-limit of two pixels of air. Every floor is drawn identically: the current one is
-marked by being drawn last, with a lavender outline, and by being the only one
-labelled — not by being enlarged. Nothing in the stack moves as you scrub.
+fill the panel, so a tall tower's overlap behind a 2 px outline, each showing a
+band of itself; a short tower spreads to a limit of two pixels of air. Every
+floor is drawn identically: the current one is marked by being drawn last, with
+a lavender outline, and by being the only one labelled. Nothing moves as you
+scrub.
 
-**Player status.** A column right of the stack: power, light keys, dark keys,
-pickaxes, gold, gems spent, held item. Numbers are right-aligned into a centre
-gutter with labels beside it. Some rows carry a sprite rather than a word, as
-the game labels them; the held item is the one row whose *value* is a sprite.
-Power is shown in full with the game's dot separators — `1.284.900`, never
-`1.28M`. Gems are an amount **spent**. Dark keys, gold and the held item are
-absent where the game omits them too.
+**Player status.** Along the top of the panel and down its right edge. **Power
+leads, on its own line above the stack**, in full with the game's dot separators
+— `1.284.900`, never `1.28M` — being the only figure that needs the width. The
+rest run down a narrow column the stack is free to reach under: light keys, dark
+keys, pickaxes, gold, gems, held item, each a sprite and a number of at most
+four digits. Gems are an amount **spent**, which the row says on hover rather
+than in a word. Dark keys, gold and the held item are absent where the game
+omits them too.
 
-**Settings.** Below everything: a performance test, and floor captions.
+**Settings.** Behind a cog at the top-right of the left panel: a performance
+test, and floor captions.
 
 ## 5. Presentation
 
 Everything is drawn as the game draws it — the same tiles, the same bitmap
 fonts, whole-number scaling, no smoothing, so pixels stay square at any window
 size. The game's pixel-perfect and filtered-upscale settings are mirrored here,
-but zoom is the app's own, on `+` / `-` with `0` for automatic: the browser's
-scales the canvas by a fraction when the whole point is whole numbers.
-The game is monochrome apart from the player, and so are we: the player carries
-the game's own cyan tint. Every other colour is ours, and belongs to things the
-game does not draw — the trail and the editing marks now, the overlays later.
+but zoom is the app's own, on `+` / `-` with `0` for automatic. The game is
+monochrome apart from the player, and so are we: the player carries the game's
+own cyan tint. Every other colour is ours, and belongs to what the game does not
+draw — the trail and the editing marks now, the overlays later.
 
 ## 6. Editing
 
-**Three mutually-exclusive mode buttons** sit at the top-right of the left
-panel: a play icon for scrubbing, minus for removing, plus for adding, on `1`,
-`2` and `3`. The slider, the arrow keys and `Z` / `Y` are live in all three;
-`Z` and `Y` single-step the history as the game's own undo and redo do.
-**In add mode** a left-click paths the player to the clicked tile and performs
-whatever action is implied, exactly as the game does; a click implying no action
-is ignored. **In remove mode** a left-click toggles the clicked action, the one
-nearest the slider where a route visits a cell twice. An **added** action is
-outlined green with a `+` badge; a **disabled** one is outlined red with a *no
-entry* badge and keeps its place on the floor rather than on the slider. Both
-carry a drop shadow.
+A route acts on the same cell more than once — walking a spike tile twice, or
+back through a one-way — so a badge on the floor cannot say *which* of those
+actions it means. The **action list**, right of the slider, is what makes an
+edit unambiguous: a window of the route centred on the current action, which
+wears a thin lavender outline.
 
-The segment the slider is in wears a **bracket** over its tiles, labelled with
-its name and whether the epoch is skippable or was skipped. Where an epoch holds
-alternatives each gets a **pip** below the bracket: filled for the live one,
-green or red for whether the others would pass from that point. Clicking a pip
-switches to it, and the colours downstream answer immediately. A break shows a
-red outline on the cell and, below it, **why** — *no light key*, *4 000 short*.
+A row is what the action **did**, not where: its number, an icon for the thing
+acted on, and its toggles on the right. An attack shows the enemy, the held item
+where that changed the outcome, and the gold earned; a gate shows the gate, and
+the Master Key where that opened it; a dig shows the wall and the pickaxe spent;
+a pickup shows the item; a spike or one-way shows the tile. Hovering a row
+highlights it on the timeline.
 
-The toolbar holds what a click cannot: **split here** cuts the epoch at the
-current action, **merge next** puts it back, **add alternative** and
-**skippable** are features 2 and 3, and **rename** names the segment.
+**Every edit happens at the current action**, which is why there are no modes.
+
+- A row's checkbox switches its action off. A disabled row greys out and takes
+  the minus badge; it keeps its number and its place on the slider, and scrubs
+  through unchanged, because it no longer does anything.
+- **Inserting is a click on a floor cell**, and it lands directly after the
+  current action. Hovering that cell first shows both halves of what would
+  happen: the `+` badge on the cell, and a greyed pending row in the list right
+  after the current one, gapped above and below and carrying `+` on its left.
+  Clicking commits it, and the row keeps a `+` on the right beside its checkbox
+  for as long as it is unsaved. A cell that implies no action shows nothing at
+  all; one the rules would refuse shows the **no-entry sign**.
+- `Z` and `Y` undo and redo insertions, as the game's own undo and redo do.
+  They reach back over the current run of them and no further: insert four
+  here, scrub away, insert four there, and `Z` takes back four.
+
+The current action is drawn twice, so the list and the timeline agree: the
+target tile is outlined on the floor, and the row is repeated a tile and a half
+below it in a two-pixel lavender-on-black frame. That copy is a display, not a
+control. Where the route breaks, the failing action carries the no-entry sign
+at its left; where the current action is disabled, both drawings are ghosted.
+
 Anything that changes the document sets the **unsaved-changes marker**, in the
-toolbar and the tab title, and pushes an undo entry; scrubbing, mode and the
-option toggles do neither. **Save `.ord`** clears it. **Export `.sav`** writes a
-fresh, uniquely named file, never an overwrite, and refuses a route that fails.
+toolbar and the tab title; scrubbing and the option toggles do neither. **Save
+`.ord`** clears it. **Export `.sav`** writes a fresh, uniquely named file, never
+an overwrite, and refuses a route that fails. Segments have their own
+affordances — split, merge, alternatives, skippable — and they are **off** while
+adding and removing actions is the thing being learned.
 
 ## 7. Open questions
 
@@ -145,6 +161,5 @@ Answered ones move out — to `DECISIONS.md` if the reasoning matters, else abov
 - **Freezing past and future floors** as you scrub: the past at its final state,
   the future at its initial one.
 - **Whether a scroll unit should ever be narrower than the screen.**
-- **Whether the outline around edited actions reads well**, and whether live
-  actions should carry one too.
-- **Whether an ignored click in add mode should still move the player icon.**
+- **How a disabled action should be ghosted**, in the list and on the floor.
+- **How wide the action list wants to be**, and how many rows it shows.

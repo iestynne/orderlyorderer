@@ -1,6 +1,6 @@
 # SPEC: Route Editing
 
-Status: **draft 2**, 2026-09-01. Implemented; tests exist against it.
+Status: **draft 3**, 2026-09-02. Implemented; tests exist against it.
 Depends on: SPEC-002 (tower JSON), SPEC-004 (simulation), SPEC-006 (`.sav`
 codec), SPEC-007 (`Cursor`, the scrubber).
 Load with this spec: `docs/DESIGN_ROUTE_EDITING.md`, `DECISIONS.md` D7, D11,
@@ -50,11 +50,13 @@ src/sim/route/document.ts   epochs, segments, actions; flatten()
 src/sim/route/ordfile.ts    .ord parse and emit, canonical JSON, document hash
 src/sim/route/sha256.ts     the synchronous digest both hashes use
 src/sim/route/evaluate.ts   the forward pass: mainline plus per-segment forks
+src/sim/route/describe.ts   what an action did, for the Action List
 src/sim/route/edit.ts       insert, disable, split, merge, switch, rename, reorder
 src/sim/route/export.ts     document -> .sav record
 src/store/working.ts        IndexedDB working store
-src/ui/session.ts           document, evaluation, undo, selection, the marker
-src/ui/render/edit.ts       modes, badges, bracket, failure overlay
+src/ui/session.ts           document, evaluation, stops, undo, the marker
+src/ui/render/actions.ts    the Action List
+src/ui/render/marks.ts      the two badges, the no-entry sign, the cog
 src/ui/...                  behaviour in docs/UI.md
 ```
 
@@ -172,6 +174,14 @@ sees (D7); it never receives a segment.
 epochs a *skip* removed. The route that actually ran is `Evaluation.waypoints`,
 and that is what §7 exports.
 
+`[D]` **A disabled action leaves the route but keeps its place in the list.**
+It contributes no waypoint, changes no state and is not exported — and it still
+holds an action number, still takes a slider stop, and is still scrubbed
+through. `[I]` That is the simplest, most predictable thing: the numbering does
+not shift as actions are switched off, the slider does not skip holes, and the
+action the player is looking at is reachable whether or not it is live. §4.1
+gives the stop it takes.
+
 
 ### 2.4 Canonical serialization
 
@@ -286,6 +296,66 @@ its `EpochResult` carries no error because it never ran. `[F]` That is what
 keeps the whole red tail on the timeline instead of truncating the route at the
 break, which is the thing the player is looking at.
 
+### 4.1 Stops
+
+`[D]` **One stop per action, live or not, plus one for the route's final
+position.** SPEC-007 §3's stops were one per *recorded pair*, which is the same
+thing while nothing is disabled and diverges the moment something is: a disabled
+action contributes no waypoint, so a stop list derived from the waypoints would
+have no stop to offer it.
+
+`[D]` **A disabled action's stop is its predecessor's step index**, so seeking
+to it lands on the state the route was already in — which is exactly true, the
+action having done nothing. `[F]` Consequences that fall out rather than being
+arranged: the player icon does not move across a disabled action, the floor tile
+it names is unchanged, and `Cursor.seekTo` is called with a step index it
+already holds, so scrubbing over one costs nothing.
+
+`[D]` The mapping needs, for each action, the number of steps the simulator had
+produced by the time its `to` waypoint was consumed. That is one forward pass
+over `mainline.steps`, and SPEC-007's `stopStepIndices` already computed it
+internally; it is exported as `stepsThroughWaypoints` and both callers use the
+one implementation (D11). `[F]` The engine
+takes one optional argument saying where to resume from, and **copies** the
+cells and kills it is handed, which is what makes that structural rather than a
+rule to remember.
+
+`[D]` **An epoch after a stopped route still contributes its waypoints**, and
+its `EpochResult` carries no error because it never ran. `[F]` That is what
+keeps the whole red tail on the timeline instead of truncating the route at the
+break, which is the thing the player is looking at.
+
+### 4.2 Describing an action
+
+`[D]` The Action List names each action by **what it did**, not by where it
+happened, and that description is derived rather than stored:
+
+```ts
+type ActionKind =
+  | 'attack' | 'gate' | 'pickup' | 'dig' | 'hazard' | 'stairs' | 'walk' | 'blocked'
+
+interface ActionSummary {
+  kind: ActionKind
+  entity: CellEntity | null    // what was acted on, for the icon
+  spent: HeldItem | 'pickaxe' | null   // an item the action consumed
+  goldGained: number
+  powerDelta: number
+  error?: SimError             // set where the action is the one that fails
+}
+```
+
+`[D]` It reads the cell **as it was before the action**, from the `Cursor` at
+the preceding stop, and the player either side of it. `[F]` Both are already
+held: the journal keeps the whole player per step (SPEC-004 §8) and the cursor
+reconstructs any cell state in O(steps moved). Nothing new is stored.
+
+`[D]` `spent` is what the action **used up**, which is not always what makes it
+possible: a Master Key opening a door is spent, a Vorpal Blade killing an enemy
+is spent, a Light Rod is spent, but a Shield or a Keysmasher only changes the
+arithmetic and is not. `[F]` The rules already draw that line — `resolveEntry`
+sets `held = null` exactly where an item is consumed — so this reads the
+outcome rather than restating the rule (D33).
+
 ---
 
 ## 5. Editing operations
@@ -309,9 +379,28 @@ epoch when absent. `[D]` `reorder` moves epochs, never segments: `[F]` segments
 within an epoch are alternatives, so their order carries no meaning.
 
 `[D]` **Every `Edit` is document-tier**, and every one sets the unsaved-changes
-marker and pushes an app-level undo entry. Nothing else does — scrubbing,
-selection, mode and option toggles are view-tier (DESIGN §2.3). `[D]` This is
-one rule with no exceptions, which is why it needs no list to maintain.
+marker. Nothing else does — scrubbing, selection and option toggles are
+view-tier (DESIGN §2.3). `[D]` This is one rule with no exceptions, which is
+why it needs no list to maintain.
+
+`[D]` **This slice surfaces two of the nine: `insert` and `setDisabled`.** The
+other seven are built, tested and reachable only behind a flag. `[I]` Adding and
+removing actions is the feature that makes the app immediately useful, and the
+segment affordances are a second thing to learn on top of it; they come back
+when the first is understood.
+
+`[D]` **Undo covers the current run of insertions and nothing else.** `Z` takes
+back the last insertion and `Y` puts it back, mirroring the game's own undo and
+redo so that injecting a new stretch of route feels like playing one. The redo
+stack is cleared by a new insertion.
+
+`[D]` **A run ends at anything that is not another insertion** — a scrub, a
+toggle, a load. `[I]` So inserting four actions at 1 000, scrubbing to 1 500 and
+inserting four more leaves four undoable, not eight: undo does not walk back
+across the gap and start dismantling work somewhere the player is no longer
+looking. `[I]` The choice is made for what comes next rather than for what it
+does now — most editing affordances will be scoped to the selected Segment, and
+this is that scoping in its smallest form.
 
 `[D]` **Re-evaluation resumes at the edited epoch's start**, not from zero.
 Invariant 6 is what licenses this: epochs before the edit are unaffected, so
@@ -415,6 +504,8 @@ should still move the player icon.
 
 ---
 
+---
+
 ## 9. Verification Contract
 
 ```
@@ -435,6 +526,18 @@ Report: test summary; PASS/FAIL + actual value per named case;
 | `ErrorCode` values surfaced by an epoch result | **15** (SPEC-004 §7) |
 | Segments in an epoch, minimum | 1 |
 | Epochs in a freshly imported route | 1 |
+| Actions in the corpus, one per recorded pair | **198 496** |
+| ...classified `attack` / `pickup` / `gate` / `hazard` / `dig` / `crown` | 118 724 / 32 973 / 24 497 / 11 945 / 10 205 / 151 |
+| ...classified `blocked` | **0** |
+| ...classified `walk` | **1** |
+| Sprites in the atlas | **66** — 65 files plus the no-entry marker |
+
+`[F]` The one `walk` is real and is the whole of the exception: `1-3`'s
+`POP-UP-FORMAT`, a save made while reverse-engineering the pop-up encoding,
+whose first recorded interaction is the chain committing *behind* the player on
+a square the tower itself has as empty floor. Every other action names the cell
+it was made on. `[D]` A `blocked` would mean the pairing that decides which
+waypoint is the action had gone wrong, which is why it is asserted at zero.
 
 `[F]` Fifteen is SPEC-004 §7's own list, and the test enumerates the type, so a
 code added or removed breaks this rather than passing quietly.

@@ -104,35 +104,38 @@ Plus four hand-played experiments (C1-C4) predicted independently by the sim
 
 ## The app exists
 
-`SPEC-007` slice 1 and `SPEC-008` are built. **294 tests pass.**
+`SPEC-007` and `SPEC-008` are built. **308 tests pass.**
 
 - **Stage 1, `Cursor`** — `src/sim/cursor.ts`, pure, 122 lines. Every named
   value in the contract reproduced first time, corpus maxima 1 773 stops and
   1 849 cell edits both in `2-5 / "F 211g 98.3M win H [A]"`. Invariants 1-4 and
   oracle 1 pass over all 326 records, seeking all 195 000 stops.
-- **Stage 2, assets** — `tools/atlas/build.ts` packs 65 sprites and the four
-  bitmap fonts into one 883×176 atlas, 9 KB, gitignored in `build/`.
+- **Stage 2, assets** — `tools/atlas/build.ts` packs 66 sprites and the four
+  bitmap fonts into one 883×176 atlas, 9 KB, gitignored in `build/`. The 66th
+  is the no-entry sign, cut out of the game's marker sheet.
 - **Stage 3, the UI** — Vite, React, one canvas, two panels. Through **four
   rounds of review by eye** (D24a), an MVP by iestyn's assessment. Both perf
   faults are fixed — four causes, D38-D41 — and **confirmed by eye 2026-09-02**
   (`TODO.md` §A5).
-- **Route editing** adds three modes, badges, the segment bracket with a pip per
-  alternative, the failure overlay, undo and redo, and green/red once a route
-  breaks. `docs/UI.md` §6; not yet looked at.
+- **Route editing** is the **Action List** — a window of the route centred on
+  the current action, naming each by what it did rather than where — plus the
+  hover preview, the two badges, the game's no-entry sign for a refusal, and
+  green/red once a route breaks. Not yet looked at. Segment editing is built
+  and off while adding and removing actions is learned.
 
 **The D32 reimplementation test ran** and found a real bug — in the docs, not
 the code (D33). Looking at the app then found nine more: D24a earns its keep.
 
 ## Next
 
-1. **Look at the editing UI.** It needs a browser and so needs iestyn, and
-   D24a has never been used on it.
+1. **Look at the editing UI.** D24a has never been used on it, and the **Action
+   List** is what it has to judge. `docs/UI.md` §7 names what is open.
 2. **Floor entry thresholds — the *number*.** Skippable segments are the
    predicate and they work; what is left is a search over it.
 3. **The two open pieces of editing UX** — `TODO.md` §A6.
 4. **Perf is deferred**, by decision (`TODO.md` §A5): long-range slider drags
-   are still slow, short-range is the common path and is fine. No baseline
-   until the harness's own two defects are fixed.
+   are still slow, short-range is fine, and no baseline until the harness's own
+   two defects are fixed.
 
 ## Known blockers
 

@@ -1,54 +1,59 @@
-// SPEC-008 §5, §6 — the editing session: the document, its evaluation, undo,
-// selection, and the unsaved-changes marker.
+// SPEC-008 §4.1, §4.2, §5, §6 — the editing session: the document, its
+// evaluation, the stop model, undo, and the unsaved-changes marker.
 //
-// `[D]` **Document-tier changes are undoable and set the marker; view-tier
-// changes are neither** (DESIGN §2.3). Every `Edit` is document-tier and
-// nothing else is, which is why `edit()` is the only method that touches the
-// undo stack and no list of triggering actions has to be maintained.
+// `[D]` **Document-tier changes set the marker; view-tier changes do not**
+// (DESIGN §2.3). Every `Edit` is document-tier and nothing else is, which is why
+// `edit()` is the only method that touches the document and no list of
+// triggering actions has to be maintained.
 //
 // `[D]` The marker is a **comparison against the saved document**, not a sticky
 // flag, because toggling an action off and back on must clear it. It never runs
 // on the frame path: scrubbing touches nothing in the document, and an edit
 // happens at the speed of a click, so the hash is computed synchronously here.
 
-import { stopStepIndices } from "../sim/cursor";
-import {
-  activeSegment,
-  type Action,
-  type OrdFile,
-  type Route,
-} from "../sim/route/document";
+import { Cursor, stepsThroughWaypoints } from "../sim/cursor";
+import { activeSegment, type Action, type OrdFile, type Route } from "../sim/route/document";
+import { describeAction, type ActionSummary } from "../sim/route/describe";
 import { apply, type Edit } from "../sim/route/edit";
 import { evaluate, type Evaluation } from "../sim/route/evaluate";
 import { documentHash, emit, ordFile } from "../sim/route/ordfile";
 import { toSaveRecord } from "../sim/route/export";
 import type { TowerJSON, Waypoint } from "../sim/types";
-import type { Mode, ViewState } from "../store/working";
+import type { ViewState } from "../store/working";
 
-/** Where a realised action came from, so a click on the timeline can edit it. */
+/** Where a stop's action lives in the document, so a click can edit it. */
 export interface ActionSite {
   epoch: number;
   segment: number;
   /** Index within that segment, counting disabled actions. */
   index: number;
   action: Action;
+  /** False where the action is disabled or its epoch was skipped. */
+  live: boolean;
 }
 
 export type Badge = "inserted" | "disabled";
 
 export class RouteSession {
   evaluation!: Evaluation;
+  /**
+   * SPEC-008 §4.1. One per action — disabled ones included — plus one for the
+   * route's final position, so `stops.length === sites.length + 1`.
+   */
   stops: number[] = [];
-  /** One per slider stop below the last: which action the stop acts on. */
   sites: ActionSite[] = [];
   /** The first stop the route fails at, or null where it runs clean. */
   failedFrom: number | null = null;
   savedHash: string | null = null;
 
-  private readonly undoStack: Route[] = [];
-  private readonly redoStack: Route[] = [];
   /** By identity, which survives every op but `setDisabled` (which `edit` fixes up). */
   private readonly insertedSet = new Set<Action>();
+  /**
+   * SPEC-008 §5. The current contiguous run of insertions, and what `Z` has
+   * taken back off it. Anything that is not another insertion ends the run.
+   */
+  private run: Array<{ epoch: number; segment: number; index: number }> = [];
+  private redoable: Array<{ epoch: number; segment: number; index: number; action: Action }> = [];
 
   constructor(
     public document: OrdFile,
@@ -68,54 +73,60 @@ export class RouteSession {
   }
 
   get canUndo(): boolean {
-    return this.undoStack.length > 0;
+    return this.run.length > 0;
   }
 
   get canRedo(): boolean {
-    return this.redoStack.length > 0;
+    return this.redoable.length > 0;
   }
 
   edit(e: Edit): void {
     const before = this.route;
-    const after = apply(before, e);
-    this.undoStack.push(before);
-    this.redoStack.length = 0;
-    this.replace(after);
+    this.replace(apply(before, e));
     if (e.op === "insert") {
       this.insertedSet.add(e.action);
-    } else if (e.op === "setDisabled") {
+      this.run.push({ epoch: e.epoch, segment: e.segment, index: e.index });
+      this.redoable.length = 0;
+      return;
+    }
+    if (e.op === "setDisabled") {
       // The only op that replaces an action object, so the only one whose
       // "new since the last save" marker has to be carried across.
       const old = before.epochs[e.epoch]?.segments[e.segment]?.actions[e.index];
-      const now = after.epochs[e.epoch]?.segments[e.segment]?.actions[e.index];
+      const now = this.route.epochs[e.epoch]?.segments[e.segment]?.actions[e.index];
       if (old && now && this.insertedSet.delete(old)) this.insertedSet.add(now);
     }
+    this.endRun();
   }
 
+  /**
+   * `[D]` A run ends at anything that is not another insertion — a scrub, a
+   * toggle, a load. Undo therefore never walks back across a gap to dismantle
+   * work somewhere the player is no longer looking (SPEC-008 §5).
+   */
+  endRun(): void {
+    this.run.length = 0;
+    this.redoable.length = 0;
+  }
+
+  /** `Z`: take back the last insertion of the current run. */
   undo(): void {
-    const previous = this.undoStack.pop();
-    if (previous === undefined) return;
-    this.redoStack.push(this.route);
-    this.replace(previous);
+    const at = this.run.pop();
+    if (at === undefined) return;
+    const action = this.route.epochs[at.epoch]?.segments[at.segment]?.actions[at.index];
+    if (action === undefined) return;
+    this.redoable.push({ ...at, action });
+    this.insertedSet.delete(action);
+    this.replace(removeAction(this.route, at.epoch, at.segment, at.index));
   }
 
+  /** `Y`: put it back. */
   redo(): void {
-    const next = this.redoStack.pop();
-    if (next === undefined) return;
-    this.undoStack.push(this.route);
-    this.replace(next);
-  }
-
-  setMode(mode: Mode): void {
-    this.view = { ...this.view, mode };
-  }
-
-  /** The segment edits apply to: the player's pick, else the one being scrubbed. */
-  selection(): { epoch: number; segment: number } {
-    if (this.view.selection !== null) return this.view.selection;
-    const site = this.sites[Math.min(this.view.stop, this.sites.length - 1)];
-    if (site) return { epoch: site.epoch, segment: site.segment };
-    return { epoch: 0, segment: this.route.epochs[0]!.active };
+    const at = this.redoable.pop();
+    if (at === undefined) return;
+    this.run.push({ epoch: at.epoch, segment: at.segment, index: at.index });
+    this.insertedSet.add(at.action);
+    this.replace(apply(this.route, { op: "insert", ...at }));
   }
 
   badgeOf(action: Action): Badge | null {
@@ -123,16 +134,36 @@ export class RouteSession {
     return this.insertedSet.has(action) ? "inserted" : null;
   }
 
-  /** Cells carrying a badge, keyed `z:x:y`, for the timeline overlay. */
-  badgeCells(): Map<string, Badge> {
-    const out = new Map<string, Badge>();
-    this.route.epochs.forEach((epoch) => {
-      for (const action of activeSegment(epoch).actions) {
-        const badge = this.badgeOf(action);
-        if (badge !== null) out.set(cellKey(action.to), badge);
-      }
-    });
-    return out;
+  /**
+   * What the action at a stop did, for the Action List (SPEC-008 §4.2).
+   *
+   * `[D]` Takes a `Cursor` rather than owning one: the caller is already
+   * seeking it to draw the floors, and a second cursor would walk the same
+   * journal twice per frame.
+   */
+  summarise(cursor: Cursor, stop: number): ActionSummary | null {
+    const site = this.sites[stop];
+    if (site === undefined) return null;
+    const was = cursor.index;
+    // `[F]` **The player either side, then the cells — in that order.**
+    // `cursor.cells` is the cursor's own array, not a copy, so seeking after
+    // reading it hands `describeAction` the state the action produced rather
+    // than the one it acted on: every enemy would read as empty floor, having
+    // been killed. Both players are snapshots and can be taken in any order;
+    // the cells cannot.
+    cursor.seekTo(this.stops[stop] ?? 0);
+    const after = cursor.player;
+    cursor.seekTo(stop === 0 ? 0 : this.stops[stop - 1]!);
+    const summary = describeAction(
+      this.tower,
+      cursor.cells,
+      cursor.player,
+      after,
+      site.action.to,
+      this.failedFrom === stop ? this.evaluation.mainline.error : undefined,
+    );
+    cursor.seekTo(was);
+    return summary;
   }
 
   markSaved(): void {
@@ -179,10 +210,11 @@ export class RouteSession {
 
   private reevaluate(): void {
     this.evaluation = evaluate(this.route, this.tower);
-    this.stops = stopStepIndices(this.evaluation.mainline, this.evaluation.waypoints.length);
-    this.sites = realisedSites(this.route, this.evaluation);
+    const { sites, stops } = stopModel(this.route, this.evaluation);
+    this.sites = sites;
+    this.stops = stops;
     const error = this.evaluation.mainline.error;
-    this.failedFrom = error === undefined ? null : Math.min(error.waypointIndex >> 1, this.sites.length);
+    this.failedFrom = error === undefined ? null : failingStop(sites, error.waypointIndex);
     this.view = { ...this.view, stop: Math.min(this.view.stop, Math.max(0, this.stops.length - 1)) };
   }
 }
@@ -191,22 +223,60 @@ export function cellKey(w: Waypoint): string {
   return `${w.z}:${w.x}:${w.y}`;
 }
 
+/** Drop one action, for undo. Not an `Edit`: it exists only to invert `insert`. */
+function removeAction(route: Route, epoch: number, segment: number, index: number): Route {
+  const epochs = route.epochs.slice();
+  const e = epochs[epoch]!;
+  const segments = e.segments.slice();
+  const s = segments[segment]!;
+  const actions = s.actions.slice();
+  actions.splice(index, 1);
+  segments[segment] = { ...s, actions };
+  epochs[epoch] = { ...e, segments };
+  return { ...route, epochs };
+}
+
 /**
- * One entry per realised action, in slider-stop order.
+ * SPEC-008 §4.1. One site and one stop per action, live or not, plus a final
+ * stop for the route's live position.
  *
- * `[F]` The realised route is the active segments minus the skipped epochs
- * minus the disabled actions, and the slider stops once per action plus once at
- * the final position (SPEC-007 §3) — so this array is exactly the stops below
- * the last, and index `i` is the action the i-th stop acts on.
+ * `[D]` A disabled action, and every action of a skipped epoch, takes its
+ * **predecessor's** step index: seeking to it lands on the state the route was
+ * already in, which is exactly true, the action having done nothing.
  */
-function realisedSites(route: Route, evaluation: Evaluation): ActionSite[] {
-  const out: ActionSite[] = [];
+function stopModel(route: Route, evaluation: Evaluation): { sites: ActionSite[]; stops: number[] } {
+  const through = stepsThroughWaypoints(evaluation.mainline, evaluation.waypoints.length);
+  const sites: ActionSite[] = [];
+  const stops: number[] = [];
+  let last = 0;
+
   route.epochs.forEach((epoch, e) => {
-    if (evaluation.epochs[e]?.skipped === true) return;
-    const s = epoch.active;
+    const skipped = evaluation.epochs[e]?.skipped === true;
+    // Where this epoch's waypoints start in the realised route; a skipped epoch
+    // contributed none, so its actions all hold the running step index.
+    let w = evaluation.epochs[e]?.startWaypoint ?? 0;
     activeSegment(epoch).actions.forEach((action, index) => {
-      if (action.disabled !== true) out.push({ epoch: e, segment: s, index, action });
+      const live = !skipped && action.disabled !== true;
+      sites.push({ epoch: e, segment: epoch.active, index, action, live });
+      if (live) {
+        // Its pair is (w, w + 1); the stop is after the `to` half.
+        last = through[w + 1] ?? last;
+        w += 2;
+      }
+      stops.push(last);
     });
   });
-  return out;
+  stops.push(evaluation.mainline.steps.length);
+  return { sites, stops };
+}
+
+/** The stop whose action the route failed on. */
+function failingStop(sites: ActionSite[], waypointIndex: number): number {
+  let w = 0;
+  for (let i = 0; i < sites.length; i++) {
+    if (!sites[i]!.live) continue;
+    if (waypointIndex <= w + 1) return i;
+    w += 2;
+  }
+  return sites.length;
 }

@@ -27,14 +27,7 @@ const HYGIENE =
   "Your routes live in .ord files that you save and keep. The working store in this browser is " +
   "crash recovery, not a backup: clearing site data or a private window discards it.";
 
-const DEFAULT_VIEW: ViewState = {
-  route: 0,
-  stop: 0,
-  mode: "scrub",
-  selection: null,
-  captions: true,
-  zoom: "auto",
-};
+const DEFAULT_VIEW: ViewState = { route: 0, stop: 0, captions: true, zoom: "auto" };
 
 /** A computed column: still coming, absent, or a number. */
 function column(s: Summary, v: number | null, format: (n: number) => string = String): string {
@@ -291,37 +284,20 @@ export default function App(): React.ReactElement {
 
   if (session && sheet) {
     const s = scrubberRef.current;
-    const epochs = session.route.epochs.length;
-    const { epoch } = session.selection();
     return (
       <div className="app" {...shell}>
         <canvas ref={canvasRef} className="stage" />
         <div className="tools">
           <button onClick={() => setSession(null)}>← close</button>
-          <button onClick={() => s?.undo()} disabled={!session.canUndo} title="Undo (Z)">undo</button>
-          <button onClick={() => s?.redo()} disabled={!session.canRedo} title="Redo (Y)">redo</button>
-          <span className="sep" />
-          <button onClick={() => s?.splitHere()} title="Cut this epoch in two at the current action">split here</button>
-          <button onClick={() => s?.mergeNext()} disabled={epoch + 1 >= epochs}>merge next</button>
-          <button onClick={() => s?.addAlternative()}>add alternative</button>
-          <button onClick={() => s?.toggleSkippable()} className={session.route.epochs[epoch]!.skippable ? "on" : ""}>
-            skippable
-          </button>
-          <button
-            onClick={() => {
-              const name = window.prompt("Segment name", session.route.epochs[epoch]!.segments[session.selection().segment]!.name);
-              if (name !== null) s?.rename(name);
-            }}
-          >
-            rename
-          </button>
+          <button onClick={() => s?.undo()} disabled={!session.canUndo} title="Take back the last insertion (Z)">undo</button>
+          <button onClick={() => s?.redo()} disabled={!session.canRedo} title="Put it back (Y)">redo</button>
           <span className="sep" />
           <button onClick={saveOrd} className={dirty ? "urgent" : ""}>{dirty ? "save .ord *" : "save .ord"}</button>
           <button onClick={exportSav} disabled={session.evaluation.mainline.error !== undefined} title="Write a new .sav; never an overwrite">
             export .sav
           </button>
           <button onClick={() => s?.saveCapture()} title="Save this frame as a PNG (S)">screenshot</button>
-          <span className="keys">← → scrub · Z/Y undo · 1/2/3 mode · +/− zoom · S shot</span>
+          <span className="keys">← → scrub · Z/Y undo · click a cell to insert · +/− zoom · S shot</span>
           {dirty && <span className="unsaved">UNSAVED CHANGES</span>}
         </div>
         {notice && <p className="toast" onClick={() => setNotice(null)}>{notice}</p>}

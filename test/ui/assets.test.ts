@@ -35,10 +35,12 @@ function fontImage(file: string): Rgba {
 }
 
 d("SPEC-007 §8 — the sprite atlas", () => {
-  it("packs 65 sprites, every one 16x16", () => {
+  it("packs 66 sprites, every one 16x16", () => {
     const { manifest } = atlas();
     const rects = Object.values(manifest.sprites);
-    expect(rects.length).toBe(65);
+    // 65 sprite files plus the one cell cut out of markers.png: the no-entry
+    // sign, which the app uses for "the rules refuse this" (SHEET_SPRITES).
+    expect(rects.length).toBe(66);
     expect(rects.every((r) => r.w === 16 && r.h === 16)).toBe(true);
   });
 

@@ -90,7 +90,7 @@ describe("Scrubber.destroy", () => {
   it("leaves nothing behind on window or on the canvas", () => {
     const { win, canvas, scrubber } = mount();
     expect(win.listenerCount(), "keydown and resize").toBe(2);
-    expect(canvas.listenerCount(), "pointer down/move/up").toBe(3);
+    expect(canvas.listenerCount(), "pointer down/move/up/leave").toBe(4);
 
     scrubber.destroy();
     expect(win.listenerCount()).toBe(0);
