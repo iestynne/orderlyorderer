@@ -12,7 +12,7 @@
 
 import type { Player, Timeline } from "../../sim/types";
 import { CELL, FLOOR } from "./screen";
-import { tileOrigin, visitOfStop, type Visit } from "./left";
+import { tileOrigin, visitOfStop, type Grid, type Visit } from "./left";
 import type { Layout } from "./screen";
 
 /** `[O]` Not settled; expected to be adjusted by eye (UI.md §3). */
@@ -72,8 +72,8 @@ export function slotOf(
   return slot < 0 ? null : slot;
 }
 
-function centre(slot: number, pt: TrailPoint, scroll: number, layout: Layout): { x: number; y: number } {
-  const o = tileOrigin(slot, scroll, layout);
+function centre(slot: number, pt: TrailPoint, grid: Grid): { x: number; y: number } {
+  const o = tileOrigin(grid, slot);
   return { x: o.x + (pt.x - 1) * CELL + CELL / 2, y: o.y + (pt.y - 1) * CELL + CELL / 2 };
 }
 
@@ -103,7 +103,7 @@ export function drawTrail(
   visits: Visit[],
   unit: { from: number; to: number; floors: number[] },
   current: number,
-  scroll: number,
+  grid: Grid,
   layout: Layout,
 ): void {
   const link = (i: number, past: boolean): void => {
@@ -115,8 +115,8 @@ export function drawTrail(
     // A point in another scroll unit has no tile on screen, so that hop of the
     // trail is simply not drawn.
     if (sa === null || sb === null) return;
-    const p = centre(sa, a, scroll, layout);
-    const q = centre(sb, b, scroll, layout);
+    const p = centre(sa, a, grid);
+    const q = centre(sb, b, grid);
     if (Math.max(p.x, q.x) < 0 || Math.min(p.x, q.x) > layout.w) return;
 
     const fade = 1 - Math.abs(i - current) / FADE_STOPS;
@@ -155,14 +155,14 @@ export function playerScreenPos(
   visits: Visit[],
   unit: { from: number; to: number; floors: number[] },
   current: number,
-  scroll: number,
+  grid: Grid,
   layout: Layout,
 ): { x: number; y: number } | null {
   const pt = points[current];
   if (!pt) return null;
   const slot = slotOf(pt, visits, unit);
   if (slot === null) return null;
-  const o = tileOrigin(slot, scroll, layout);
+  const o = tileOrigin(grid, slot);
   if (o.x + FLOOR < 0 || o.x > layout.w) return null;
   return { x: o.x + (pt.x - 1) * CELL, y: o.y + (pt.y - 1) * CELL };
 }

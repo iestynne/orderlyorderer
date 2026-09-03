@@ -29,51 +29,50 @@ state with the two panels, over a toolbar: close, save `.ord`, export `.sav`, a
 
 ## 2. Timeline panel
 
-The left panel is a horizontally scrolling strip of floors in the order the
-route visits them, each tile captioned with its name and which visit it is. A
-floor earns a tile only where the player **acts** on it; floors merely walked
-through get none, and the trail crosses the gap in one dashed segment so it
-reads as travel. The route is cut into **scroll units**: runs whose floors all
-fit at once. Inside a unit each floor has one tile and the strip does not move;
-it shifts only when scrubbing leaves the unit, so a three-floor tower never
-scrolls. Scroll units are a **view** device — recomputed on resize, never saved,
-and not the route segments of §6. D34.
+The left panel shows the floors the route visits, each tile captioned with its
+name and which visit it is. A floor earns a tile only where the player **acts**
+on it; floors merely walked through get none, and the trail crosses the gap in
+one dashed segment so it reads as travel.
 
-Tiles lie in two rows, each offset half a tile-width from the last, in a
-bricklayer pattern; every one has a border and a gap. At least three are
-visible, a wider window showing more. When the strip does move it glides, easing
-over about half a second and landing on whole pixels. Every tile carries a name
-strip under it, which is also where the current action is summarised (§6).
+The route is cut into **working sets**: runs whose floors all fit at once. The
+panel shows one at a time and **nothing scrolls** — it jumps to the next set
+when scrubbing leaves this one, so a three-floor tower never changes at all.
+Working sets are a **view** device: recomputed on resize, never saved, and not
+the route segments of §6. D34.
+
+Tiles fill the panel in reading order, left to right and then down, as many as
+the window and the zoom allow, with the block centred in whatever room is left.
+Every one has a border, a gap, and a name strip under it — which is also where
+the current action is summarised (§6).
 
 ## 3. The route trail
 
 A line runs through the route's waypoints over the floors, connecting them
 directly rather than following the walked path. It crosses between tiles, so
-stairs read as one continuous line; those crossings are dashed as travel. It is
-**green where the route passes and red from the action that breaks it**, so a
-clean route is green all the way. The past is lighter than the future, which is
-the only distinction between them. Both carry a black outline, and both fade to
-nothing two stops either side of the scrub position — a narrow reminder, not a
-whole-route overlay. The future draws
-before the past and the segment at the scrub position draws last; the player is
-drawn at the current waypoint in the state *after* that action, with its power
-beneath it.
+stairs read as one continuous line; those crossings are dashed as travel. Both
+halves are lavender, separated only by hue: the past shifted towards blue, the
+future towards red. That shift is one tunable constant, `dHue`, not yet settled.
+Both carry a black outline, and both fade to nothing two stops either side of
+the scrub position — a narrow reminder, not a whole-route overlay. **It says
+tense, not verdict**; the slider says verdict, and a two-stop window has no room
+for both. The future draws before the past and the segment at the scrub position
+draws last.
 
 ## 4. Control panel
 
 The right panel holds a fixed shape at any window size while the left panel
-takes the rest. Left to right: the scrub slider, the **action list** of §6, the
-tower stack, and the player status — the last two overlapping, because only
-Power is wide.
+takes the rest: the scrub slider, the **action list** of §6, and the tower stack
+out to the panel's right edge. Two lines of header sit above them — the tower's
+name and Power, then the action counter and everything else the player carries.
 
 **Scrub slider.** Vertical, running **upward**: the first action is at the
 bottom, as floor 1 is in the stack beside it. It stops once per action —
 disabled ones included, which keep their number and their place — plus once at
 the final position. Ticks mark floor changes; a counter reads which action you
 are on. The handle is an hourglass on its side, crossing the track at its waist:
-wide enough to grab, pinched so it never hides its tick. The track carries §3's
-verdict, green then red, and nothing while the route runs clean; where it breaks
-it carries the **no-entry sign**, which clicks through to that exact action.
+wide enough to grab, pinched so it never hides its tick. **The track is the
+verdict**: green the whole way from a clean load, turning red from the action an
+edit has broken, with the **no-entry sign** on it — which clicks through to it.
 
 **Tower stack.** The whole tower as a vertical stack of floors, each squashed
 and raked over at **2:1**, reusing the timeline's floor images so the two agree.
@@ -138,14 +137,24 @@ nothing else does.
 - Clicking a row moves to it without scrolling the list, and **dragging down
   the list keeps moving** — a finer scrub than the slider gives.
 
-The current action is drawn twice, so the list and the timeline agree: its
-cell is outlined on the floor, and its row is repeated at the right of that
-floor's name strip, joined to the player by a thick line. That copy is a
-display, not a control, and it sits in the strip rather than over the grid so
-it never covers a cell worth clicking. Where the route breaks, the failing
-action carries the no-entry sign — in its row, and on the slider track, where
-it clicks through to that exact action. Where the current action is disabled,
-all of it is ghosted.
+The current action is drawn as an **action**, not as a position. The player
+stands where it acts *from*, so the affected tile is visible; an arrow says
+which way it goes; and the target is knocked askew, as though shoved aside. Its
+row is repeated at the right of that floor's name strip, joined to the player by
+a thick line — a display, not a control, and in the strip rather than over the
+grid so it never covers a cell worth clicking.
+
+**Where it fails**, the target is drawn square and whole with the no-entry sign
+over it, so what was refused shows through the sign's holes; the player ring,
+the connecting line, the summary's frame and the floor's own frame all turn red,
+and the row is outlined thicker. **Past** a failure everything is drawn as usual
+but in grey: those actions *would* happen and cannot, because something earlier
+broke. Their rows carry a faint red band, and their icons say what they would
+have done — after a break the numbers are guesses, and drawing nothing would say
+less than drawing the intent.
+
+An action that finds its work already done — inserted before one that kills the
+same enemy — says nothing but its number, and is not exported.
 
 Anything that changes the document sets the **unsaved-changes marker**, in the
 toolbar and the tab title; scrubbing and the option toggles do neither. **Save

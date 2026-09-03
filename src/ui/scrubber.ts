@@ -16,27 +16,25 @@ import type { AtlasManifest } from "../../tools/atlas/build";
 import type { RouteSession } from "./session";
 import { FloorCache } from "./render/floor";
 import {
-  approachScroll,
-  computeScrollUnits,
   computeVisits,
+  computeWorkingSets,
   drawTimeline,
-  scrollFor,
-  scrollUnitOfVisit,
+  gridCapacity,
+  gridFor,
   slotOfVisit,
-  stripWidth,
   tileOrigin,
-  type ScrollUnit,
+  workingSetOfVisit,
+  type Grid,
   type Visit,
+  type WorkingSet,
 } from "./render/left";
 import {
-  ROW_H,
   actionsGeometry,
   checkboxAt,
   drawActionCard,
   drawActionList,
-  rowAt,
-  visibleRows,
-  windowStart,
+  slotAt,
+  slotCount,
   type ActionListGeometry,
   type ActionRow,
 } from "./render/actions";
@@ -52,8 +50,8 @@ import {
 } from "./render/marks";
 import { drawRightPanel, panelX, sliderGeometry, statusRowAt, stopToY, yToStop } from "./render/right";
 import { drawTrail, playerScreenPos, trailPoints, type TrailPoint } from "./render/trail";
-import { Screen, ACTIONS_W, CELL, FLOOR, PANEL_PAD, PANEL_W, visibleTiles, type Layout, type ScreenSettings } from "./render/screen";
-import { drawText, fontFrom, type AtlasFontRef } from "./render/atlas";
+import { Screen, ACTIONS_W, CELL, FLOOR, PANEL_PAD, PANEL_W, type Layout, type ScreenSettings } from "./render/screen";
+import { drawText, fontFrom, keyOf, spriteFor, type AtlasFontRef } from "./render/atlas";
 import { textWidth } from "./imagefont";
 import { PerfHarness, type PerfReport } from "./perf";
 
@@ -82,15 +80,12 @@ export class Scrubber {
   private cursor!: Cursor;
   private floors!: FloorCache;
   private visits: Visit[] = [];
-  private units: ScrollUnit[] = [];
-  private unitCapacity = 0;
+  private sets: WorkingSet[] = [];
+  private setCapacity = 0;
   private points: TrailPoint[] = [];
   private stops: number[] = [];
   private ticks: number[] = [];
   private stop = 0;
-  private scroll = 0;
-  private scrollTarget = 0;
-  private lastFrame = 0;
   private tintedPlayer: HTMLCanvasElement | null = null;
   private icons!: Icons;
   private dirty = true;
@@ -103,16 +98,13 @@ export class Scrubber {
   private rows: ActionRow[] = [];
   private pending: ActionSummary | null = null;
   /**
-   * The first action the list shows.
+   * Which slot of the list the **current** action holds.
    *
-   * `[D]` **An anchor, not a function of the current action.** Centring on every
-   * seek meant clicking a row scrolled the list out from under the pointer. It
-   * moves only when the current action would leave the window, or when the
-   * wheel moves it.
+   * `[D]` The list moves under it rather than it moving in the list, so
+   * scrubbing never makes the list saw back and forth. It changes only when the
+   * player clicks a row, and then it becomes the row they clicked.
    */
-  private rowFirst = 0;
-  /** The drawn row the pending slot sits above; frozen while dragging. */
-  private gapAbove = 0;
+  private pinned = -1;
   private draggingList = false;
   /**
    * `[D]` Every listener this object registers is registered with this
@@ -146,8 +138,6 @@ export class Scrubber {
     this.floors = new FloorCache(session.tower, this.manifest, this.sheet);
     this.icons = bakeIcons(this.manifest, this.sheet);
     this.stop = session.view.stop;
-    this.scroll = 0;
-    this.scrollTarget = 0;
     this.publishPanelWidth();
     this.rebuild();
     this.start();
@@ -163,8 +153,8 @@ export class Scrubber {
     this.ticks = this.stops
       .map((_, i) => i)
       .filter((i) => i > 0 && this.points[i]!.visit !== this.points[i - 1]!.visit);
-    this.units = [];
-    this.unitCapacity = 0;
+    this.sets = [];
+    this.setCapacity = 0;
     this.stop = Math.max(0, Math.min(this.stops.length - 1, this.stop));
     this.cursor.seekTo(this.stops[this.stop] ?? 0);
     this.floors.paintAll(this.cursor.cells);
@@ -214,42 +204,29 @@ export class Scrubber {
    */
   private rebuildRows(): void {
     const g = this.listGeometry();
-    const total = this.session.sites.length;
-    const capacity = visibleRows(g);
-
-    // The window follows the current action only when it would otherwise leave.
-    if (this.stop < this.rowFirst || this.stop >= this.rowFirst + capacity) {
-      this.rowFirst = windowStart(this.stop, total, capacity);
-    }
-    this.rowFirst = Math.max(0, Math.min(Math.max(0, total - capacity), this.rowFirst));
+    const slots = slotCount(g);
+    if (this.pinned < 0 || this.pinned >= slots) this.pinned = slots >> 1;
+    const failedFrom = this.session.failedFrom;
 
     const rows: ActionRow[] = [];
-    for (let i = this.rowFirst; i < total && rows.length < capacity; i++) {
-      const site = this.session.sites[i]!;
+    for (let slot = 0; slot < slots; slot++) {
+      const i = this.stop + (slot - this.pinned);
+      const site = this.session.sites[i];
+      if (site === undefined) continue;
       const summary = this.session.summarise(this.cursor, i);
       if (summary === null) continue;
       rows.push({
+        slot,
         number: i + 1,
         summary,
         enabled: site.action.disabled !== true,
         inserted: this.session.badgeOf(site.action) === "inserted",
         current: i === this.stop,
+        failed: failedFrom !== null && i >= failedFrom,
       });
     }
     this.rows = rows;
     this.pending = this.hover?.kind === "action" ? this.previewSummary() : null;
-    if (!this.draggingList) this.gapAbove = this.stop - this.rowFirst;
-  }
-
-  /** The wheel scrolls the list; nothing else does. */
-  private scrollList(rows: number): void {
-    const capacity = visibleRows(this.listGeometry());
-    const total = this.session.sites.length;
-    const next = Math.max(0, Math.min(Math.max(0, total - capacity), this.rowFirst + rows));
-    if (next === this.rowFirst) return;
-    this.rowFirst = next;
-    this.rebuildRows();
-    this.dirty = true;
   }
 
   /** What the hovered cell would become, described exactly as a real row is. */
@@ -327,9 +304,7 @@ export class Scrubber {
     this.commit(this.stop + 1);
   }
 
-  private toggleRow(i: number): void {
-    const row = this.rows[i];
-    if (!row || row.pending === true) return;
+  private toggleRow(row: ActionRow): void {
     const site = this.session.sites[row.number - 1];
     if (!site) return;
     this.session.edit({
@@ -344,13 +319,17 @@ export class Scrubber {
 
   // --- drawing ------------------------------------------------------------
 
-  private scrollUnitsFor(layout: Layout): ScrollUnit[] {
-    const cap = visibleTiles(layout);
-    if (this.unitCapacity !== cap || this.units.length === 0) {
-      this.units = computeScrollUnits(this.visits, cap);
-      this.unitCapacity = cap;
+  /**
+   * The working sets, recomputed when the window changes how many floors fit
+   * and cached in between.
+   */
+  private workingSets(layout: Layout): WorkingSet[] {
+    const cap = gridCapacity(layout);
+    if (this.setCapacity !== cap || this.sets.length === 0) {
+      this.sets = computeWorkingSets(this.visits, cap);
+      this.setCapacity = cap;
     }
-    return this.units;
+    return this.sets;
   }
 
   /** A PNG of the logical canvas at 1x — §7's capture control. */
@@ -417,14 +396,10 @@ export class Scrubber {
     const t0 = performance.now();
     const { ctx, layout } = this.screen;
     const visit = this.points[this.stop]?.visit ?? 0;
-    const units = this.scrollUnitsFor(layout);
-    const unit = units[scrollUnitOfVisit(units, visit)]!;
-    const currentSlot = slotOfVisit(unit, this.visits, visit);
-    this.scrollTarget = scrollFor(currentSlot, this.scrollTarget, layout, stripWidth(layout, PANEL_W));
-    const now = performance.now();
-    const dt = this.lastFrame === 0 ? 16 : Math.min(100, now - this.lastFrame);
-    this.lastFrame = now;
-    this.scroll = approachScroll(this.scroll, this.scrollTarget, dt);
+    const sets = this.workingSets(layout);
+    const set = sets[workingSetOfVisit(sets, visit)]!;
+    const currentSlot = slotOfVisit(set, this.visits, visit);
+    const grid = gridFor(layout, PANEL_W, set.floors.length);
 
     ctx.fillStyle = "#0c0c10";
     ctx.fillRect(0, 0, layout.w, layout.h);
@@ -433,11 +408,10 @@ export class Scrubber {
     const fonts: Fonts = { standard: fontFrom(this.manifest, "FONT_STANDARD"), digits: fontFrom(this.manifest, "FONT_DIGITS") };
     const failedFrom = this.session.failedFrom;
 
-    drawTimeline(ctx, this.floors, this.manifest, this.sheet, tower, unit, currentSlot, this.scroll, layout, PANEL_W);
-    drawTrail(ctx, this.points, this.visits, unit, this.stop, this.scroll, layout);
-    this.drawHover(unit);
-    this.drawPlayer(unit);
-    this.drawCurrentAction(unit, fonts);
+    drawTimeline(ctx, this.floors, this.manifest, this.sheet, tower, set, currentSlot, grid, layout, PANEL_W, this.accent());
+    drawTrail(ctx, this.points, this.visits, set, this.stop, grid, layout);
+    this.drawHover(set, grid);
+    this.drawCurrentAction(set, grid, fonts);
     drawCog(ctx, this.icons, layout, PANEL_W, this.settingsOpen);
 
     const player = this.cursor.player;
@@ -454,7 +428,7 @@ export class Scrubber {
       perfLine: this.perfHarness.line,
     }, layout);
 
-    drawActionList(ctx, this.sheet, this.manifest, fonts, this.listGeometry(), this.rows, this.gapAbove, this.pending, this.icons, this.hoverRow);
+    drawActionList(ctx, this.sheet, this.manifest, fonts, this.listGeometry(), this.rows, this.pinned, this.pending, this.icons, this.hoverRow);
     this.drawFailureMarker(layout);
 
     // Last of all, so nothing covers it: it is a thing the player has opened.
@@ -464,7 +438,9 @@ export class Scrubber {
 
     this.screen.present();
     this.perfHarness.record({ seek: 0, blit: performance.now() - t0 });
-    this.dirty = this.settings.perf || this.scroll !== this.scrollTarget;
+    // `[F]` Nothing animates any more: the panel jumps from one working set to
+    // the next, so a frame is drawn only when something has actually changed.
+    this.dirty = this.settings.perf;
   }
 
   /** `[I]` The failing action gets the no-entry sign on the track, and clicks through. */
@@ -485,71 +461,162 @@ export class Scrubber {
   }
 
   /**
-   * `[I]` The current action, drawn twice: its cell outlined on the floor, and
-   * its row repeated **at the right of that floor's name strip** — a fixed
-   * place, never over squares the player may want to click. A line runs from
-   * the summary to the player, so the two are read as one thing. A disabled
-   * action is ghosted throughout.
+   * What the accent colour says about where the slider is.
+   *
+   * `[I]` Lavender is the ordinary current action; **red** is the one that
+   * breaks the route; **grey** is everything after it — an action that *would*
+   * happen but cannot, because something earlier already failed.
    */
-  private drawCurrentAction(unit: ScrollUnit, fonts: Fonts): void {
+  private accent(): string {
+    const failed = this.session.failedFrom;
+    if (failed === null || this.stop < failed) return "#cfc4ff";
+    return this.stop === failed ? "#ff5a5a" : "#8a8a99";
+  }
+
+  /**
+   * The current action, drawn as an action rather than as a position.
+   *
+   * `[I]` **The player stands where it acts *from*.** Drawn on the target it
+   * covered the very thing the action was about — a Gold Gate the player could
+   * not afford showed as a player standing on empty floor, with nothing to say
+   * what had been attempted. From the approach square, the affected tile is
+   * visible, an arrow says which way the action goes, and the target itself is
+   * knocked askew where it succeeded or wears the no-entry sign where it did
+   * not.
+   */
+  private drawCurrentAction(set: WorkingSet, grid: Grid, fonts: Fonts): void {
     const { ctx } = this.screen;
     const site = this.session.sites[this.stop];
-    const row = this.rows.find((r) => r.number === this.stop + 1);
-    if (!site || !row) return;
-    const slot = unit.floors.indexOf(site.action.to.z);
+    const row = this.rows.find((r) => r.current);
+    const accent = this.accent();
+    if (!site || !row) {
+      // The last stop is a position, not an action: just the player.
+      const at = playerScreenPos(this.points, this.visits, set, this.stop, grid, this.screen.layout);
+      if (at) this.drawPlayer(at, accent);
+      return;
+    }
+
+    const from = this.cellOrigin(set, grid, site.action.from);
+    const to = this.cellOrigin(set, grid, site.action.to);
+    const slot = set.floors.indexOf(site.action.to.z);
     if (slot < 0) return;
-    const tile = tileOrigin(slot, this.scroll, this.screen.layout);
+    const tile = tileOrigin(grid, slot);
     if (tile.x + FLOOR < 0 || tile.x > this.screen.layout.w) return;
 
     ctx.globalAlpha = site.live ? 1 : 0.45;
+    if (to) this.drawTarget(row, to, site.action.to, accent);
+    if (from && to) this.drawArrow(from, to, accent);
+
     const cardX = tile.x + FLOOR - ACTIONS_W;
     const cardY = tile.y + FLOOR + 1;
-
-    // The line first, so the card and the player both sit on top of it.
-    const player = playerScreenPos(this.points, this.visits, unit, this.stop, this.scroll, this.screen.layout);
-    if (player) {
+    const at = from ?? playerScreenPos(this.points, this.visits, set, this.stop, grid, this.screen.layout);
+    if (at) {
+      // The line first, so the card and the player both sit on top of it.
       ctx.strokeStyle = "#000";
       ctx.lineWidth = 4;
       ctx.beginPath();
       ctx.moveTo(cardX + ACTIONS_W / 2, cardY);
-      ctx.lineTo(player.x + CELL / 2, player.y + CELL + 2);
+      ctx.lineTo(at.x + CELL / 2, at.y + CELL + 2);
       ctx.stroke();
-      ctx.strokeStyle = "#cfc4ff";
+      ctx.strokeStyle = accent;
       ctx.lineWidth = 2;
       ctx.stroke();
+      this.drawPlayer(at, accent);
     }
-    drawActionCard(ctx, this.sheet, this.manifest, fonts, row, cardX, cardY, this.icons);
+    drawActionCard(ctx, this.sheet, this.manifest, fonts, row, cardX, cardY, this.icons, accent);
     ctx.globalAlpha = 1;
   }
 
-  private drawHover(unit: ScrollUnit): void {
+  /**
+   * The cell the action is made on, redrawn over the floor.
+   *
+   * `[I]` Shrunk and turned, as if the player had knocked it away — the floor
+   * bitmap already shows the square after the action, so without this there is
+   * nothing there to see. Where the action **fails** it is drawn square and
+   * whole with the no-entry sign over it: the sign has holes, so the thing that
+   * was refused still shows through.
+   */
+  private drawTarget(row: ActionRow, at: { x: number; y: number }, cell: Waypoint, accent: string): void {
+    const { ctx } = this.screen;
+    const stem = row.summary.kind === "noop" ? null : spriteFor(keyOf(row.summary.cell), this.manifest);
+    const r = stem === null ? undefined : this.manifest.sprites[stem] ?? this.manifest.sprites[this.manifest.entities[stem]?.[0] ?? ""];
+    const failed = row.summary.error !== undefined;
+
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(at.x + 0.5, at.y + 0.5, CELL - 1, CELL - 1);
+    if (!r) return;
+
+    if (failed) {
+      ctx.drawImage(this.sheet, r.x, r.y, r.w, r.h, at.x, at.y, CELL, CELL);
+      if (this.icons.noEntry) ctx.drawImage(this.icons.noEntry, at.x, at.y);
+      return;
+    }
+    ctx.save();
+    ctx.translate(at.x + CELL / 2, at.y + CELL / 2);
+    ctx.rotate(0.22);
+    ctx.scale(0.78, 0.78);
+    ctx.drawImage(this.sheet, r.x, r.y, r.w, r.h, -CELL / 2, -CELL / 2, CELL, CELL);
+    ctx.restore();
+    void cell;
+  }
+
+  /** Which way the action goes, from the approach square onto the target. */
+  private drawArrow(from: { x: number; y: number }, to: { x: number; y: number }, accent: string): void {
+    const { ctx } = this.screen;
+    const ax = from.x + CELL / 2;
+    const ay = from.y + CELL / 2;
+    const dx = Math.sign(to.x - from.x);
+    const dy = Math.sign(to.y - from.y);
+    if (dx === 0 && dy === 0) return;
+    const bx = ax + dx * CELL * 0.8;
+    const by = ay + dy * CELL * 0.8;
+
+    for (const [colour, width] of [["#000", 5], [accent, 3]] as const) {
+      ctx.strokeStyle = colour;
+      ctx.fillStyle = colour;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      // A head, pointing the way the step goes.
+      const h = width + 2;
+      ctx.beginPath();
+      ctx.moveTo(bx + dx * h, by + dy * h);
+      ctx.lineTo(bx - dx * h + dy * h, by - dy * h + dx * h);
+      ctx.lineTo(bx - dx * h - dy * h, by - dy * h - dx * h);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  private drawHover(set: WorkingSet, grid: Grid): void {
     if (this.hover === null || this.hover.kind === "none") return;
-    const pos = this.cellOrigin(unit, this.hover.cell);
+    const pos = this.cellOrigin(set, grid, this.hover.cell);
     if (!pos) return;
     drawCellMark(this.screen.ctx, this.icons, this.hover.kind === "action" ? "inserted" : "invalid", pos.x, pos.y);
   }
 
   /** Where a cell of a floor is on screen, or null when its floor is not shown. */
-  private cellOrigin(unit: ScrollUnit, w: Waypoint): { x: number; y: number } | null {
-    const slot = unit.floors.indexOf(w.z);
+  private cellOrigin(set: WorkingSet, grid: Grid, w: Waypoint): { x: number; y: number } | null {
+    const slot = set.floors.indexOf(w.z);
     if (slot < 0) return null;
-    const o = tileOrigin(slot, this.scroll, this.screen.layout);
+    const o = tileOrigin(grid, slot);
     if (o.x + FLOOR < 0 || o.x > this.screen.layout.w) return null;
     return { x: o.x + (w.x - 1) * CELL, y: o.y + (w.y - 1) * CELL };
   }
 
-  private drawPlayer(unit: ScrollUnit): void {
-    const { ctx, layout } = this.screen;
-    const pos = playerScreenPos(this.points, this.visits, unit, this.stop, this.scroll, layout);
-    if (!pos) return;
-    // `[I]` The lavender ring was still hard to find among fifteen white
-    // sprites, so it is bedded on black: two pixels of dark either side is what
-    // separates it from whatever the floor happens to be under it.
+  private drawPlayer(pos: { x: number; y: number }, accent: string): void {
+    const { ctx } = this.screen;
+    // `[I]` The ring was still hard to find among fifteen white sprites, so it
+    // is bedded on black: two pixels of dark either side is what separates it
+    // from whatever the floor happens to be under it.
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 2;
     ctx.strokeRect(pos.x - 2, pos.y - 2, CELL + 4, CELL + 4);
     ctx.strokeRect(pos.x, pos.y, CELL, CELL);
-    ctx.strokeStyle = "#cfc4ff";
+    ctx.strokeStyle = accent;
     ctx.lineWidth = 2;
     ctx.strokeRect(pos.x - 1, pos.y - 1, CELL + 2, CELL + 2);
     const sprite = this.playerSprite();
@@ -589,17 +656,18 @@ export class Scrubber {
     this.onSettings({ ...this.settings, zoom: Math.max(1, Math.min(8, Math.round(scale))) });
   }
 
-  /** The scroll unit currently on screen. */
-  private currentUnit(): ScrollUnit {
-    const units = this.scrollUnitsFor(this.screen.layout);
-    return units[scrollUnitOfVisit(units, this.points[this.stop]?.visit ?? 0)]!;
+  /** The working set currently on screen. */
+  private currentSet(): WorkingSet {
+    const sets = this.workingSets(this.screen.layout);
+    return sets[workingSetOfVisit(sets, this.points[this.stop]?.visit ?? 0)]!;
   }
 
   /** Which cell of which floor a logical point lands on, or null for none. */
   private cellAt(x: number, y: number): Waypoint | null {
-    const unit = this.currentUnit();
-    for (const [slot, z] of unit.floors.entries()) {
-      const o = tileOrigin(slot, this.scroll, this.screen.layout);
+    const set = this.currentSet();
+    const grid = gridFor(this.screen.layout, PANEL_W, set.floors.length);
+    for (const [slot, z] of set.floors.entries()) {
+      const o = tileOrigin(grid, slot);
       if (x < o.x || x >= o.x + FLOOR || y < o.y || y >= o.y + FLOOR) continue;
       return { z, x: Math.floor((x - o.x) / CELL) + 1, y: Math.floor((y - o.y) / CELL) + 1 };
     }
@@ -653,18 +721,22 @@ export class Scrubber {
         return;
       }
       const g = this.listGeometry();
-      const i = rowAt(g, this.rows.length, this.gapAbove, p.x, p.y);
-      if (i !== null) {
-        if (inBox(p, checkboxAt(g, i, this.gapAbove))) {
-          this.toggleRow(i);
+      const slot = slotAt(g, this.pinned, p.x, p.y);
+      if (slot !== null) {
+        const row = this.rows.find((r) => r.slot === slot);
+        if (row === undefined) return;
+        if (inBox(p, checkboxAt(g, slot, this.pinned))) {
+          this.toggleRow(row);
           return;
         }
-        // `[I]` Dragging down the list keeps moving the selection: a finer
-        // scrub than the slider gives. The pending slot is held where it was
-        // until the button comes up, so rows do not slide under the pointer.
+        // `[I]` The clicked row is the one that must not move, so it becomes
+        // the pinned slot. Dragging on from there keeps moving the selection --
+        // a finer scrub than the slider gives -- with the list sliding under a
+        // pointer that stays put.
+        this.pinned = slot;
         this.draggingList = true;
         this.canvas.setPointerCapture(e.pointerId);
-        this.seek(this.rows[i]!.number - 1);
+        this.seek(row.number - 1);
         return;
       }
       const cell = this.cellAt(p.x, p.y);
@@ -686,19 +758,19 @@ export class Scrubber {
       }
       const p = logical(e.clientX, e.clientY);
       const g = this.listGeometry();
-      const row = rowAt(g, this.rows.length, this.gapAbove, p.x, p.y);
+      const slot = slotAt(g, this.pinned, p.x, p.y);
       if (this.draggingList) {
-        if (row !== null) this.seek(this.rows[row]!.number - 1);
+        if (slot !== null) this.seek(this.stop + (slot - this.pinned));
         return;
       }
-      if (row !== this.hoverRow) {
-        this.hoverRow = row;
+      if (slot !== this.hoverRow) {
+        this.hoverRow = slot;
         this.dirty = true;
       }
       // `[I]` The status column has no room for words, so they are on hover.
       const status = statusRowAt(this.session.tower, this.cursor.player, this.screen.layout, p.x, p.y);
       this.canvas.title = status?.title ?? "";
-      this.setHover(row === null ? this.cellAt(p.x, p.y) : null);
+      this.setHover(slot === null ? this.cellAt(p.x, p.y) : null);
     };
 
     this.canvas.addEventListener("pointerdown", onDown, { signal });
@@ -710,12 +782,7 @@ export class Scrubber {
     }, { signal });
     this.canvas.addEventListener("pointerup", (e) => {
       draggingSlider = false;
-      if (this.draggingList) {
-        this.draggingList = false;
-        // The slot catches up now that nothing is being dragged over it.
-        this.rebuildRows();
-        this.dirty = true;
-      }
+      this.draggingList = false;
       if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
     }, { signal });
     this.canvas.addEventListener("wheel", (e) => {
@@ -723,8 +790,9 @@ export class Scrubber {
       const g = this.listGeometry();
       if (p.x < g.x || p.x > g.x + g.w) return;
       e.preventDefault();
-      // Up is back in time, matching the list's own direction.
-      this.scrollList(e.deltaY > 0 ? -1 : 1);
+      // `[I]` The wheel does what the arrow keys do: move the selection, with
+      // the current action staying where it is and the list sliding under it.
+      this.seek(this.stop + (e.deltaY > 0 ? -1 : 1));
     }, { signal, passive: false });
 
     window.addEventListener("keydown", (e) => {

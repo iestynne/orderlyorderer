@@ -668,7 +668,7 @@ The diagnostic for a *rule* is a test that names the rule's content — the edit
 bound alone passed happily against the inverted chain, and only asserting the
 chains by name caught it (`test/sim/cursor.test.ts`, invariant 4).
 
-**D34. A scroll unit is a view device; a route segment is simulation state.
+**D34. A working set is a view device; a route segment is simulation state.
 They share no code, no layer and — deliberately — no word.**
 
 `[I]` iestyn: segments are lower level, they affect save state and simulation;

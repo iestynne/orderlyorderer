@@ -10,7 +10,7 @@ import type { AtlasManifest } from "../../../tools/atlas/build";
 import { drawText, fontFrom, type AtlasFontRef } from "./atlas";
 import { textWidth } from "../imagefont";
 import type { FloorCache } from "./floor";
-import { ACTIONS_W, PANEL_HEAD, PANEL_PAD, PANEL_W, SLIDER_W, STACK_W, STATUS_W, type Layout } from "./screen";
+import { ACTIONS_W, PANEL_HEAD, PANEL_PAD, PANEL_W, SLIDER_W, STACK_W, type Layout } from "./screen";
 
 /** `[F]` util.lua:3-22. Dot separators every three digits; never an abbreviation. */
 export function powerToString(n: number): string {
@@ -150,10 +150,7 @@ export function stackX(layout: Layout): number {
   return panelX(layout) + SLIDER_W + ACTIONS_W;
 }
 
-/** Left edge of the narrow status column, at the panel's right. */
-export function statusX(layout: Layout): number {
-  return panelX(layout) + PANEL_W - STATUS_W;
-}
+
 
 /**
  * The columns all start below the header and run to the foot of the panel.
@@ -163,8 +160,7 @@ export function statusX(layout: Layout): number {
  * action list and the stack each get it back.
  */
 export function sliderGeometry(layout: Layout): { x: number; y: number; h: number } {
-  const top = PANEL_HEAD + 13; // ...and the action counter, which sits under the header.
-  return { x: panelX(layout), y: top, h: Math.max(40, layout.h - top - 8) };
+  return { x: panelX(layout), y: PANEL_HEAD, h: Math.max(40, layout.h - PANEL_HEAD - 8) };
 }
 
 export function drawRightPanel(
@@ -182,40 +178,43 @@ export function drawRightPanel(
   ctx.fillStyle = "#15151a";
   ctx.fillRect(x0 - PANEL_PAD, 0, PANEL_W + PANEL_PAD * 2, layout.h);
 
-  // Headed, as the game is, with the tower name over the floor name -- and
-  // Power opposite them, which is the one status row that needs the width.
+  // Two lines of header. `[I]` The word Power stays, to the right of the
+  // number: a bare figure that large needs saying what it is.
   drawText(ctx, sheet, standard, s.tower.metadata.name, x0, 5);
-  drawText(ctx, sheet, standard, s.floorName, x0, 16);
-  // `[I]` The word stays, to the right of the number: a bare figure that large
-  // needs saying what it is.
-  const power = powerToString(s.player.power);
-  const label = " Power";
-  drawText(ctx, sheet, standard, power + label, x0 + PANEL_W - textWidth(standard, power + label), 5);
+  const power = `${powerToString(s.player.power)} Power`;
+  drawText(ctx, sheet, standard, power, x0 + PANEL_W - textWidth(standard, power), 5);
+
+  // ...and under it the action counter, which is short and fixed, opposite
+  // everything the player is carrying. The floor name is not here: the stack
+  // labels the current floor and every tile in the strip is captioned.
+  drawText(ctx, sheet, standard, `${s.stop + 1}/${s.stopCount}`, x0, 17);
+  drawStatus(ctx, sheet, manifest, digits, s, layout);
 
   drawSlider(ctx, sheet, standard, s, layout);
   drawStack(ctx, floors, standard, sheet, s, layout);
-  drawStatus(ctx, sheet, manifest, digits, s, layout);
 }
 
 /**
- * Which status row a point is over, for the hover tooltip, or null.
+ * The status line sits immediately below Power.
  *
- * `[D]` The column has no room for a word, so the words are on hover. The
- * canvas cannot carry per-region tooltips itself, so the host element's
- * `title` is set from this — one attribute, moved as the pointer moves.
+ * `[D]` The line has no room for words, so the words are on hover. The canvas
+ * cannot carry per-region tooltips itself, so the host element's `title` is set
+ * from `statusRowAt` — one attribute, moved as the pointer moves.
  */
+export const STATUS_Y = 14;
+
+/** Widest an item gets: a 16 px sprite, a gap, and four digits. */
+export const STATUS_ITEM_W = 44;
+
+/** Which status item a point is over, for the hover tooltip, or null. */
 export function statusRowAt(tower: TowerJSON, player: Player, layout: Layout, x: number, y: number): StatusRow | null {
-  if (x < statusX(layout) || x > statusX(layout) + STATUS_W) return null;
-  const i = Math.floor((y - STATUS_TOP) / STATUS_ROW_H);
+  if (y < STATUS_Y || y > STATUS_Y + 16) return null;
   const rows = statusRows(tower, player);
+  // Hit-testing has no font to measure with, and the items are near enough
+  // evenly spaced that the block divided by their count is the right answer.
+  const i = rows.length - 1 - Math.floor((panelX(layout) + PANEL_W - x) / STATUS_ITEM_W);
   return i >= 0 && i < rows.length ? rows[i]! : null;
 }
-
-/** Tall enough for a 16 px sprite with air around it. */
-export const STATUS_ROW_H = 18;
-/** Immediately below the Power line at the top of the panel. */
-export const STATUS_TOP = 17;
-
 /**
  * `[D]` **Time runs upward: stop 0 is at the bottom.** The route is climbing a
  * tower, and the tower stack beside it already puts floor 1 at the bottom — a
@@ -370,8 +369,12 @@ function drawStack(
 }
 
 /**
- * The narrow column down the panel's right edge: a value, then the sprite that
- * names it, both right-aligned so the magnitudes line up and read downward.
+ * Everything but Power, on one line under it.
+ *
+ * `[D]` **The held item's slot is reserved and leftmost**, so picking one up or
+ * spending it moves nothing else. An item that appears and disappears in the
+ * middle of a line drags every value after it sideways, and these are numbers
+ * the player reads by position.
  */
 function drawStatus(
   ctx: CanvasRenderingContext2D,
@@ -381,19 +384,13 @@ function drawStatus(
   s: RightPanelState,
   layout: Layout,
 ): void {
-  const right = statusX(layout) + STATUS_W;
-  // Directly under the Power line, not down at the columns: the status rows
-  // are one block with Power at its head, and a line of air between them read
-  // as a missing row.
-  let y = STATUS_TOP;
-
-  for (const row of statusRows(s.tower, s.player)) {
+  const rows = statusRows(s.tower, s.player);
+  let x = panelX(layout) + PANEL_W - rows.length * STATUS_ITEM_W;
+  for (const row of rows) {
     const r = spriteRect(manifest, row.sprite);
-    if (r) ctx.drawImage(sheet, r.x, r.y, r.w, r.h, right - 16, y, 16, 16);
-    if (row.value !== "") {
-      drawText(ctx, sheet, digits, row.value, right - 19 - textWidth(digits, row.value), y + 5);
-    }
-    y += STATUS_ROW_H;
+    if (r) ctx.drawImage(sheet, r.x, r.y, r.w, r.h, x, STATUS_Y, 16, 16);
+    if (row.value !== "") drawText(ctx, sheet, digits, row.value, x + 18, STATUS_Y + 5);
+    x += STATUS_ITEM_W;
   }
 }
 

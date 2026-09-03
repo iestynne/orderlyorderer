@@ -8,23 +8,22 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { gridCapacity, gridFor, tileOrigin } from "../../src/ui/render/left";
 import {
   CAPTION,
   CELL,
   FLOOR,
   GAP,
   MIN_TILES,
-  SAME_ROW_PITCH,
-  STAGGER,
+
   ACTIONS_W,
+  PANEL_PAD,
   PANEL_W,
   SLIDER_W,
   STACK_W,
-  STATUS_W,
   layoutFor,
   rowPitch,
   tileHeight,
-  visibleTiles,
 } from "../../src/ui/render/screen";
 import { powerToString } from "../../src/ui/render/right";
 
@@ -38,14 +37,11 @@ describe("SPEC-007 §8 — named geometry", () => {
     expect(FLOOR).toBe(240);
   });
 
-  it("stagger pitch is 122, exactly half of 240 + 4", () => {
-    expect(STAGGER).toBe(122);
-    expect(STAGGER * 2).toBe(FLOOR + GAP);
-  });
-
-  it("same-row pitch is 244", () => {
-    expect(SAME_ROW_PITCH).toBe(244);
-    expect(SAME_ROW_PITCH).toBe(FLOOR + GAP);
+  // `[F]` Tiles used to be laid half a tile apart in two rows, so a sliding
+  // strip could never put consecutive visits in the same horizontal range.
+  // Nothing slides now, so the pitch is simply a tile and a gap.
+  it("tiles are laid a tile and a gap apart", () => {
+    expect(FLOOR + GAP).toBe(244);
   });
 
   // `[F]` The name strip is no longer optional: it is where the current
@@ -60,37 +56,41 @@ describe("SPEC-007 §8 — named geometry", () => {
     expect(rowPitch()).toBe(262);
   });
 
-  // `[F]` The column used to be 186, the game's own 426 minus a 240 floor. It
-  // is 48 now: Power leads on its own line across the top of the panel, and no
-  // other row ever needs more than four digits, a gap and a 16 px sprite —
-  // measured over the corpus, gold peaks at 3 343 and gems at 230. The 138 px
-  // that freed is the action list.
-  it("the status column is 48, wide enough for five digits and a sprite", () => {
-    expect(STATUS_W).toBe(48);
-    // Five digits at the digit font's widest, a 3 px gap and a 16 px sprite.
-    expect(5 * 5 + 3 + 16).toBeLessThanOrEqual(STATUS_W);
+  // `[F]` The panel was 434 with a 186 px status column, which was Power's
+  // width spent on rows that never needed it: measured over the corpus, no
+  // other value exceeds four digits — gold peaks at 3 343, gems at 230. Power
+  // leads on its own line and the rest fit on one under it, so the column is
+  // gone entirely and the stack runs to the panel's right edge.
+  it("the panel is its three columns and nothing else", () => {
+    expect(SLIDER_W + ACTIONS_W + STACK_W).toBe(PANEL_W);
+    expect(PANEL_W).toBe(348);
   });
 
-  it("the panel is its four columns and nothing else", () => {
-    expect(SLIDER_W + ACTIONS_W + STACK_W + STATUS_W).toBe(PANEL_W);
-    // The action list took the width the status column gave up, and a little
-    // more: the panel is 10 px narrower than it was, so the strip gained too.
-    expect(PANEL_W).toBe(424);
+  it("tiles fill the panel in reading order, and the block is centred", () => {
+    const s = { pixelPerfect: true, linearFilter: false, zoom: "auto" as const };
+    const layout = layoutFor(1920, 1080, s);
+    const grid = gridFor(layout, PANEL_W, 6);
+    const at = (i: number) => tileOrigin(grid, i);
+    // Left to right...
+    expect(at(1).x - at(0).x).toBe(FLOOR + GAP);
+    expect(at(1).y).toBe(at(0).y);
+    // ...then down, if there is a row to come down to.
+    if (grid.cols < 6) {
+      expect(at(grid.cols).x).toBe(at(0).x);
+      expect(at(grid.cols).y).toBeGreaterThan(at(0).y);
+    }
+    // Centred: the air either side of the block is equal to within a pixel.
+    const used = Math.min(grid.cols, 6);
+    const right = at(used - 1).x + FLOOR;
+    const left = at(0).x;
+    expect(Math.abs(left - PANEL_PAD - (layout.w - PANEL_W - PANEL_PAD - right))).toBeLessThanOrEqual(1);
   });
 
-  it("visit i is drawn at x = i * 122 - scroll", () => {
-    // The bricklayer offset: consecutive visits never share a horizontal range.
-    const xs = [0, 1, 2, 3].map((i) => i * STAGGER);
-    expect(xs).toEqual([0, 122, 244, 366]);
-    // Same row, two apart: a full tile plus the gap, so they never overlap.
-    expect(xs[2]! - xs[0]!).toBe(SAME_ROW_PITCH);
-  });
-
-  it("at least three tiles are visible, and a wider window shows more", () => {
-    const s = { pixelPerfect: true, linearFilter: false, captions: true, zoom: "auto" as const };
-    expect(visibleTiles(layoutFor(400, 300, s))).toBeGreaterThanOrEqual(MIN_TILES);
-    const narrow = visibleTiles(layoutFor(1280, 720, s));
-    const wide = visibleTiles(layoutFor(3840, 720, s));
+  it("at least three tiles fit, and a wider window fits more", () => {
+    const s = { pixelPerfect: true, linearFilter: false, zoom: "auto" as const };
+    expect(gridCapacity(layoutFor(400, 300, s))).toBeGreaterThanOrEqual(MIN_TILES);
+    const narrow = gridCapacity(layoutFor(1280, 720, s));
+    const wide = gridCapacity(layoutFor(3840, 720, s));
     expect(narrow).toBeGreaterThanOrEqual(MIN_TILES);
     expect(wide).toBeGreaterThan(narrow);
   });
@@ -185,13 +185,13 @@ describe("SPEC-007 §8 — invariants 5 and 6", () => {
   // D34. Invariant 5 stops src/sim/ importing the UI, so the dependency cannot
   // run the wrong way. What it does not catch is the WORD leaking downward --
   // and the collision that prompted D34 was a name, not an import.
-  it("D34. `ScrollUnit` is a view concept and never appears below the UI", () => {
+  it("D34. `WorkingSet` is a view concept and never appears below the UI", () => {
     const offenders: string[] = [];
     const scan = (dir: string): void => {
       for (const e of readdirSync(join(ROOT, dir))) {
         const rel = `${dir}/${e}`;
         if (statSync(join(ROOT, rel)).isDirectory()) scan(rel);
-        else if (/\.tsx?$/.test(e) && readFileSync(join(ROOT, rel), "utf8").includes("ScrollUnit")) {
+        else if (/\.tsx?$/.test(e) && readFileSync(join(ROOT, rel), "utf8").includes("WorkingSet")) {
           offenders.push(rel);
         }
       }
@@ -204,12 +204,15 @@ describe("SPEC-007 §8 — invariants 5 and 6", () => {
     // ...and it is defined in exactly one place, so there is one thing to rename
     // if the boundary ever moves.
     const defs = readFileSync(join(ROOT, "src/ui/render/left.ts"), "utf8");
-    expect(defs).toContain("export interface ScrollUnit");
+    // `[F]` It was `ScrollUnit` while the panel scrolled. It does not any more
+    // -- it shows one set of floors at a time and jumps between them -- so the
+    // name went with the behaviour rather than outliving it (D31 rule 3).
+    expect(defs).toContain("export interface WorkingSet");
   });
 
   // The other half of D34: the layout device must not have quietly adopted the
   // word it was renamed away from.
-  it("D34. the UI does not call a scroll unit a segment", () => {
+  it("D34. the UI does not call a working set a segment", () => {
     const hits: string[] = [];
     for (const f of ["left.ts", "trail.ts", "right.ts", "screen.ts", "floor.ts", "atlas.ts"]) {
       const src = readFileSync(join(ROOT, "src/ui/render", f), "utf8");

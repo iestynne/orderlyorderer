@@ -36,30 +36,36 @@ export const LABEL_RIGHT = 17;
 /** Top of the label, relative to the cell's top edge. */
 export const LABEL_Y = 11;
 
-/** Half of FLOOR + GAP: the bricklayer offset that makes "further right is later" unambiguous. */
-export const STAGGER = 122;
-export const SAME_ROW_PITCH = 244;
+/**
+ * `[F]` The panel used to lay tiles half a tile-width apart in two rows — a
+ * bricklayer pattern, so that a sliding strip could never put two consecutive
+ * visits in the same horizontal range. Nothing slides now: the panel shows one
+ * working set at a time and reading order says which tile is later, so the
+ * stagger is gone and the floors sit on a plain grid.
+ */
 /** `[D]` Lowered from 4 on 2026-08-31 so a 1080p window reaches 2x. UI.md §6. */
 export const MIN_TILES = 3;
 
-/**
- * The player-status column, right of the stack.
- *
- * `[F]` **Only Power needs width.** Measured over the whole corpus, the widest
- * value any other row ever holds is four digits — gold peaks at 3 343, gems at
- * 230, keys and pickaxes at two digits — while Power reaches eleven digits
- * observed and fifteen characters at the cap, printed with the game's dot
- * separators. So Power leads on its own line across the top of the panel and
- * every other row lives in a column wide enough for five digits, a gap, and a
- * 16 px sprite. The 186 px the column used to take was Power's, spent on rows
- * that never needed it.
- */
-export const STATUS_W = 48;
 export const SLIDER_W = 16;
-/** The action list. Tuned by eye; §6 of docs/UI.md is what judges it. */
-export const ACTIONS_W = 128;
+/**
+ * The action list.
+ *
+ * `[F]` Exactly what a row needs and no more: four digits of number, a slot for
+ * the item carried, one for what was acted on, one for gold, then the add badge
+ * and the enable box hard right. It was 128 while the toggles floated at the
+ * right edge with thirty pixels of nothing before them.
+ */
+export const ACTIONS_W = 100;
 export const STACK_W = 232;
-export const PANEL_W = SLIDER_W + ACTIONS_W + STACK_W + STATUS_W; // 424
+/**
+ * `[F]` **The status column is gone.** Power leads on its own line across the
+ * top — it is the only figure that needs width, reaching eleven digits observed
+ * and fifteen characters at the cap — and every other value is at most four
+ * digits, measured over the whole corpus: gold peaks at 3 343, gems at 230,
+ * keys and pickaxes at two. They fit on one line under it, which lets the stack
+ * run to the panel's right edge and takes 76 px off the panel.
+ */
+export const PANEL_W = SLIDER_W + ACTIONS_W + STACK_W; // 348
 export const PANEL_PAD = 6;
 /** Two lines of header at the top of the panel, which the columns start below. */
 export const PANEL_HEAD = 30;
@@ -83,7 +89,7 @@ export function rowPitch(): number {
 /** The smallest logical viewport the §5 minimum fits in. */
 export function minLogical(): { w: number; h: number } {
   return {
-    w: PANEL_W + PANEL_PAD * 2 + (MIN_TILES - 1) * STAGGER + FLOOR + GAP * 2,
+    w: PANEL_W + PANEL_PAD * 2 + MIN_TILES * FLOOR + (MIN_TILES + 1) * GAP,
     h: rowPitch() + tileHeight() + GAP,
   };
 }
@@ -136,11 +142,7 @@ export function layoutFor(cssWidth: number, cssHeight: number, s: ScreenSettings
   return { scale, w, h, deviceW, deviceH, cssW: deviceW / dpr, cssH: deviceH / dpr, fitScale };
 }
 
-/** How many timeline tiles the left panel can show at this logical width. */
-export function visibleTiles(layout: Layout): number {
-  const strip = layout.w - PANEL_W - PANEL_PAD * 2 - GAP * 2;
-  return Math.max(MIN_TILES, Math.floor((strip - FLOOR) / STAGGER) + 1);
-}
+
 
 /**
  * An offscreen 1x canvas plus the blit that puts it on screen. Everything the

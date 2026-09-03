@@ -12,15 +12,15 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { fontFrom } from "../../src/ui/render/atlas";
 import { textWidth } from "../../src/ui/imagefont";
-import { STATUS_W } from "../../src/ui/render/screen";
+
 import { routeFromRecord } from "../../src/sav/route";
 import { Cursor, stopStepIndices } from "../../src/sim/cursor";
 import { simulate } from "../../src/sim/simulate";
 import type { TowerJSON } from "../../src/sim/types";
-import { computeScrollUnits, computeVisits, drawTimeline, scrollFor, scrollUnitOfVisit, slotOfVisit, stripWidth, visitOfStop } from "../../src/ui/render/left";
-import { drawRightPanel, sliderGeometry, spriteRect, stackHeight, stackPitch, statusRows, STACK_FLOOR_H, STACK_FLOOR_W, STACK_SHEAR } from "../../src/ui/render/right";
+import { computeVisits, computeWorkingSets, drawTimeline, gridCapacity, gridFor, slotOfVisit, visitOfStop, workingSetOfVisit } from "../../src/ui/render/left";
+import { drawRightPanel, sliderGeometry, spriteRect, stackHeight, stackPitch, statusRows, STACK_FLOOR_H, STACK_FLOOR_W, STACK_SHEAR, STATUS_ITEM_W } from "../../src/ui/render/right";
 import { drawTrail, trailPoints } from "../../src/ui/render/trail";
-import { layoutFor, visibleTiles, PANEL_W, STACK_W } from "../../src/ui/render/screen";
+import { layoutFor, PANEL_W, STACK_W } from "../../src/ui/render/screen";
 import { bake } from "../../src/ui/render/atlas";
 import { buildAtlas, type AtlasManifest } from "../../tools/atlas/build";
 import { TOWER_IDS } from "../../tools/maps/types";
@@ -96,7 +96,7 @@ d("stage 3 — the draw path runs over real records", () => {
 
     const stops = stopStepIndices(timeline, route.length);
     const visits = computeVisits(timeline, stops);
-    const units = computeScrollUnits(visits, visibleTiles(layout));
+    const sets = computeWorkingSets(visits, gridCapacity(layout));
     const points = trailPoints(timeline, visits, stops);
     expect(points.length).toBe(stops.length);
     // Every trail point names a visit that exists, on the floor the player is on.
@@ -108,17 +108,15 @@ d("stage 3 — the draw path runs over real records", () => {
     const cursor = new Cursor(timeline);
     const floors = stubFloors(save.tower.floors.length, manifest, save.tower);
     const { ctx, calls } = stubCtx();
-    let scroll = 0;
 
     for (let i = 0; i < stops.length; i += Math.max(1, Math.floor(stops.length / 60))) {
       cursor.seekTo(stops[i]!);
       const current = points[i]!.visit;
-      const unit0 = units[scrollUnitOfVisit(units, current)]!;
-      scroll = scrollFor(slotOfVisit(unit0, visits, current), scroll, layout, stripWidth(layout, PANEL_W));
-      const unit = units[scrollUnitOfVisit(units, current)]!;
-      const slot = slotOfVisit(unit, visits, current);
-      drawTimeline(ctx, floors, manifest, {} as any, save.tower, unit, slot, scroll, layout, PANEL_W);
-      drawTrail(ctx, points, visits, unit, i, scroll, layout);
+      const set = sets[workingSetOfVisit(sets, current)]!;
+      const slot = slotOfVisit(set, visits, current);
+      const grid = gridFor(layout, PANEL_W, set.floors.length);
+      drawTimeline(ctx, floors, manifest, {} as any, save.tower, set, slot, grid, layout, PANEL_W);
+      drawTrail(ctx, points, visits, set, i, grid, layout);
       drawRightPanel(ctx, manifest, {} as any, floors, {
         tower: save.tower,
         player: cursor.player,
@@ -136,54 +134,31 @@ d("stage 3 — the draw path runs over real records", () => {
     expect(calls["stroke"]).toBeGreaterThan(0);
   });
 
-  it("the strip scrolls only when the current tile would be offscreen, and then far enough", () => {
-    const width = stripWidth(layout, PANEL_W);
-    // Two adjacent slots, both already visible: scrubbing between them moves nothing.
-    expect(scrollFor(0, 0, layout, width)).toBe(0);
-    expect(scrollFor(1, 0, layout, width)).toBe(0);
-
-    // A slot past the right edge pulls the strip left far enough that the WHOLE
-    // tile lands inside the clip box -- including the 3 px frame the current
-    // tile wears outside its 240 px, which the earlier arithmetic clipped off.
-    const clip = width + 4 * 2;
-    for (const slot of [4, 9, 40]) {
-      const s = scrollFor(slot, 0, layout, width);
-      const left = 4 + slot * 122 - s;
-      expect(left, `slot ${slot} left edge`).toBeGreaterThanOrEqual(3);
-      expect(left + 240, `slot ${slot} right edge`).toBeLessThanOrEqual(clip - 3);
-      // ...and coming back to it is then a no-op.
-      expect(scrollFor(slot, s, layout, width)).toBe(s);
-    }
-  });
-
   // docs/UI.md §2. The feature UI.md §6 deferred for wanting a tuning
   // parameter: it turns out capacity IS the parameter.
-  it("a working set that fits becomes one scroll unit: one tile per floor, no scrolling", () => {
+  it("a working set that fits is one set: one tile per floor, and the panel never moves", () => {
     const save = loadAllSaves().find((s) => s.towerId === "1-5")!;
     const rec = save.file.records.find((r) => r.name === "4.6G win") ?? save.file.records[0]!;
     const route = routeFromRecord(rec);
     const timeline = simulate({ tower: save.tower, gemsOwned: Number.POSITIVE_INFINITY, route });
     const stops = stopStepIndices(timeline, route.length);
     const visits = computeVisits(timeline, stops);
-    const units = computeScrollUnits(visits, visibleTiles(layout));
+    const sets = computeWorkingSets(visits, gridCapacity(layout));
 
     // 1-5 is three floors, so however much the route bounces between them it is
-    // one unit with three tiles -- where per-visit layout gave dozens.
+    // one set with three tiles -- where per-visit layout gave dozens.
     expect(save.tower.floors.length).toBe(3);
     expect(visits.length).toBeGreaterThan(3);
-    expect(units.length).toBe(1);
-    expect(units[0]!.floors.length).toBeLessThanOrEqual(3);
+    expect(sets.length).toBe(1);
+    expect(sets[0]!.floors.length).toBeLessThanOrEqual(3);
 
-    // And the strip never moves, at any stop of the route.
-    let scroll = 0;
+    // ...and every stop of the route is in it, so the panel never changes.
     for (let i = 0; i < stops.length; i++) {
-      const seg = units[scrollUnitOfVisit(units, visitOfStop(visits, i))]!;
-      scroll = scrollFor(slotOfVisit(seg, visits, i), scroll, layout, stripWidth(layout, PANEL_W));
+      expect(workingSetOfVisit(sets, visitOfStop(visits, i))).toBe(0);
     }
-    expect(scroll).toBe(0);
   });
 
-  it("every scroll unit fits the strip, and scroll units tile the visit list", () => {
+  it("every working set fits the panel, and the sets tile the visit list", () => {
     for (const cap of [3, 5, 8]) {
       for (const { tower, file } of loadAllSaves().slice(0, 5)) {
         for (const rec of file.records.slice(0, 2)) {
@@ -192,13 +167,13 @@ d("stage 3 — the draw path runs over real records", () => {
           if (timeline.error) continue;
           const stops = stopStepIndices(timeline, route.length);
           const visits = computeVisits(timeline, stops);
-          const segs = computeScrollUnits(visits, cap);
+          const segs = computeWorkingSets(visits, cap);
           expect(segs[0]!.from).toBe(0);
           expect(segs.at(-1)!.to).toBe(visits.length);
           for (let i = 0; i < segs.length; i++) {
             expect(segs[i]!.floors.length, `cap ${cap}`).toBeLessThanOrEqual(cap);
             if (i > 0) expect(segs[i]!.from).toBe(segs[i - 1]!.to);
-            // Every visit in the unit has a slot to be drawn in.
+            // Every visit in the set has a tile to be drawn in.
             for (let v = segs[i]!.from; v < segs[i]!.to; v++) {
               expect(segs[i]!.floors).toContain(visits[v]!.z);
             }
@@ -328,18 +303,20 @@ d("stage 3 — the draw path runs over real records", () => {
     expect(statusRows(ex3, { ...player, held: "shield" }).map((r) => r.sprite)).toContain("shield");
   });
 
-  // `[F]` Power leads on its own line precisely because it is the only row that
-  // needs the width; the column is sized for the rest, and this is what says so.
-  it("no narrow status row is wider than the column it lives in", () => {
+  // `[F]` Power leads on its own line precisely because it is the only value
+  // that needs width; the line under it is sized for the rest, and this is what
+  // says so. Every item gets the same slot, so none of them shifts as another
+  // appears or disappears.
+  it("no status item outgrows its slot on the line", () => {
     const tower = loadAllSaves()[0]!.tower;
     const digits = fontFrom(manifest, "FONT_DIGITS");
     const player = {
-      z: 1, x: 1, y: 1, power: 999999999999, gold: 99999, lightKeys: 99, darkKeys: 99, pickaxes: 99,
+      z: 1, x: 1, y: 1, power: 999999999999, gold: 9999, lightKeys: 99, darkKeys: 99, pickaxes: 99,
       gemsSpent: 9999, held: "shield" as const, pendingPopup: null, win: 0 as const, submittedScore: 0,
     };
     for (const row of statusRows(tower, player)) {
-      // value, a 3 px gap, and the 16 px sprite at the column's right edge.
-      expect(textWidth(digits, row.value) + 3 + 16, row.title).toBeLessThanOrEqual(STATUS_W);
+      // a 16 px sprite, a 2 px gap, and the number.
+      expect(16 + 2 + textWidth(digits, row.value), row.title).toBeLessThanOrEqual(STATUS_ITEM_W);
     }
   });
 });
