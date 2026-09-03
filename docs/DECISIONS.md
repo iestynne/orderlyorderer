@@ -475,27 +475,40 @@ build. It is deferred, not dropped: until it exists, a build requires
 `../local/game/`. Recorded because it is a real limitation of the published
 repo, not an oversight.
 
-**D42. The worktree protocol stops sessions stomping on each other. It does not
-stop them doing the same task twice — and nothing warns you.**
-`[F]` On 2026-09-01 two sessions fixed `TODO.md` §A5 within the hour, from the
-same `main`, in separate worktrees, neither aware of the other:
-`8a2fb00` and `6e6c79d`. Both diagnosed the ignored `willReadFrequently`
-correctly and diverged on the remedy — one routed readbacks through a shared
-scratch canvas so the floors stay accelerated, the other made the floors
-CPU-backed. `[F]` The merge was **clean**, because the second rewrote the file
-the first had edited: git kept one whole approach and silently dropped the
-other. No conflict, no warning, and an hour of work gone.
+**D43. The work-tree topic name is the assignment. A session does that task and
+leaves the rest of `TODO.md` §A alone.**
+`[F]` On 2026-09-01 two sessions fixed §A5 within the hour, from the same
+`main`, in separate worktrees, neither aware of the other: `8a2fb00` and
+`6e6c79d`. Both diagnosed the ignored `willReadFrequently` correctly and
+diverged on the remedy — one routed readbacks through a shared scratch canvas
+to keep the floors accelerated, the other made the floors CPU-backed. `[F]` The
+merge was **clean**: the second rewrote the file the first had edited, so git
+kept one approach whole and dropped the other. No conflict, no warning, and an
+hour of work gone.
 
-`[D]` **Read the branches before starting, not just `main`.** `git log --all
---oneline` and `git branch -a` cost a second and are the only thing that would
-have caught this — a sibling worktree's branch is visible from every other
-worktree. `[D]` And prefer the smaller claim in `TODO.md`: "§A5" named one item
-that two sessions could both reasonably take.
+`[F]` **Visibility was not the problem, and a branch check does not fix it.**
+The session that duplicated the work ran exactly that check at 15:58 and saw
+`session-route-edit-implementation` sitting on `main` with **no commits** and a
+name that said route editing; `8a2fb00` landed three minutes later. The
+information did not exist at the only moment the check was free.
 
-`[I]` Not solved by this entry. What is missing is a claim that is visible
-*before* the work, and `TODO.md` is the only shared surface — but it is also
-the thing being edited, so claiming in it is itself a merge conflict. Recorded
-because it will happen again as more instances run in parallel.
+`[D]` **The cause was the list.** §A read "Next, in order: 1. Fix the two
+performance faults in §A5 … 4. Build SPEC-008", and both sessions started at
+item 1 — one of them having been given route editing as its topic. The
+assignment and the shared list disagreed, and the list won. `[I]` iestyn: the
+name was always meant to be inferred from; the doc never said so. It does now,
+in `CLAUDE.md` step 1, **including that a session unsure which task the name
+means asks rather than picking**.
+
+`[I]` What this does not solve: nothing makes a claim visible *before* the
+work, and `TODO.md` is the only shared surface — but it is also the thing being
+edited, so claiming in it is itself a merge conflict. Left open deliberately;
+scoping each session is the cheaper half and it is enough for now.
+
+`[F]` This entry was itself numbered **D42** twice over, colliding with the
+waypoint-pair decision landed the same day by the other session — the same
+failure one layer down, and the reason it now carries the next free number
+rather than the one that looked free from inside a worktree.
 
 **D38. A canvas that is read back is created `willReadFrequently`. Nothing else
 is.**
