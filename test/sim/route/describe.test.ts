@@ -95,7 +95,7 @@ describe("SPEC-008 §4.2 — what an action spent", () => {
   it("carries the failure through, where the action is the one that breaks", () => {
     const error = { waypointIndex: 3, stepIndex: 2, code: "ENEMY_TOO_STRONG" as const, at: { z: 1, x: 1, y: 1 }, have: 100, need: 4100 };
     expect(say(enemy(4100)).error).toBeUndefined();
-    const s = describeAction(towerWith(enemy(4100)), new Uint8Array(225), BASE, BASE, { z: 1, x: 1, y: 1 }, error);
+    const s = describeAction(towerWith(enemy(4100)), new Uint8Array(225), BASE, BASE, { z: 1, x: 1, y: 1 }, { error });
     expect(s.error?.code).toBe("ENEMY_TOO_STRONG");
   });
 });

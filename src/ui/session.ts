@@ -30,6 +30,8 @@ export interface ActionSite {
   action: Action;
   /** False where the action is disabled or its epoch was skipped. */
   live: boolean;
+  /** Its index in the realised route, or null where it is not in it. */
+  realised: number | null;
 }
 
 export type Badge = "inserted" | "disabled";
@@ -160,7 +162,10 @@ export class RouteSession {
       cursor.player,
       after,
       site.action.to,
-      this.failedFrom === stop ? this.evaluation.mainline.error : undefined,
+      {
+        error: this.failedFrom === stop ? this.evaluation.mainline.error : undefined,
+        noop: site.realised !== null && this.evaluation.noopActions[site.realised] === true,
+      },
     );
     cursor.seekTo(was);
     return summary;
@@ -257,7 +262,7 @@ function stopModel(route: Route, evaluation: Evaluation): { sites: ActionSite[];
     let w = evaluation.epochs[e]?.startWaypoint ?? 0;
     activeSegment(epoch).actions.forEach((action, index) => {
       const live = !skipped && action.disabled !== true;
-      sites.push({ epoch: e, segment: epoch.active, index, action, live });
+      sites.push({ epoch: e, segment: epoch.active, index, action, live, realised: live ? (w >> 1) : null });
       if (live) {
         // Its pair is (w, w + 1); the stop is after the `to` half.
         last = through[w + 1] ?? last;

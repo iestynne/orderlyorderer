@@ -27,7 +27,13 @@ export type ActionKind =
   | "stairs"
   | "crown"
   | "walk"
-  | "blocked";
+  | "blocked"
+  /**
+   * `[I]` The action found its work already done — insert a kill for an enemy
+   * the route kills later, and the later one has nothing left to do. It is not
+   * a failure and not an error; it simply does nothing, so it says nothing.
+   */
+  | "noop";
 
 /** An item an action used up. `pickaxe` is the counter, not a held item. */
 export type Spent = HeldItem | "pickaxe" | null;
@@ -58,7 +64,7 @@ export function describeAction(
   before: Player,
   after: Player,
   target: Waypoint,
-  error?: SimError,
+  opts: { error?: SimError; noop?: boolean } = {},
 ): ActionSummary {
   const now = effectiveCell(tower, cells, target.z, target.x, target.y);
   // `[F]` A recorded action always changed state (SAVE_FORMAT §3), so one whose
@@ -69,7 +75,7 @@ export function describeAction(
   const own = towerCell(tower, target.z, target.x, target.y);
   const cell = now === 0 && isEntity(own) ? own : now;
   const summary: ActionSummary = {
-    kind: kindOf(cell),
+    kind: opts.noop === true ? "noop" : kindOf(cell),
     cell,
     spent:
       before.held !== null && after.held === null
@@ -81,7 +87,7 @@ export function describeAction(
     goldGained: after.gold - before.gold,
     powerDelta: after.power - before.power,
   };
-  if (error !== undefined) summary.error = error;
+  if (opts.error !== undefined) summary.error = opts.error;
   return summary;
 }
 

@@ -15,12 +15,9 @@ import { CELL, FLOOR } from "./screen";
 import { tileOrigin, visitOfStop, type Visit } from "./left";
 import type { Layout } from "./screen";
 
-/**
- * `[F]` The trail used to be two lavenders separated by this many degrees of
- * hue. It is green and red now, and the past/future distinction rides on
- * lightness instead — so the constant is gone and the question it stood for
- * with it.
- */
+/** `[O]` Not settled; expected to be adjusted by eye (UI.md §3). */
+export const D_HUE = 26;
+const BASE_HUE = 262; // lavender
 
 /**
  * `[D]` The trail is a **narrow window**, not a whole-route overlay: fully
@@ -81,16 +78,14 @@ function centre(slot: number, pt: TrailPoint, scroll: number, layout: Layout): {
 }
 
 /**
- * `[I]` **Green where the route passes and red where it fails**, from the
- * start: a route that runs clean is green all the way, and red begins at the
- * action that breaks it.
- *
- * The past/future distinction survives inside each colour as a shift of
- * lightness, which is what `dHue` used to carry between two lavenders.
+ * `[D]` **The trail says tense, not verdict.** Both halves are lavender,
+ * separated only by hue — the past towards blue, the future towards red. The
+ * pass/fail colouring belongs to the slider, which is a picture of the whole
+ * route; the trail is a two-stop window and has no room to say both.
  */
-function colour(past: boolean, fade: number, verdict: "passes" | "fails"): string {
-  const hue = verdict === "fails" ? 0 : 128;
-  return `hsla(${hue}, ${verdict === "fails" ? 62 : 46}%, ${past ? 68 : 56}%, ${fade.toFixed(3)})`;
+function colour(past: boolean, fade: number): string {
+  const hue = BASE_HUE + (past ? -D_HUE : D_HUE);
+  return `hsla(${hue}, 62%, ${past ? 72 : 66}%, ${fade.toFixed(3)})`;
 }
 
 /**
@@ -110,8 +105,6 @@ export function drawTrail(
   current: number,
   scroll: number,
   layout: Layout,
-  /** The first stop the route fails at, or null where it runs clean. */
-  failedFrom: number | null = null,
 ): void {
   const link = (i: number, past: boolean): void => {
     const a = points[i];
@@ -140,7 +133,7 @@ export function drawTrail(
     ctx.stroke();
 
     ctx.lineWidth = 1;
-    ctx.strokeStyle = colour(past, fade, failedFrom !== null && i >= failedFrom ? "fails" : "passes");
+    ctx.strokeStyle = colour(past, fade);
     ctx.stroke();
   };
 

@@ -8,7 +8,7 @@
 // Pure module: no UI imports, no filesystem (D7).
 
 import { emitPayload } from "../../sav/savefile";
-import type { TowerJSON } from "../types";
+import type { TowerJSON, Waypoint } from "../types";
 import { RouteShapeError, type Route } from "./document";
 import { evaluate, type Evaluation } from "./evaluate";
 
@@ -30,6 +30,10 @@ export class ExportRefused extends Error {
  * skipped epoch contributed nothing to the route that ran, so it contributes
  * nothing to the route that is written. `[F]` Both are `2S+1` shaped, since an
  * action is a pair (§2.2) and a skipped epoch drops a whole number of them.
+ *
+ * `[D]` **An action that did nothing is not written either.** Insert a kill for
+ * an enemy the route already kills and the later action has no work left; the
+ * game never recorded interactions that changed nothing, so neither do we.
  */
 export function toSaveRecord(route: Route, tower: TowerJSON, evaluation?: Evaluation): Uint8Array {
   const ev = evaluation ?? evaluate(route, tower, { forks: false });
@@ -42,5 +46,10 @@ export function toSaveRecord(route: Route, tower: TowerJSON, evaluation?: Evalua
   if (ev.waypoints.length % 2 !== 1) {
     throw new RouteShapeError(`realised route has ${ev.waypoints.length} entries; the 2S+1 rule requires odd`);
   }
-  return emitPayload(ev.waypoints.map((w) => [w.z, w.x, w.y]));
+  const out: Waypoint[] = [];
+  ev.noopActions.forEach((noop, k) => {
+    if (!noop) out.push(ev.waypoints[2 * k]!, ev.waypoints[2 * k + 1]!);
+  });
+  out.push(ev.waypoints[ev.waypoints.length - 1]!);
+  return emitPayload(out.map((w) => [w.z, w.x, w.y]));
 }

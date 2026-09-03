@@ -48,19 +48,27 @@ export const ICONS: Readonly<Record<string, readonly string[]>> = {
     "...#.....",
     ".........",
   ],
-  /** Settings. `[P]` A placeholder, for iestyn to replace with game-congruent art. */
+  /**
+   * Settings. `[P]` A placeholder, for iestyn to replace with game-congruent art.
+   *
+   * `[F]` The first one was a ring with a square hole, which at this size read
+   * as a minus sign rather than as a cog. It needs teeth that clear the body on
+   * all four sides and a hole small enough to be a hole.
+   */
   icon_cog: [
-    "...#####...",
-    "...#####...",
-    ".#########.",
-    ".#########.",
-    "###.....###",
-    "###.....###",
-    "###.....###",
-    ".#########.",
-    ".#########.",
-    "...#####...",
-    "...#####...",
+    ".....###.....",
+    ".....###.....",
+    "..#########..",
+    "..#########..",
+    "#############",
+    "#####...#####",
+    "#####...#####",
+    "#####...#####",
+    "#############",
+    "..#########..",
+    "..#########..",
+    ".....###.....",
+    ".....###.....",
   ],
 };
 

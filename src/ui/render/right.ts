@@ -243,12 +243,15 @@ function drawSlider(
   ctx.fillStyle = "#2a2a33";
   ctx.fillRect(mid - 2, g.y, 4, g.h);
 
-  // The track carries the same verdict the trail does: green as far as the
-  // route gets, red from the action that breaks it. Nothing when it runs clean.
+  // `[I]` **The track is the verdict, and it starts green.** A save the game
+  // wrote replays clean, so the whole track is green the moment it loads; the
+  // suffix turns red only once an edit has broken something. The trail says
+  // tense instead (docs/UI.md §3) -- one of the two has to, and the track is
+  // the one that pictures the whole route at once.
+  const split = s.failedFrom === null ? g.y : Math.round(stopToY(s.failedFrom, s.stopCount, g));
+  ctx.fillStyle = "#5aa85a";
+  ctx.fillRect(mid - 2, split, 4, g.y + g.h - split);
   if (s.failedFrom !== null) {
-    const split = Math.round(stopToY(s.failedFrom, s.stopCount, g));
-    ctx.fillStyle = "#5aa85a";
-    ctx.fillRect(mid - 2, split, 4, g.y + g.h - split);
     ctx.fillStyle = "#a85a5a";
     ctx.fillRect(mid - 2, g.y, 4, Math.max(1, split - g.y));
   }

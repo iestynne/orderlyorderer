@@ -434,7 +434,7 @@ export class Scrubber {
     const failedFrom = this.session.failedFrom;
 
     drawTimeline(ctx, this.floors, this.manifest, this.sheet, tower, unit, currentSlot, this.scroll, layout, PANEL_W);
-    drawTrail(ctx, this.points, this.visits, unit, this.stop, this.scroll, layout, failedFrom);
+    drawTrail(ctx, this.points, this.visits, unit, this.stop, this.scroll, layout);
     this.drawHover(unit);
     this.drawPlayer(unit);
     this.drawCurrentAction(unit, fonts);
