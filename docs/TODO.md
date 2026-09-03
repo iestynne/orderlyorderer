@@ -31,6 +31,24 @@ The top of this list needs a browser, and so needs iestyn:
 trail's `dHue`, the stack's size, whether overlapped floors read on a 32- or
 75-floor tower, and the deferred proposal to freeze past and future floors.
 
+`[O]` **Let the simulation go negative.** `[I]` iestyn: past a failure the
+route's positions are known but its *resources* are not, so a deficit can be
+read at the break and nowhere later. Allowing negative gold, power and keys
+would give a margin at every step — the power-graph work (DESIGN §7) arriving
+early. `[D]` Not started: it changes SPEC-004's semantics, and Half Gates,
+elixirs and the Keysmasher each need an answer first.
+
+`[O]` **A colour-blind-safe variant.** Red against green is the one pair that
+fails for about 8% of men, and it is what says pass and fail. The colours are
+gathered in `src/ui/render/palette.ts` so a variant is a swap — blue against
+orange reads apart under both deuteranopia and protanopia — but the swap is
+half of it: what makes the scheme survive any palette is that the failure marks
+are not colour alone. That file's header says which still are.
+
+`[O]` **Check the panel on a low-resolution or phone-shaped screen.** The left
+panel fills with as many floors as the window and zoom allow, in reading order;
+nobody has looked at what that does when there is very little room.
+
 `[O]` **The toolbar wants emptying.** `[I]` iestyn: it is a strip along the
 bottom because of what is in it, and it stops at the left panel now so it no
 longer eats the slider's height — but move its contents somewhere better and it

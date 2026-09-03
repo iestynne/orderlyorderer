@@ -29,11 +29,15 @@ import {
   type WorkingSet,
 } from "./render/left";
 import {
+  ROW_H,
   actionsGeometry,
   checkboxAt,
+  clampPinY,
+  defaultPinY,
   drawActionCard,
   drawActionList,
-  slotAt,
+  offsetAt,
+  rowTop,
   slotCount,
   type ActionListGeometry,
   type ActionRow,
@@ -52,6 +56,7 @@ import { drawRightPanel, panelX, sliderGeometry, statusRowAt, stopToY, yToStop }
 import { drawTrail, playerScreenPos, trailPoints, type TrailPoint } from "./render/trail";
 import { Screen, ACTIONS_W, CELL, FLOOR, PANEL_PAD, PANEL_W, type Layout, type ScreenSettings } from "./render/screen";
 import { drawText, fontFrom, keyOf, spriteFor, type AtlasFontRef } from "./render/atlas";
+import * as C from "./render/palette";
 import { textWidth } from "./imagefont";
 import { PerfHarness, type PerfReport } from "./perf";
 
@@ -98,14 +103,17 @@ export class Scrubber {
   private rows: ActionRow[] = [];
   private pending: ActionSummary | null = null;
   /**
-   * Which slot of the list the **current** action holds.
+   * Where the **current** action's row sits, in pixels.
    *
    * `[D]` The list moves under it rather than it moving in the list, so
-   * scrubbing never makes the list saw back and forth. It changes only when the
-   * player clicks a row, and then it becomes the row they clicked.
+   * scrubbing never makes the list saw back and forth. A click sets it to
+   * exactly where the clicked row already was, so that row does not move at
+   * all and the others shift around it.
    */
-  private pinned = -1;
+  private pinY = -1;
   private draggingList = false;
+  /** Where the drag began, so the selection follows the pointer one-for-one. */
+  private dragFrom = { y: 0, stop: 0 };
   /**
    * `[D]` Every listener this object registers is registered with this
    * controller's signal, so `destroy` drops all of them in one call and cannot
@@ -148,8 +156,8 @@ export class Scrubber {
     this.timeline = this.session.evaluation.mainline;
     this.cursor = new Cursor(this.timeline);
     this.stops = this.session.stops;
-    this.visits = computeVisits(this.timeline, this.stops);
-    this.points = trailPoints(this.timeline, this.visits, this.stops);
+    this.visits = computeVisits(this.session.positions);
+    this.points = trailPoints(this.session.positions, this.visits);
     this.ticks = this.stops
       .map((_, i) => i)
       .filter((i) => i > 0 && this.points[i]!.visit !== this.points[i - 1]!.visit);
@@ -204,25 +212,29 @@ export class Scrubber {
    */
   private rebuildRows(): void {
     const g = this.listGeometry();
-    const slots = slotCount(g);
-    if (this.pinned < 0 || this.pinned >= slots) this.pinned = slots >> 1;
+    if (this.pinY < 0) this.pinY = defaultPinY(g);
+    this.pinY = clampPinY(g, this.pinY);
     const failedFrom = this.session.failedFrom;
+    const span = slotCount(g) + 2;
 
     const rows: ActionRow[] = [];
-    for (let slot = 0; slot < slots; slot++) {
-      const i = this.stop + (slot - this.pinned);
+    for (let offset = -span; offset <= span; offset++) {
+      const top = rowTop(this.pinY, offset);
+      if (top + ROW_H <= g.y || top >= g.y + g.h) continue;
+      const i = this.stop + offset;
       const site = this.session.sites[i];
       if (site === undefined) continue;
       const summary = this.session.summarise(this.cursor, i);
       if (summary === null) continue;
       rows.push({
-        slot,
+        offset,
         number: i + 1,
         summary,
         enabled: site.action.disabled !== true,
         inserted: this.session.badgeOf(site.action) === "inserted",
-        current: i === this.stop,
+        current: offset === 0,
         failed: failedFrom !== null && i >= failedFrom,
+        breaks: failedFrom === i,
       });
     }
     this.rows = rows;
@@ -324,7 +336,7 @@ export class Scrubber {
    * and cached in between.
    */
   private workingSets(layout: Layout): WorkingSet[] {
-    const cap = gridCapacity(layout);
+    const cap = gridCapacity(layout, PANEL_W);
     if (this.setCapacity !== cap || this.sets.length === 0) {
       this.sets = computeWorkingSets(this.visits, cap);
       this.setCapacity = cap;
@@ -428,7 +440,7 @@ export class Scrubber {
       perfLine: this.perfHarness.line,
     }, layout);
 
-    drawActionList(ctx, this.sheet, this.manifest, fonts, this.listGeometry(), this.rows, this.pinned, this.pending, this.icons, this.hoverRow);
+    drawActionList(ctx, this.sheet, this.manifest, fonts, this.listGeometry(), this.rows, this.pinY, this.pending, this.icons, this.hoverRow);
     this.drawFailureMarker(layout);
 
     // Last of all, so nothing covers it: it is a thing the player has opened.
@@ -469,8 +481,8 @@ export class Scrubber {
    */
   private accent(): string {
     const failed = this.session.failedFrom;
-    if (failed === null || this.stop < failed) return "#cfc4ff";
-    return this.stop === failed ? "#ff5a5a" : "#8a8a99";
+    if (failed === null || this.stop < failed) return C.LAVENDER;
+    return this.stop === failed ? C.FAIL_BRIGHT : C.GREY;
   }
 
   /**
@@ -504,8 +516,7 @@ export class Scrubber {
     if (tile.x + FLOOR < 0 || tile.x > this.screen.layout.w) return;
 
     ctx.globalAlpha = site.live ? 1 : 0.45;
-    if (to) this.drawTarget(row, to, site.action.to, accent);
-    if (from && to) this.drawArrow(from, to, accent);
+    if (to) this.drawTarget(row, to, accent);
 
     const cardX = tile.x + FLOOR - ACTIONS_W;
     const cardY = tile.y + FLOOR + 1;
@@ -524,6 +535,9 @@ export class Scrubber {
       this.drawPlayer(at, accent);
     }
     drawActionCard(ctx, this.sheet, this.manifest, fonts, row, cardX, cardY, this.icons, accent);
+    // `[I]` The arrow last of all: it is the thing that says which way the
+    // action goes, and under the player or the ring it was half hidden.
+    if (from && to) this.drawArrow(from, to, accent);
     ctx.globalAlpha = 1;
   }
 
@@ -532,24 +546,23 @@ export class Scrubber {
    *
    * `[I]` Shrunk and turned, as if the player had knocked it away — the floor
    * bitmap already shows the square after the action, so without this there is
-   * nothing there to see. Where the action **fails** it is drawn square and
-   * whole with the no-entry sign over it: the sign has holes, so the thing that
-   * was refused still shows through.
+   * nothing there to see. A failing action leaves it square and whole: it has
+   * not been knocked anywhere. `[F]` The no-entry sign used to go over it and
+   * has been taken out — it hid the very thing the player needed to look at,
+   * and the red frame and the deficit in the row already say what it said.
    */
-  private drawTarget(row: ActionRow, at: { x: number; y: number }, cell: Waypoint, accent: string): void {
+  private drawTarget(row: ActionRow, at: { x: number; y: number }, accent: string): void {
     const { ctx } = this.screen;
     const stem = row.summary.kind === "noop" ? null : spriteFor(keyOf(row.summary.cell), this.manifest);
     const r = stem === null ? undefined : this.manifest.sprites[stem] ?? this.manifest.sprites[this.manifest.entities[stem]?.[0] ?? ""];
-    const failed = row.summary.error !== undefined;
 
     ctx.strokeStyle = accent;
     ctx.lineWidth = 1;
     ctx.strokeRect(at.x + 0.5, at.y + 0.5, CELL - 1, CELL - 1);
     if (!r) return;
 
-    if (failed) {
+    if (row.summary.error !== undefined) {
       ctx.drawImage(this.sheet, r.x, r.y, r.w, r.h, at.x, at.y, CELL, CELL);
-      if (this.icons.noEntry) ctx.drawImage(this.icons.noEntry, at.x, at.y);
       return;
     }
     ctx.save();
@@ -558,7 +571,6 @@ export class Scrubber {
     ctx.scale(0.78, 0.78);
     ctx.drawImage(this.sheet, r.x, r.y, r.w, r.h, -CELL / 2, -CELL / 2, CELL, CELL);
     ctx.restore();
-    void cell;
   }
 
   /** Which way the action goes, from the approach square onto the target. */
@@ -721,20 +733,21 @@ export class Scrubber {
         return;
       }
       const g = this.listGeometry();
-      const slot = slotAt(g, this.pinned, p.x, p.y);
-      if (slot !== null) {
-        const row = this.rows.find((r) => r.slot === slot);
+      const offset = offsetAt(g, this.pinY, p.x, p.y);
+      if (offset !== null) {
+        const row = this.rows.find((r) => r.offset === offset);
         if (row === undefined) return;
-        if (inBox(p, checkboxAt(g, slot, this.pinned))) {
+        if (inBox(p, checkboxAt(g, this.pinY, offset))) {
           this.toggleRow(row);
           return;
         }
-        // `[I]` The clicked row is the one that must not move, so it becomes
-        // the pinned slot. Dragging on from there keeps moving the selection --
-        // a finer scrub than the slider gives -- with the list sliding under a
-        // pointer that stays put.
-        this.pinned = slot;
+        // `[I]` The clicked row must not move, so the pin goes to exactly where
+        // that row already is and everything else shifts around it. Dragging on
+        // from there tracks the pointer one row per row of travel, so bringing
+        // the pointer back to where it started comes back to the same action.
+        this.pinY = clampPinY(g, rowTop(this.pinY, offset));
         this.draggingList = true;
+        this.dragFrom = { y: p.y, stop: row.number - 1 };
         this.canvas.setPointerCapture(e.pointerId);
         this.seek(row.number - 1);
         return;
@@ -757,20 +770,21 @@ export class Scrubber {
         return;
       }
       const p = logical(e.clientX, e.clientY);
-      const g = this.listGeometry();
-      const slot = slotAt(g, this.pinned, p.x, p.y);
       if (this.draggingList) {
-        if (slot !== null) this.seek(this.stop + (slot - this.pinned));
+        // Quantised travel from where the drag began: up is later, and bringing
+        // the pointer back to where it started comes back to the same action.
+        this.seek(this.dragFrom.stop + Math.round((this.dragFrom.y - p.y) / ROW_H));
         return;
       }
-      if (slot !== this.hoverRow) {
-        this.hoverRow = slot;
+      const offset = offsetAt(this.listGeometry(), this.pinY, p.x, p.y);
+      if (offset !== this.hoverRow) {
+        this.hoverRow = offset;
         this.dirty = true;
       }
       // `[I]` The status column has no room for words, so they are on hover.
       const status = statusRowAt(this.session.tower, this.cursor.player, this.screen.layout, p.x, p.y);
       this.canvas.title = status?.title ?? "";
-      this.setHover(slot === null ? this.cellAt(p.x, p.y) : null);
+      this.setHover(offset === null ? this.cellAt(p.x, p.y) : null);
     };
 
     this.canvas.addEventListener("pointerdown", onDown, { signal });
@@ -785,13 +799,11 @@ export class Scrubber {
       this.draggingList = false;
       if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
     }, { signal });
+    // `[I]` The wheel moves the selection wherever the pointer is, not only
+    // over the list: scroll to the right moment with the pointer over a floor
+    // tile, then click that tile to insert there.
     this.canvas.addEventListener("wheel", (e) => {
-      const p = logical(e.clientX, e.clientY);
-      const g = this.listGeometry();
-      if (p.x < g.x || p.x > g.x + g.w) return;
       e.preventDefault();
-      // `[I]` The wheel does what the arrow keys do: move the selection, with
-      // the current action staying where it is and the list sliding under it.
       this.seek(this.stop + (e.deltaY > 0 ? -1 : 1));
     }, { signal, passive: false });
 

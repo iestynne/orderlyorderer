@@ -41,7 +41,9 @@ Working sets are a **view** device: recomputed on resize, never saved, and not
 the route segments of §6. D34.
 
 Tiles fill the panel in reading order, left to right and then down, as many as
-the window and the zoom allow, with the block centred in whatever room is left.
+the window and the zoom allow — and exactly that many: the count and the layout
+measure the same rectangle, or a floor ends up with no tile to be drawn in. The
+block is centred in whatever room is left.
 Every one has a border, a gap, and a name strip under it — which is also where
 the current action is summarised (§6).
 
@@ -93,6 +95,9 @@ four digits. Gems are an amount **spent**, which the row says on hover rather
 than in a word. Dark keys, gold and the held item are absent where the game
 omits them too.
 
+A **divider** runs under the two header lines, so they read as a heading rather
+than as the top of the slider.
+
 **Settings.** Behind a cog at the top-right of the left panel. It draws over
 everything, and a click anywhere off it closes it and does nothing else.
 
@@ -114,12 +119,15 @@ actions it means. The **action list**, right of the slider, is what makes an
 edit unambiguous: a window of the route centred on the current action, which
 wears a thin lavender outline. Time runs upward, as it does on the slider.
 
-A row is what the action **did**, not where, in fixed columns so the list
-reads down: its number, the item it carried or spent, the thing it acted on,
-and the gold it earned stamped on the bag — negative at a Money Gate, the only
-thing that takes gold away. An added action wears a `+` beside its checkbox.
-Hovering a row highlights it on the timeline; the wheel scrolls the list, and
-nothing else does.
+A row is what the action **did**, not where, in fixed columns so the list reads
+down: its number, what it **spent**, what it **acted on** with its own value
+badge, the gold it moved stamped on a bag — negative at a Money Gate, the only
+thing that takes gold away — and last what it was **carrying** that changed the
+outcome without being used up. Spent comes first because that is what a failure
+is usually about. An added action wears a `+` beside its checkbox, at full
+strength even when switched off. Hovering a row highlights it on the timeline;
+the wheel moves the selection from anywhere on screen, so the pointer can
+already be over the tile you mean to click.
 
 **Every edit happens at the current action**, which is why there are no modes.
 
@@ -134,8 +142,9 @@ nothing else does.
 - `Z` and `Y` undo and redo insertions, as the game's own undo and redo do.
   They reach back over the current run of them and no further: insert four
   here, scrub away, insert four there, and `Z` takes back four.
-- Clicking a row moves to it without scrolling the list, and **dragging down
-  the list keeps moving** — a finer scrub than the slider gives.
+- Clicking a row moves to it and **that row does not move**: the list shifts
+  around it. Dragging on from there tracks the pointer a row at a time, so
+  bringing it back where it started comes back to the same action.
 
 The current action is drawn as an **action**, not as a position. The player
 stands where it acts *from*, so the affected tile is visible; an arrow says
@@ -144,14 +153,20 @@ row is repeated at the right of that floor's name strip, joined to the player by
 a thick line — a display, not a control, and in the strip rather than over the
 grid so it never covers a cell worth clicking.
 
-**Where it fails**, the target is drawn square and whole with the no-entry sign
-over it, so what was refused shows through the sign's holes; the player ring,
-the connecting line, the summary's frame and the floor's own frame all turn red,
-and the row is outlined thicker. **Past** a failure everything is drawn as usual
-but in grey: those actions *would* happen and cannot, because something earlier
-broke. Their rows carry a faint red band, and their icons say what they would
-have done — after a break the numbers are guesses, and drawing nothing would say
-less than drawing the intent.
+**Where it fails**, the target is left square and whole — it has not been
+knocked anywhere — and the player ring, the connecting line, the summary's frame
+and the floor's own frame all turn red. The row is outlined red too, whether or
+not it is the one being looked at, and its **spent** column says what it was
+short of: a bag reading **-21** for gold, the player sprite with a power deficit
+to four figures, a boxed key or pickaxe where there is no number to give, an
+arrow where the square cannot be reached at all.
+
+**Past** a failure everything is drawn as usual but in grey: those actions
+*would* happen and cannot. The floors keep coming, so the route can be scrubbed
+to its end — the document knows every action's target whether the simulator
+reached it or not. Those rows carry a faint red band and their icons say what
+they would have done; after a break the numbers are guesses, and drawing nothing
+would say less than drawing the intent.
 
 An action that finds its work already done — inserted before one that kills the
 same enemy — says nothing but its number, and is not exported.

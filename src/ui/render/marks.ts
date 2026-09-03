@@ -21,13 +21,7 @@ import type { SimError } from "../../sim/types";
 import { drawText, type AtlasFontRef } from "./atlas";
 import { CELL, GAP, PANEL_PAD, type Layout } from "./screen";
 
-const GREEN = "#8fe08f";
-const LAVENDER = "#cfc4ff";
-const GREY = "#9a97ad";
-/** `[I]` Dim red, so an unticked box stands out as switched off rather than blank. */
-const DIM_RED = "#7a3030";
-/** `[I]` Deep red, so the sign reads as a refusal rather than as decoration. */
-const DEEP_RED = "rgb(190, 40, 40)";
+import * as C from "./palette";
 
 export interface Icons {
   plus: HTMLCanvasElement | null;
@@ -36,6 +30,7 @@ export interface Icons {
   cog: HTMLCanvasElement | null;
   cogOpen: HTMLCanvasElement | null;
   noEntry: HTMLCanvasElement | null;
+  arrow: HTMLCanvasElement | null;
   /** The enable box, which is square, so one number sizes every hitbox. */
   boxSize: number;
   badge: number;
@@ -44,12 +39,13 @@ export interface Icons {
 /** Baked once when a record is opened, never per frame. */
 export function bakeIcons(manifest: AtlasManifest, sheet: CanvasImageSource): Icons {
   return {
-    plus: tint(manifest, sheet, "icon_plus", GREEN),
-    box: tint(manifest, sheet, "icon_box", GREY),
-    tick: tint(manifest, sheet, "icon_tick", LAVENDER),
-    cog: tint(manifest, sheet, "icon_cog", LAVENDER),
+    plus: tint(manifest, sheet, "icon_plus", C.ADDED),
+    box: tint(manifest, sheet, "icon_box", C.DIM),
+    tick: tint(manifest, sheet, "icon_tick", C.LAVENDER),
+    cog: tint(manifest, sheet, "icon_cog", C.LAVENDER),
     cogOpen: tint(manifest, sheet, "icon_cog", "#15151a"),
-    noEntry: tint(manifest, sheet, "no_entry", DEEP_RED),
+    noEntry: tint(manifest, sheet, "no_entry", C.REFUSED),
+    arrow: tint(manifest, sheet, "icon_arrow", C.FAIL_BRIGHT),
     boxSize: manifest.sprites["icon_box"]?.w ?? 9,
     badge: manifest.sprites["icon_plus"]?.w ?? 9,
   };
@@ -85,7 +81,7 @@ export function drawPlus(ctx: CanvasRenderingContext2D, icons: Icons, x: number,
  */
 export function drawCheckbox(ctx: CanvasRenderingContext2D, icons: Icons, x: number, y: number, on: boolean): void {
   if (!on) {
-    ctx.fillStyle = DIM_RED;
+    ctx.fillStyle = C.DISABLED_FILL;
     ctx.fillRect(x + 1, y + 1, icons.boxSize - 2, icons.boxSize - 2);
   }
   if (icons.box) ctx.drawImage(icons.box, x, y);
@@ -102,7 +98,7 @@ export function drawCellMark(
 ): void {
   ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
   ctx.fillRect(x + 1, y + 1, CELL, CELL);
-  ctx.strokeStyle = mark === "inserted" ? GREEN : DEEP_RED;
+  ctx.strokeStyle = mark === "inserted" ? C.ADDED : C.REFUSED;
   ctx.lineWidth = 1;
   ctx.strokeRect(x + 0.5, y + 0.5, CELL - 1, CELL - 1);
   if (mark === "invalid") {
@@ -122,7 +118,7 @@ export function cogHitbox(layout: Layout, panelW: number): { x: number; y: numbe
 
 export function drawCog(ctx: CanvasRenderingContext2D, icons: Icons, layout: Layout, panelW: number, open: boolean): void {
   const b = cogHitbox(layout, panelW);
-  ctx.fillStyle = open ? LAVENDER : "#22222c";
+  ctx.fillStyle = open ? C.LAVENDER : "#22222c";
   ctx.fillRect(b.x, b.y, b.w, b.h);
   ctx.strokeStyle = "#0c0c10";
   ctx.lineWidth = 1;
@@ -170,9 +166,9 @@ export function drawSettingsPanel(
   toggles: readonly Toggle[],
 ): void {
   const p = settingsPanel(layout, panelW, toggles.length);
-  ctx.fillStyle = "#15151a";
+  ctx.fillStyle = C.PANEL;
   ctx.fillRect(p.x, p.y, p.w, p.h);
-  ctx.strokeStyle = LAVENDER;
+  ctx.strokeStyle = C.LAVENDER;
   ctx.lineWidth = 2;
   ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
 

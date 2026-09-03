@@ -46,6 +46,17 @@ export class RouteSession {
   sites: ActionSite[] = [];
   /** The first stop the route fails at, or null where it runs clean. */
   failedFrom: number | null = null;
+  /**
+   * Where the player stands at each stop — or **would** stand, past a failure.
+   *
+   * `[D]` The simulation stops at the break, so every later stop would report
+   * the position it broke at and the whole rest of the route would vanish from
+   * the timeline panel. The document knows each action's target whether the
+   * simulator reached it or not, so past the break that is what is used: the
+   * player keeps moving, the floors keep appearing, and the grey drawing says
+   * these are actions that *would* happen (docs/UI.md §6).
+   */
+  positions: Waypoint[] = [];
   savedHash: string | null = null;
 
   /** By identity, which survives every op but `setDisabled` (which `edit` fixes up). */
@@ -218,10 +229,29 @@ export class RouteSession {
     const { sites, stops } = stopModel(this.route, this.evaluation);
     this.sites = sites;
     this.stops = stops;
+    this.positions = positionsOf(this.evaluation, sites, stops, this.route.final);
     const error = this.evaluation.mainline.error;
     this.failedFrom = error === undefined ? null : failingStop(sites, error.waypointIndex);
     this.view = { ...this.view, stop: Math.min(this.view.stop, Math.max(0, this.stops.length - 1)) };
   }
+}
+
+/** SPEC-008 §4.1, and the "would be" half of it. */
+function positionsOf(evaluation: Evaluation, sites: ActionSite[], stops: number[], final: Waypoint): Waypoint[] {
+  const steps = evaluation.mainline.steps;
+  const reached = steps.length;
+  const at = (step: number): Waypoint => {
+    const p = step === 0 ? evaluation.mainline.initial : steps[step - 1]!.player;
+    return { z: p.z, x: p.x, y: p.y };
+  };
+  return stops.map((step, i) => {
+    // A stop the simulator got to reports where the player actually is; one it
+    // never reached reports where the action would put them, which is its own
+    // target -- the player ends up on the cell they act on.
+    if (step < reached || i === 0) return at(step);
+    const site = sites[i];
+    return site === undefined ? final : site.action.to;
+  });
 }
 
 export function cellKey(w: Waypoint): string {

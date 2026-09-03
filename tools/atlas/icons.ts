@@ -49,6 +49,23 @@ export const ICONS: Readonly<Record<string, readonly string[]>> = {
     ".........",
   ],
   /**
+   * No way through. `[I]` A reachability failure expends nothing, so the slot
+   * that would name the item names the problem instead.
+   */
+  icon_arrow: [
+    ".....#.....",
+    "....##.....",
+    "...###.....",
+    "..####.....",
+    ".##########",
+    "##########.",
+    ".##########",
+    "..####.....",
+    "...###.....",
+    "....##.....",
+    ".....#.....",
+  ],
+  /**
    * Settings. `[P]` A placeholder, for iestyn to replace with game-congruent art.
    *
    * `[F]` The first one was a ring with a square hole, which at this size read

@@ -10,7 +10,6 @@
 // here is ours. Both halves are lavender, separated only by hue: the part
 // already taken shifted towards blue, the part not yet taken towards red.
 
-import type { Player, Timeline } from "../../sim/types";
 import { CELL, FLOOR } from "./screen";
 import { tileOrigin, visitOfStop, type Grid, type Visit } from "./left";
 import type { Layout } from "./screen";
@@ -38,10 +37,6 @@ export interface TrailPoint {
   y: number;
 }
 
-function playerAt(timeline: Timeline, step: number): Player {
-  return step === 0 ? timeline.initial : timeline.steps[step - 1]!.player;
-}
-
 /**
  * One point per slider stop: where the player stands after that action.
  *
@@ -49,11 +44,8 @@ function playerAt(timeline: Timeline, step: number): Player {
  * builds its runs from stops rather than steps so that floors the route merely
  * walks through get no tile of their own.
  */
-export function trailPoints(timeline: Timeline, visits: Visit[], stops: number[]): TrailPoint[] {
-  return stops.map((step, i) => {
-    const p = playerAt(timeline, step);
-    return { visit: visitOfStop(visits, i), x: p.x, y: p.y };
-  });
+export function trailPoints(positions: ReadonlyArray<{ x: number; y: number }>, visits: Visit[]): TrailPoint[] {
+  return positions.map((p, i) => ({ visit: visitOfStop(visits, i), x: p.x, y: p.y }));
 }
 
 /**

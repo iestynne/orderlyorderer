@@ -12,7 +12,6 @@
 // says which is later on its own. Taking the stagger out is also what lets a
 // wide window hold three rows of floors instead of two.
 
-import type { Timeline } from "../../sim/types";
 import type { AtlasManifest } from "../../../tools/atlas/build";
 import { drawText, fontFrom } from "./atlas";
 import type { FloorCache } from "./floor";
@@ -36,7 +35,12 @@ export interface Visit {
  * A floor appears once per visit, so a floor the route returns to appears more
  * than once.
  *
- * `[D]` **Visits are derived from the slider's stops, not from every step.** A
+ * `[D]` **Visits are derived from where the player is at each stop**, not from
+ * every step. Past a failure that position is where the player *would* be — the
+ * document knows every action's target whether the simulator reached it or not —
+ * so the panel keeps showing floors instead of stopping dead at the break.
+ *
+ * `[D]` One tile per run of stops on a floor, not per step. A
  * route crosses floors it merely walks through on the way to the next action,
  * and those were getting a tile each — a column of floors the player never did
  * anything on, pushing the ones that matter off the panel. A visit is a maximal
@@ -44,14 +48,11 @@ export interface Visit {
  * acts on it. The trail still crosses the gap in one dashed segment, so the
  * walk-through reads as travel rather than vanishing.
  */
-export function computeVisits(timeline: Timeline, stops: number[]): Visit[] {
-  const floorAt = (step: number): number =>
-    step === 0 ? timeline.initial.z : timeline.steps[step - 1]!.player.z;
-
+export function computeVisits(positions: ReadonlyArray<{ z: number }>): Visit[] {
   const seen = new Map<number, number>();
   const visits: Visit[] = [];
-  stops.forEach((step, i) => {
-    const z = floorAt(step);
+  positions.forEach((p, i) => {
+    const z = p.z;
     const last = visits.at(-1);
     if (!last || last.z !== z) {
       const ordinal = (seen.get(z) ?? 0) + 1;
@@ -61,7 +62,7 @@ export function computeVisits(timeline: Timeline, stops: number[]): Visit[] {
       last.to = i + 1;
     }
   });
-  return visits.length > 0 ? visits : [{ z: timeline.initial.z, ordinal: 1, from: 0, to: 0 }];
+  return visits.length > 0 ? visits : [{ z: 1, ordinal: 1, from: 0, to: 0 }];
 }
 
 /** The visit a stop index belongs to. */
@@ -147,13 +148,21 @@ export interface Grid {
   y0: number;
 }
 
-/** How many tiles fit at this window size. */
-export function gridCapacity(layout: Layout): number {
-  const { cols, rows } = fit(layout);
+/**
+ * How many tiles fit beside the right panel.
+ *
+ * `[F]` `panelW` is not optional, and used to be. Defaulted to zero it
+ * measured the whole window, so a 3 x 3 grid was told ten floors would fit: the
+ * tenth had no cell at all — invisible, but still costing a stop on the slider
+ * — and the ninth landed on a fourth row that was mostly off the panel. Both
+ * callers now measure the same rectangle.
+ */
+export function gridCapacity(layout: Layout, panelW: number): number {
+  const { cols, rows } = fit(layout, panelW);
   return Math.max(1, cols * rows);
 }
 
-function fit(layout: Layout, panelW = 0): { cols: number; rows: number; w: number; h: number } {
+function fit(layout: Layout, panelW: number): { cols: number; rows: number; w: number; h: number } {
   const w = layout.w - panelW - PANEL_PAD * 2;
   const h = layout.h - GAP * 2;
   return {

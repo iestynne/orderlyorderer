@@ -8,6 +8,7 @@
 import type { Player, TowerJSON } from "../../sim/types";
 import type { AtlasManifest } from "../../../tools/atlas/build";
 import { drawText, fontFrom, type AtlasFontRef } from "./atlas";
+import * as C from "./palette";
 import { textWidth } from "../imagefont";
 import type { FloorCache } from "./floor";
 import { ACTIONS_W, PANEL_HEAD, PANEL_PAD, PANEL_W, SLIDER_W, STACK_W, type Layout } from "./screen";
@@ -175,7 +176,7 @@ export function drawRightPanel(
   const standard = fontFrom(manifest, "FONT_STANDARD");
   const digits = fontFrom(manifest, "FONT_DIGITS");
 
-  ctx.fillStyle = "#15151a";
+  ctx.fillStyle = C.PANEL;
   ctx.fillRect(x0 - PANEL_PAD, 0, PANEL_W + PANEL_PAD * 2, layout.h);
 
   // Two lines of header. `[I]` The word Power stays, to the right of the
@@ -189,6 +190,11 @@ export function drawRightPanel(
   // labels the current floor and every tile in the strip is captioned.
   drawText(ctx, sheet, standard, `${s.stop + 1}/${s.stopCount}`, x0, 17);
   drawStatus(ctx, sheet, manifest, digits, s, layout);
+
+  // `[I]` A line under the header, with air either side, so the two lines read
+  // as a heading rather than as the top of the slider.
+  ctx.fillStyle = C.DIVIDER;
+  ctx.fillRect(x0, PANEL_HEAD - 4, PANEL_W, 1);
 
   drawSlider(ctx, sheet, standard, s, layout);
   drawStack(ctx, floors, standard, sheet, s, layout);
@@ -239,7 +245,7 @@ function drawSlider(
 ): void {
   const g = sliderGeometry(layout);
   const mid = g.x + SLIDER_W / 2;
-  ctx.fillStyle = "#2a2a33";
+  ctx.fillStyle = C.TRACK;
   ctx.fillRect(mid - 2, g.y, 4, g.h);
 
   // `[I]` **The track is the verdict, and it starts green.** A save the game
@@ -248,15 +254,15 @@ function drawSlider(
   // tense instead (docs/UI.md §3) -- one of the two has to, and the track is
   // the one that pictures the whole route at once.
   const split = s.failedFrom === null ? g.y : Math.round(stopToY(s.failedFrom, s.stopCount, g));
-  ctx.fillStyle = "#5aa85a";
+  ctx.fillStyle = C.PASS;
   ctx.fillRect(mid - 2, split, 4, g.y + g.h - split);
   if (s.failedFrom !== null) {
-    ctx.fillStyle = "#a85a5a";
+    ctx.fillStyle = C.FAIL;
     ctx.fillRect(mid - 2, g.y, 4, Math.max(1, split - g.y));
   }
 
   // Ticks on the track mark where the route changes floor.
-  ctx.fillStyle = "#55556a";
+  ctx.fillStyle = C.DIVIDER;
   for (const t of s.ticks) ctx.fillRect(g.x + 2, Math.round(stopToY(t, s.stopCount, g)), SLIDER_W - 4, 1);
 
   // `[D]` The nub is an hourglass on its side, crossing the track at its waist:
@@ -265,7 +271,7 @@ function drawSlider(
   // ends give it something to grab.
   const cy = Math.round(stopToY(s.stop, s.stopCount, g));
   const half = SLIDER_W / 2;
-  ctx.fillStyle = "#cfc4ff";
+  ctx.fillStyle = C.LAVENDER;
   ctx.beginPath();
   ctx.moveTo(mid - half, cy - NUB_HALF_H);
   ctx.lineTo(mid + half, cy - NUB_HALF_H);
@@ -338,7 +344,7 @@ function drawStack(
 
     // Outline every floor, following the shear. Floors overlap on a tall tower,
     // so this is the only thing separating one from the next.
-    ctx.strokeStyle = current ? "#cfc4ff" : "#000";
+    ctx.strokeStyle = current ? C.LAVENDER : "#000";
     ctx.lineWidth = STACK_BORDER;
     const half = STACK_BORDER / 2;
     ctx.beginPath();
@@ -355,7 +361,7 @@ function drawStack(
       // own dark plate, since with the floors overlapping there is no clear air
       // to put it in.
       const w = textWidth(font, s.floorName);
-      ctx.fillStyle = "#15151a";
+      ctx.fillStyle = C.PANEL;
       ctx.fillRect(x0 + shear(0) - 2, top - 12, w + 4, 11);
       drawText(ctx, sheet, font, s.floorName, x0 + shear(0), top - 10);
     }

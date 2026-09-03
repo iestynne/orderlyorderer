@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { decodePng } from "../../src/mapdiff/png";
 import { convertValueStr, enemyTier, keyOf, labelOf, spriteFor, tileKeys } from "../../src/ui/render/atlas";
+import { ICONS } from "../../tools/atlas/icons";
 import { readImageFont, textWidth, type Rgba } from "../../src/ui/imagefont";
 import { buildAtlas, parseEntitySprites, FONTS, type AtlasManifest } from "../../tools/atlas/build";
 import { TOWER_IDS, type TowerJSON } from "../../tools/maps/types";
@@ -35,20 +36,21 @@ function fontImage(file: string): Rgba {
 }
 
 d("SPEC-007 §8 — the sprite atlas", () => {
-  it("packs 70 sprites: the game's, the marker, and the app's own four", () => {
+  it("packs the game's sprites, the marker, and the app's own icons", () => {
     const { manifest } = atlas();
     const rects = Object.entries(manifest.sprites);
-    // 65 sprite files, the one cell cut out of markers.png (the no-entry sign,
-    // for "the rules refuse this"), and the four icons the game has no art for.
-    expect(rects.length).toBe(70);
+    // 65 sprite files plus the one cell cut out of markers.png: the no-entry
+    // sign, for "the rules refuse this".
     const game = rects.filter(([name]) => !name.startsWith("icon_"));
     expect(game.length).toBe(66);
     expect(game.every(([, r]) => r.w === 16 && r.h === 16)).toBe(true);
-    // An icon's rect is its own size, not a padded cell: the runtime draws 9 or
-    // 11 px of it and nothing else.
+    // ...and one icon per pixel map, for the things the game has no art for.
     const icons = rects.filter(([name]) => name.startsWith("icon_"));
-    expect(icons.length).toBe(4);
-    expect(icons.every(([, r]) => r.w === r.h && r.w < 16)).toBe(true);
+    expect(icons.length).toBe(Object.keys(ICONS).length);
+    // An icon's rect is its own size, not a padded cell: the runtime draws 9 or
+    // 13 px of it and nothing else.
+    expect(icons.every(([, r]) => r.w === r.h && r.w <= 16)).toBe(true);
+    expect(rects.length).toBe(66 + icons.length);
   });
 
   // `[F]` The sheet's width is set by its widest bitmap font. At the 8 columns

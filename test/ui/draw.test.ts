@@ -33,6 +33,14 @@ const GAME_DIR = process.env["TOS_GAME_DIR"] ?? join(process.cwd(), "..", "local
 const ready = haveSaves && existsSync(join(GAME_DIR, "res"));
 const d = ready ? describe : describe.skip;
 
+/** Where the player stands at each stop, which is what the panel lays out. */
+function positionsOf(timeline: ReturnType<typeof simulate>, stops: number[]) {
+  return stops.map((step) => {
+    const p = step === 0 ? timeline.initial : timeline.steps[step - 1]!.player;
+    return { z: p.z, x: p.x, y: p.y };
+  });
+}
+
 /** Records what was asked of it and nothing else. Enough for "did it throw". */
 function stubCtx(): { ctx: any; calls: Record<string, number> } {
   const calls: Record<string, number> = {};
@@ -95,9 +103,9 @@ d("stage 3 — the draw path runs over real records", () => {
     expect(timeline.error).toBeUndefined();
 
     const stops = stopStepIndices(timeline, route.length);
-    const visits = computeVisits(timeline, stops);
-    const sets = computeWorkingSets(visits, gridCapacity(layout));
-    const points = trailPoints(timeline, visits, stops);
+    const visits = computeVisits(positionsOf(timeline, stops));
+    const sets = computeWorkingSets(visits, gridCapacity(layout, PANEL_W));
+    const points = trailPoints(positionsOf(timeline, stops), visits);
     expect(points.length).toBe(stops.length);
     // Every trail point names a visit that exists, on the floor the player is on.
     for (let i = 0; i < points.length; i++) {
@@ -142,8 +150,8 @@ d("stage 3 — the draw path runs over real records", () => {
     const route = routeFromRecord(rec);
     const timeline = simulate({ tower: save.tower, gemsOwned: Number.POSITIVE_INFINITY, route });
     const stops = stopStepIndices(timeline, route.length);
-    const visits = computeVisits(timeline, stops);
-    const sets = computeWorkingSets(visits, gridCapacity(layout));
+    const visits = computeVisits(positionsOf(timeline, stops));
+    const sets = computeWorkingSets(visits, gridCapacity(layout, PANEL_W));
 
     // 1-5 is three floors, so however much the route bounces between them it is
     // one set with three tiles -- where per-visit layout gave dozens.
@@ -166,7 +174,7 @@ d("stage 3 — the draw path runs over real records", () => {
           const timeline = simulate({ tower, gemsOwned: Number.POSITIVE_INFINITY, route });
           if (timeline.error) continue;
           const stops = stopStepIndices(timeline, route.length);
-          const visits = computeVisits(timeline, stops);
+          const visits = computeVisits(positionsOf(timeline, stops));
           const segs = computeWorkingSets(visits, cap);
           expect(segs[0]!.from).toBe(0);
           expect(segs.at(-1)!.to).toBe(visits.length);
@@ -190,7 +198,7 @@ d("stage 3 — the draw path runs over real records", () => {
         const timeline = simulate({ tower, gemsOwned: Number.POSITIVE_INFINITY, route });
         if (timeline.error) continue;
         const stops = stopStepIndices(timeline, route.length);
-        const visits = computeVisits(timeline, stops);
+        const visits = computeVisits(positionsOf(timeline, stops));
         expect(visits[0]!.from).toBe(0);
         expect(visits.at(-1)!.to).toBe(stops.length);
         for (let i = 1; i < visits.length; i++) {

@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { abbreviate } from "../../src/ui/render/actions";
 import { gridCapacity, gridFor, tileOrigin } from "../../src/ui/render/left";
 import {
   CAPTION,
@@ -86,11 +87,29 @@ describe("SPEC-007 §8 — named geometry", () => {
     expect(Math.abs(left - PANEL_PAD - (layout.w - PANEL_W - PANEL_PAD - right))).toBeLessThanOrEqual(1);
   });
 
+  // `[F]` The capacity and the layout must measure the same rectangle. They did
+  // not: capacity took the whole window, so a 3 x 3 grid was handed ten floors
+  // and the tenth had no cell to be drawn in at all.
+  it("every tile the capacity promises has a cell inside the panel", () => {
+    const s = { pixelPerfect: true, linearFilter: false, zoom: "auto" as const };
+    const sizes: Array<[number, number]> = [[1280, 720], [1920, 1080], [2560, 1440], [800, 600], [3840, 1200]];
+    for (const [w, h] of sizes) {
+      const layout = layoutFor(w, h, s);
+      const n = gridCapacity(layout, PANEL_W);
+      const grid = gridFor(layout, PANEL_W, n);
+      const last = tileOrigin(grid, n - 1);
+      expect(last.x + FLOOR, `${w}x${h} right edge`).toBeLessThanOrEqual(layout.w - PANEL_W - PANEL_PAD);
+      expect(last.y + tileHeight(), `${w}x${h} bottom edge`).toBeLessThanOrEqual(layout.h);
+      expect(tileOrigin(grid, 0).x).toBeGreaterThanOrEqual(PANEL_PAD);
+      expect(tileOrigin(grid, 0).y).toBeGreaterThanOrEqual(0);
+    }
+  });
+
   it("at least three tiles fit, and a wider window fits more", () => {
     const s = { pixelPerfect: true, linearFilter: false, zoom: "auto" as const };
-    expect(gridCapacity(layoutFor(400, 300, s))).toBeGreaterThanOrEqual(MIN_TILES);
-    const narrow = gridCapacity(layoutFor(1280, 720, s));
-    const wide = gridCapacity(layoutFor(3840, 720, s));
+    expect(gridCapacity(layoutFor(400, 300, s), PANEL_W)).toBeGreaterThanOrEqual(MIN_TILES);
+    const narrow = gridCapacity(layoutFor(1280, 720, s), PANEL_W);
+    const wide = gridCapacity(layoutFor(3840, 720, s), PANEL_W);
     expect(narrow).toBeGreaterThanOrEqual(MIN_TILES);
     expect(wide).toBeGreaterThan(narrow);
   });
@@ -124,6 +143,31 @@ describe("SPEC-007 §8 — named geometry", () => {
     expect(powerToString(1000)).toBe("1.000");
     expect(powerToString(1000007)).toBe("1.000.007");
     expect(powerToString(999999999999)).toBe("999.999.999.999");
+  });
+});
+
+// docs/UI.md §6. A deficit is the useful half of a failure report -- "21 gold
+// short" rather than "not enough gold" -- so the number has to be readable at
+// a glance, and Power reaches twelve digits.
+describe("a deficit, four significant figures", () => {
+  it("is exact below ten thousand", () => {
+    expect(abbreviate(-21)).toBe("-21");
+    expect(abbreviate(-1234)).toBe("-1234");
+    expect(abbreviate(-9999)).toBe("-9999");
+  });
+
+  it("abbreviates above it, with the game's own suffixes", () => {
+    expect(abbreviate(-23456)).toBe("-23.46k");
+    expect(abbreviate(-10000)).toBe("-10k");
+    expect(abbreviate(-123456)).toBe("-123.5k");
+    expect(abbreviate(-1234567)).toBe("-1.235M");
+    expect(abbreviate(-1234567890)).toBe("-1.235G");
+  });
+
+  it("never spends more than seven characters on it", () => {
+    for (const n of [-1, -9999, -10000, -99999, -999999, -1e6, -1e9, -999999999999]) {
+      expect(abbreviate(n).length, String(n)).toBeLessThanOrEqual(7);
+    }
   });
 });
 
