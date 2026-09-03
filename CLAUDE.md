@@ -35,6 +35,14 @@ docs, before any tool call that touches the repository:
 
 Normalize the answer to lowercase kebab-case (`[a-z0-9-]`). That is `<WTTN>`.
 
+**The name is the assignment, not a label.** Infer the task from it and do that
+task: `TODO.md` §A is a shared list, and its "next, in order" is not this
+session's instruction — the numbered item above yours probably belongs to
+another session. **If the name does not make the task clear, ask before
+starting** rather than picking. Two sessions once both took §A item 1, and git
+merged the duplicate work cleanly by keeping one approach whole and silently
+dropping the other. D43.
+
 *Exception:* a read-only session — questions, explanation, no file changes —
 says so and reads from `../git/` without writing. The moment an edit is
 wanted, stop and ask.
