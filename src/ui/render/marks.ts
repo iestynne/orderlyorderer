@@ -48,6 +48,16 @@ export interface Icons {
   noEntry: HTMLCanvasElement | null;
   /** The break, on the slider: the game's own exclamation. */
   exclaim: HTMLCanvasElement | null;
+  /**
+   * The same, for when the pointer is on it.
+   *
+   * `[I]` It is the one mark in the app that is also a control — it seeks to
+   * the break — and nothing said so. Brightening rather than outlining, because
+   * an outline here would be a fourth kind of rectangle on a panel that already
+   * has three, and because the colour is the thing that means *failure*: it
+   * should get hotter, not get a box.
+   */
+  exclaimHot: HTMLCanvasElement | null;
   arrow: HTMLCanvasElement | null;
   /** `[F]` The game tints the player, and so does everywhere we draw it (D26). */
   player: HTMLCanvasElement | null;
@@ -68,6 +78,7 @@ export function bakeIcons(manifest: AtlasManifest, sheet: CanvasImageSource): Ic
     cogOpen: tint(manifest, sheet, "icon_cog", "#15151a"),
     noEntry: tint(manifest, sheet, "no_entry", C.REFUSED),
     exclaim: tint(manifest, sheet, "exclaim", C.FAIL_BRIGHT),
+    exclaimHot: tint(manifest, sheet, "exclaim", C.FAIL_HOT),
     arrow: tint(manifest, sheet, "icon_arrow", C.FAIL_BRIGHT),
     player: tint(manifest, sheet, "player", C.PLAYER_TINT),
     deficit: inkFont(manifest, sheet, "FONT_DIGITS", C.SHORTFALL),
@@ -192,7 +203,9 @@ export function drawHelpButton(
   ctx.strokeStyle = open ? C.LAVENDER : C.LINE;
   ctx.lineWidth = 1;
   ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
-  drawText(ctx, sheet, font, "?", b.x + 6, b.y + 4);
+  // `[F]` Two left and one up from where it was: the glyph is not as wide as the
+  // cell it is measured against, so centring the cell did not centre the mark.
+  drawText(ctx, sheet, font, "?", b.x + 4, b.y + 3);
 }
 
 export interface Toggle {

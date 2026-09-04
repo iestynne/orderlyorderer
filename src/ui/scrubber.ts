@@ -68,6 +68,9 @@ export interface ScrubberSettings extends ScreenSettings {
   perf: boolean;
 }
 
+/** How far left of the slider the break mark sits, clear of the track it marks. */
+const MARK_LEFT = 6;
+
 /** What clicking the hovered cell would do. */
 type HoverKind = "action" | "invalid" | "none";
 
@@ -489,9 +492,20 @@ export class Scrubber {
    */
   private drawFailureMarker(layout: Layout): void {
     const at = this.session.failedFrom;
-    if (at === null || this.icons.exclaim === null) return;
+    if (at === null) return;
+    const icon = this.overFailureMark ? this.icons.exclaimHot : this.icons.exclaim;
+    if (icon === null) return;
     const b = this.failureHitbox(layout, at);
-    this.screen.ctx.drawImage(this.icons.exclaim, b.x, b.y);
+    this.screen.ctx.drawImage(icon, b.x, b.y);
+  }
+
+  /** Whether the pointer is on the break mark, which is a control as well as a mark. */
+  private get overFailureMark(): boolean {
+    const at = this.session?.failedFrom;
+    if (at === null || at === undefined || this.pointer === null) return false;
+    const b = this.failureHitbox(this.screen.layout, at);
+    const p = this.pointer;
+    return p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
   }
 
   private toggles(): Array<{ label: string; on: boolean }> {
@@ -519,9 +533,15 @@ export class Scrubber {
     "S              screenshot",
   ];
 
+  /**
+   * `[F]` **Beside the track, not on it.** Centred on the slider the mark sat on
+   * the red stretch it marks — always, since the red starts exactly there — so a
+   * red glyph was asked to read against red. Six pixels left clears the track
+   * and leaves it inside the panel's own padding.
+   */
   private failureHitbox(layout: Layout, at: number): { x: number; y: number; w: number; h: number } {
     const g = sliderGeometry(layout);
-    return { x: g.x, y: Math.round(stopToY(at, this.stops.length, g)) - 8, w: 16, h: 16 };
+    return { x: g.x - MARK_LEFT, y: Math.round(stopToY(at, this.stops.length, g)) - 8, w: 16, h: 16 };
   }
 
   /**
@@ -838,8 +858,9 @@ export class Scrubber {
       }
       const p = logical(e.clientX, e.clientY);
       const was = this.hoverRow;
+      const wasOnMark = this.overFailureMark;
       this.pointer = p;
-      if (this.hoverRow !== was) this.dirty = true;
+      if (this.hoverRow !== was || this.overFailureMark !== wasOnMark) this.dirty = true;
       if (this.draggingList) {
         // The rows stay where they were when the drag began; the current action
         // becomes whichever of them the cursor is over, and the pin moves with

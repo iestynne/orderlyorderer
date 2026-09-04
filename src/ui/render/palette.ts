@@ -29,12 +29,22 @@ export const PASS = "#5aa85a";
 export const FAIL = "#a85a5a";
 /** The failing action itself, which has to be findable at a glance. */
 export const FAIL_BRIGHT = "#ff5a5a";
+/** ...and the same mark with the pointer on it, the one that is also a button. */
+export const FAIL_HOT = "#ffc0c0";
 /** The game's own no-entry sign, tinted. */
 export const REFUSED = "rgb(190, 40, 40)";
 /** An unticked enable box, filled so it reads as off rather than as blank. */
 export const DISABLED_FILL = "#7a3030";
-/** A deficit badge: the number you are short. */
-export const SHORTFALL = "#e04040";
+/**
+ * A deficit badge: the number you are short.
+ *
+ * `[F]` **Brighter than the other reds, and it has to be.** This one is *ink*,
+ * not a fill: the glyphs carry their own black outline, so the colour is asked
+ * to separate from black at the width of one pixel. At #e04040 it did not, and
+ * the number read as a dark smudge. A fill has no such job, which is why FAIL
+ * and FAIL_BRIGHT can be darker than this and still read.
+ */
+export const SHORTFALL = "#ff7676";
 
 /**
  * An added action.

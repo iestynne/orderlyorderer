@@ -76,9 +76,11 @@ the final position. Ticks mark floor changes; a counter reads which action you
 are on. The handle is an hourglass on its side, crossing the track at its waist:
 wide enough to grab, pinched so it never hides its tick. **The track is the
 verdict**: green the whole way from a clean load, turning red from the action an
-edit has broken, with an **exclamation** on it — which clicks through to it.
-The no-entry sign means something else here: *the rules refuse this*, which is
-a hovered cell's answer, not the slider's.
+edit has broken. An **exclamation** sits beside the break — left of the track,
+not on it, since the red it marks starts exactly there — and brightens under
+the pointer, because it is also the control that seeks to it. The no-entry sign
+means something else here: *the rules refuse this*, which is a hovered cell's
+answer, not the slider's.
 
 **Tower stack.** The whole tower as a vertical stack of floors, each squashed
 and raked over at **2:1**, reusing the timeline's floor images so the two agree.
