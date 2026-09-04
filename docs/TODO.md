@@ -63,7 +63,7 @@ own capture control: press `S` or the button, share the PNG.
 
 ## A7. Open corrections — the editing UI, by eye
 
-`[I]` iestyn, five rounds of looking at it. **This section is the branch's, not
+`[I]` iestyn, six rounds of looking at it. **This section is the branch's, not
 the project's: delete it when `session-route-edit-implementation` merges.** It
 exists so the work survives a session boundary — a commit log says what landed,
 never what is still wrong.
@@ -90,6 +90,17 @@ never what is still wrong.
 8. **The slider's failure mark should be the exclamation sprite**, not the drawn
    no-entry sign — `markers.png`, 8 columns by 4 rows of equal squares, column
    5 of row 4.
+9. **The action counters are drawn twice**, one copy offset vertically from the
+   other — current/total in the action list header.
+10. **The divider under the player status wants one more pixel down.**
+11. **The tower stack is still truncated on its left**, overlapped by the action
+    list by a couple of pixels.
+12. **Contrast-reduce the non-current floors in the stack.** e.g. blend 50% grey
+    over them at 50%: (a) raises the contrast of the black outline, (b) drops
+    visual noise, (c) separates floor contents from the dark panel background.
+13. **Clicking in the action list selects the wrong row.** Hover brightens the
+    right one; the click lands offset by the delta between the newly clicked
+    action and the previously clicked one.
 
 ## A5. The two scrubber performance faults — fixed 2026-09-01
 
