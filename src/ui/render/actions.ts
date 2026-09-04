@@ -40,13 +40,24 @@ export const ROW_H = 18;
  */
 const NUM_W = 20;
 const SLOT = 17;
-/** The spent slot holds a deficit number as well as an icon, so it is wider. */
-const SPENT_W = 30;
+/**
+ * The spent slot.
+ *
+ * `[F]` A slot and a pixel, like the others: the deficit number it also carries
+ * is drawn where an entity's value badge goes, which is *inside* the sprite's
+ * own 16 px. At 30 it pushed the held item out under the enable box.
+ */
+const SPENT_W = 18;
 /** Where each column starts, relative to the row's left edge. */
 const SPENT_X = NUM_W + 2;
 const CELL_X = SPENT_X + SPENT_W;
 const GOLD_X = CELL_X + SLOT;
 const HELD_X = GOLD_X + SLOT;
+
+/** Where the last column ends, so a test can check nothing runs under the box. */
+export function lastColumnEnd(): number {
+  return HELD_X + 16;
+}
 
 /** The card under a floor drops the number, so it starts a column earlier. */
 export const CARD_W = ACTIONS_W - NUM_W - 2;
@@ -95,10 +106,26 @@ export function rowTop(pinY: number, offset: number): number {
   return pinY - offset * ROW_H;
 }
 
+/**
+ * The offset whose row contains `y`.
+ *
+ * `[F]` Row `offset` spans `[pinY - offset*ROW_H, ... + ROW_H)`, so the offset
+ * containing a point is the **ceiling** of the distance above the pin, not the
+ * floor of it. It was the floor, which named the row below the one the pointer
+ * was in -- everywhere except the drag, which had its own arithmetic and so hid
+ * the fault. One function now, used by both.
+ */
+export function offsetOfY(pinY: number, y: number): number {
+  // Written as a floor of the shifted distance rather than a ceiling of the
+  // plain one: the two agree on every row, but the ceiling hands back -0 for
+  // the foot of row 0, which compares equal to 0 and is not the same value.
+  return Math.floor((pinY - y + ROW_H - 1) / ROW_H);
+}
+
 /** Which offset a point is over, or null when it is outside the list. */
 export function offsetAt(g: ActionListGeometry, pinY: number, x: number, y: number): number | null {
   if (x < g.x || x > g.x + g.w || y < g.y || y >= g.y + g.h) return null;
-  return Math.floor((pinY + ROW_H - y) / ROW_H) - 1;
+  return offsetOfY(pinY, y);
 }
 
 /** The checkbox of a row, for hit-testing a toggle. */

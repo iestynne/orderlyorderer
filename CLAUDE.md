@@ -34,6 +34,7 @@ docs, before any tool call that touches the repository:
 > What is the work-tree topic name for this session?
 
 Normalize the answer to lowercase kebab-case (`[a-z0-9-]`). That is `<WTTN>`.
+**A name whose worktree already exists is a resume, not a new task** — step 4a.
 
 **The name is the assignment, not a label.** Infer the task from it and do that
 task: `TODO.md` §A is a shared list, and its "next, in order" is not this
@@ -63,7 +64,9 @@ If `../git-<WTTN>/` already exists, reuse it.
 transforms the module — rebuilding `build/atlas.png` does not invalidate that,
 and `npm run build` writes over it. A server left running afterwards draws with
 a stale or missing sheet, which looks like the app rendering black. Kill it and
-`npm run dev` again; do not debug the black screen.
+`npm run dev` again; do not debug the black screen. **Then ask iestyn to hard-
+reload the tab** (Ctrl+Shift+R) and give him the URL: restarting the server does
+nothing to what his browser already holds, and he is the only one who can.
 
 **3. Work there, and only there.** Never edit a file under `../git/`.
 
@@ -77,6 +80,26 @@ So when `npm test` and `npm run typecheck` pass, **report and wait.** Say what
 is on the branch, what still needs an eye, and how to look at it —
 `npm run dev` in the worktree, and the URL it prints. **Restart that server
 first if anything has been built since it started** (step 2). Do not merge.
+
+**4a. Suspend rather than run the context out.** A session is re-sent whole on
+every turn, so a long one costs more per turn the further it goes, and a task
+worth several rounds of review will outlive one context. Suspending is cheap —
+but only if the state is in the repository first, because a fresh session gets
+the branch, the docs and the code, and nothing else. Before stopping:
+
+- **Commit everything**, broken states included (Hard rules).
+- **Write down what is still wrong**, in `docs/TODO.md` §A: a numbered section,
+  one line each, marked as the branch's own and deleted when it merges. The
+  commit log says what landed. It never says what is outstanding, and that is
+  the half only this session holds.
+- **Rationale belongs in the code**, as `[I]`/`[F]` comments beside what it
+  explains. That survives a session boundary on its own; a chat log does not.
+
+Resuming is step 1 with the same `<WTTN>`. The worktree already exists so step 2
+reuses it, and the session starts from that §A section rather than from the
+branch's diff. Run `npm ci` and `npm run build-atlas` anyway — `node_modules/`
+and `build/` are gitignored — and start a dev server of your own; the port the
+last session reported is not yours.
 
 **5. Merge back only when iestyn says so.** Conflicts are resolved in the
 worktree; `main` only ever fast-forwards.

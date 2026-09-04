@@ -38,6 +38,7 @@ import {
   drawActionCard,
   drawActionList,
   offsetAt,
+  offsetOfY,
   rowTop,
   slotCount,
   type ActionListGeometry,
@@ -766,7 +767,7 @@ export class Scrubber {
         // becomes whichever of them the cursor is over, and the pin moves with
         // it so the highlight is under the pointer rather than beside it.
         const g0 = this.listGeometry();
-        const steps = Math.floor((this.dragFrom.y + ROW_H - p.y) / ROW_H);
+        const steps = offsetOfY(this.dragFrom.y, p.y);
         this.pinY = clampPinY(g0, this.dragFrom.y - steps * ROW_H);
         this.seek(this.dragFrom.stop + steps);
         return;

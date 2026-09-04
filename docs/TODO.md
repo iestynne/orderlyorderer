@@ -11,12 +11,12 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 
 **SPEC-007 and SPEC-008 are both built** — 308 tests green (`STATUS.md`). The
 scrubber has had four rounds of visual review and its performance faults are
-fixed and confirmed by eye (§A5); **the editing UI has had no rounds at all.**
-The top of this list needs a browser, and so needs iestyn:
+fixed and confirmed by eye (§A5). The **editing UI has now had five rounds**,
+and what each round found is fixed except the eight in §A7. The top of this
+list needs a browser, and so needs iestyn:
 
-1. **Look at the editing UI.** D24a is its only judge, and the **Action List**
-   is what it has to judge: its width, how many rows it wants, and how a
-   disabled action should be ghosted. `docs/UI.md` §7.
+1. **Finish §A7**, then look again. D24a is the editing UI's only judge and it
+   has not passed yet. `docs/UI.md` §7.
 2. **Floor entry thresholds — the *number*.** Skippable segments are the
    predicate; what is left is a search over it.
 3. **The two open pieces of editing UX** — §A6.
@@ -55,11 +55,41 @@ longer eats the slider's height — but move its contents somewhere better and i
 need not be a strip at all.
 
 `[O]` **All three budgeted docs are over D31's 150** — `UI.md` 170,
-`STATUS.md` and this one about 155. What is over is behaviour and outstanding
+`STATUS.md` about 155, this one about 195 while §A7 lives here. What is over is behaviour and outstanding
 work, not padding. Either the budget moves or something leaves the docs.
 
 `[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
 own capture control: press `S` or the button, share the PNG.
+
+## A7. Open corrections — the editing UI, by eye
+
+`[I]` iestyn, five rounds of looking at it. **This section is the branch's, not
+the project's: delete it when `session-route-edit-implementation` merges.** It
+exists so the work survives a session boundary — a commit log says what landed,
+never what is still wrong.
+
+1. **The `+` badge is transparent inside.** It should be opaque black, so the
+   lavender outline underneath does not show through the glyph. It overlaps the
+   slider and must draw **on top** of it, which means outside the list's clip.
+2. **An inserted action draws the player in the wrong square.** The outline in
+   the left panel is drawn around the recorded `from`, which is where the player
+   stood after the *previous* action; it belongs where the auto-pather puts them
+   immediately before this one, adjacent to the target tile.
+3. **Two rectangles where there should be one.** `drawTarget` still strokes its
+   own accent rect around the target cell, inside the box that already covers
+   both squares — it reads as a divider down the middle of the outer box.
+4. **A failed action's deficit numbers are not red.** They have a red rectangle
+   behind them, which is not the same thing: the digits' own white pixels want
+   tinting, the black and transparent ones left alone. Bake a red-inked copy of
+   the font and draw from that.
+5. **The failure outlines cover the badges.** The thin lines around the failed
+   action and the failed span draw over enemy value badges and deficit badges.
+   Badges go last, in a pass of their own.
+6. **The help `?` box is clipped** by the left edge of the right panel.
+7. **The help panel's text spills off its right side.**
+8. **The slider's failure mark should be the exclamation sprite**, not the drawn
+   no-entry sign — `markers.png`, 8 columns by 4 rows of equal squares, column
+   5 of row 4.
 
 ## A5. The two scrubber performance faults — fixed 2026-09-01
 

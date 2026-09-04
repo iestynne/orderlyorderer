@@ -55,7 +55,7 @@ export const SLIDER_W = 16;
  * and the enable box hard right. It was 128 while the toggles floated at the
  * right edge with thirty pixels of nothing before them.
  */
-export const ACTIONS_W = 100;
+export const ACTIONS_W = 104;
 export const STACK_W = 232;
 /**
  * `[F]` **The status column is gone.** Power leads on its own line across the

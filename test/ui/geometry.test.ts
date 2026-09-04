@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { abbreviate } from "../../src/ui/render/actions";
+import { ROW_H, abbreviate, lastColumnEnd, offsetOfY, rowTop } from "../../src/ui/render/actions";
 import { gridCapacity, gridFor, tileOrigin } from "../../src/ui/render/left";
 import {
   CAPTION,
@@ -16,7 +16,6 @@ import {
   FLOOR,
   GAP,
   MIN_TILES,
-
   ACTIONS_W,
   PANEL_PAD,
   PANEL_W,
@@ -64,7 +63,7 @@ describe("SPEC-007 §8 — named geometry", () => {
   // gone entirely and the stack runs to the panel's right edge.
   it("the panel is its three columns and nothing else", () => {
     expect(SLIDER_W + ACTIONS_W + STACK_W).toBe(PANEL_W);
-    expect(PANEL_W).toBe(348);
+    expect(PANEL_W).toBe(352);
   });
 
   it("tiles fill the panel in reading order, and the block is centred", () => {
@@ -167,6 +166,28 @@ describe("a deficit, four significant figures", () => {
   it("never spends more than seven characters on it", () => {
     for (const n of [-1, -9999, -10000, -99999, -999999, -1e6, -1e9, -999999999999]) {
       expect(abbreviate(n).length, String(n)).toBeLessThanOrEqual(7);
+    }
+  });
+});
+
+// docs/UI.md §6. The list's columns are at fixed offsets so nothing shuffles
+// when an icon is missing -- which also means a column that outgrows its share
+// silently runs under the one after it. The held item ran under the enable box.
+describe("the action list's columns", () => {
+  it("all fit before the enable box", () => {
+    expect(lastColumnEnd()).toBeLessThanOrEqual(ACTIONS_W - 12);
+  });
+
+  // `[F]` Row `offset` spans [pinY - offset*ROW_H, ... + ROW_H). Reading a
+  // point back has to be the CEILING of the distance above the pin; it was the
+  // floor, which named the row below the one the pointer was in and so broke
+  // every checkbox in the list. The drag had its own arithmetic and hid it.
+  it("reads back the row a point is in", () => {
+    const pinY = 200;
+    for (const offset of [-3, -1, 0, 1, 5]) {
+      const top = rowTop(pinY, offset);
+      expect(offsetOfY(pinY, top), `top of ${offset}`).toBe(offset);
+      expect(offsetOfY(pinY, top + ROW_H - 1), `foot of ${offset}`).toBe(offset);
     }
   });
 });
