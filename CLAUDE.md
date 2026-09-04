@@ -58,6 +58,13 @@ npm run build-atlas       # build/ is gitignored; typecheck fails without it
 
 If `../git-<WTTN>/` already exists, reuse it.
 
+**Restart the dev server after every build.** `[F]` The atlas is imported
+`?inline` (SPEC-007 §6.1), so Vite bakes it into the module graph when it
+transforms the module — rebuilding `build/atlas.png` does not invalidate that,
+and `npm run build` writes over it. A server left running afterwards draws with
+a stale or missing sheet, which looks like the app rendering black. Kill it and
+`npm run dev` again; do not debug the black screen.
+
 **3. Work there, and only there.** Never edit a file under `../git/`.
 
 **4. Stop, and hand the branch over.** Green tests are necessary and are not
@@ -68,7 +75,8 @@ session builds on.
 
 So when `npm test` and `npm run typecheck` pass, **report and wait.** Say what
 is on the branch, what still needs an eye, and how to look at it —
-`npm run dev` in the worktree, and the URL it prints. Do not merge.
+`npm run dev` in the worktree, and the URL it prints. **Restart that server
+first if anything has been built since it started** (step 2). Do not merge.
 
 **5. Merge back only when iestyn says so.** Conflicts are resolved in the
 worktree; `main` only ever fast-forwards.
