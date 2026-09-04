@@ -61,7 +61,7 @@ src/ui/...                  behaviour in docs/UI.md
 ```
 
 `[D]` Route editing lives **inside `src/sim/`**, so D7's no-UI-import rule and
-D34's no-`ScrollUnit` test already cover it. `[F]` D34's own table places route
+D34's no-`WorkingSet` test already cover it. `[F]` D34's own table places route
 segments in `src/sim/`; a sibling `src/route/` would have sat outside both
 guards. `src/store/` is the one module that touches a browser API, and it holds
 no logic.

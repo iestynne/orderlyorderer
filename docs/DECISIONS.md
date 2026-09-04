@@ -682,16 +682,17 @@ session at the same time — so nothing in either place would have caught it.
 
 `[D]` The two are kept apart by layer, not by care:
 
-| | Route segment | Scroll unit |
+| | Route segment | Working set |
 |---|---|---|
 | Owns | `SPEC-008`, `src/sim/` | `docs/UI.md`, `src/ui/render/` |
-| Made of | route waypoints the player groups and names | floors that happen to fit the strip |
+| Made of | route waypoints the player groups and names | floors that happen to fit the panel |
 | Lifetime | persists; affects save state and simulation | recomputed whenever the window resizes |
 | Survives a resize | yes | no, and that is the point |
 
 `[D]` Invariant 5 already forbids `src/sim/` from importing the UI, so the
 dependency cannot run the wrong way. What that does not catch is the *word*
-leaking back down, so a test asserts `src/sim/` never mentions `ScrollUnit`.
+leaking back down, so a test asserts `src/sim/` never mentions `WorkingSet`.
+(It was `ScrollUnit` while the panel scrolled; the name went with the behaviour.)
 
 **The finding worth keeping.** `UI.md` §6 deferred smart layout for wanting a
 tuning parameter — "how much oscillation should count" — and that parameter

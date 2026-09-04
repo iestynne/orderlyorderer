@@ -86,7 +86,7 @@ function colour(past: boolean, fade: number): string {
  * and the present is never buried.
  *
  * "Segment" here means a segment of the drawn LINE — one hop between two
- * consecutive stops. It is not a `ScrollUnit`, and it is not one of the
+ * consecutive stops. It is not a `WorkingSet`, and it is not one of the
  * user-named route segments of `DESIGN_ROUTE_EDITING.md` §4 either.
  */
 export function drawTrail(
@@ -104,7 +104,7 @@ export function drawTrail(
     if (!a || !b) return;
     const sa = slotOf(a, visits, unit);
     const sb = slotOf(b, visits, unit);
-    // A point in another scroll unit has no tile on screen, so that hop of the
+    // A point in another working set has no tile on screen, so that hop of the
     // trail is simply not drawn.
     if (sa === null || sb === null) return;
     const p = centre(sa, a, grid);

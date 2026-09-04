@@ -18,6 +18,21 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
 1. **Look at §A7 again — round seven.** All thirteen are fixed and none is
    confirmed. D24a is the editing UI's only judge and it has not passed yet.
    `docs/UI.md` §7.
+1a. **A refactor-and-review task, then make it the last stage of every task.**
+   `[I]` iestyn, 2026-09-04, after two doc/code disagreements surfaced in one
+   session (§A8). **Code is authoritative, because it *is* the behaviour;** a
+   paragraph explaining a few lines can only be ≤ as accurate as the lines.
+   So: docs are a summary with brief references into the code that let a
+   fresh context zoom in — never prose that re-explains what the code says
+   better. That in turn wants the code organised so a few references land:
+   tight bundles of functionality, not concepts sprinkled through files. And
+   a **review stage** at the end of every task: walk every diff hunting
+   doc-vs-code and doc-vs-doc inconsistency, which reference-centric docs
+   make greppable — the terms cluster near the reference and nowhere else.
+   Minimise code length, maximise conceptual locality, make every doc
+   minimal, consistent and reference-centric. Use Fable for it. `[D]` This
+   **inverts CLAUDE.md's "docs are canonical; code is derived"** and D31's
+   framing; taking the task means settling that rule, not working around it.
 2. **Floor entry thresholds — the *number*.** Skippable segments are the
    predicate; what is left is a search over it.
 3. **The two open pieces of editing UX** — §A6.
@@ -55,9 +70,11 @@ bottom because of what is in it, and it stops at the left panel now so it no
 longer eats the slider's height — but move its contents somewhere better and it
 need not be a strip at all.
 
-`[O]` **All three budgeted docs are over D31's 150** — `UI.md` 170,
-`STATUS.md` about 155, this one about 195 while §A7 lives here. What is over is behaviour and outstanding
-work, not padding. Either the budget moves or something leaves the docs.
+`[D]` **`UI.md` stays over D31's 150 on purpose, at 185.** iestyn, 2026-09-04:
+§6 will split when the **segment-editing spec** is written — that code stays
+but is not under test now and will be iterated heavily in its own task — and
+an over-long doc is the reminder that the split is owed. `STATUS.md` and this
+file are over too, with §A7 and §A8 living here until the branch merges.
 
 `[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
 own capture control: press `S` or the button, share the PNG.
@@ -117,6 +134,20 @@ stored answer a question it was not the answer to.
 13. **Clicking in the action list selects the wrong row.** Hover brightens the
     right one; the click lands offset by the delta between the newly clicked
     action and the previously clicked one.
+
+## A8. Two doc/code disagreements, found 2026-09-04
+
+`[F]` Both caught by hand while compressing `UI.md`; neither by any test, and
+nothing would have. This is the evidence for §A.1a.
+
+- **`UI.md` §4 described a status *column* down the panel's right edge.** The
+  column was deleted when Power moved to its own line (`screen.ts`, `PANEL_W`),
+  and the items are drawn on one line under it. Fixed in the same compression.
+- **Three docs and two comments still said `ScrollUnit`** — `CLAUDE.md`, D34's
+  table, SPEC-008 §, `trail.ts` — after the code and its own test had renamed
+  it `WorkingSet`. Fixed 2026-09-04; iestyn ratified the name, and the §7
+  question about a unit narrower than the screen went with it: nothing
+  scrolls, and current behaviour speaks for itself.
 
 ## A5. The two scrubber performance faults — fixed 2026-09-01
 

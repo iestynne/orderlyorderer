@@ -143,7 +143,7 @@ and ask.
   encodes. D33.
 - **Before naming a new type, check the word is free.** `grep` the docs for it.
   "Segment" already belonged to route editing when the UI grew a `Segment`;
-  it is `ScrollUnit` now. A view concept and a simulation concept must never
+  it is `WorkingSet` now. A view concept and a simulation concept must never
   share a word. D34.
 - **Less code is better.** Refactor toward smaller as part of the task, not as
   follow-up work. D11.
