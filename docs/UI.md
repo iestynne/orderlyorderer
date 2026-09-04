@@ -24,8 +24,10 @@ ones, those names being the player's own index. A record using orbs is listed
 but not openable, and says why. The tower comes from the filename; if that names
 no tower we know, the app asks. An `.ord` names its own tower, and is asked
 which route only when it holds more than one. Choosing one replaces the empty
-state with the two panels, over a toolbar: close, save `.ord`, export `.sav`, a
-**screenshot** button writing the exact 1× frame to a PNG, and the keys.
+state with the two panels, over a toolbar: back to the records, the route's
+name, save `.ord`, export `.sav`, and a **screenshot** button writing the exact
+1× frame to a PNG. Going back returns to the record list, not to the file
+picker: choosing another record from the same save is the common next thing.
 
 ## 2. Timeline panel
 
@@ -98,8 +100,9 @@ omits them too.
 A **divider** runs under the two header lines, so they read as a heading rather
 than as the top of the slider.
 
-**Settings.** Behind a cog at the top-right of the left panel. It draws over
-everything, and a click anywhere off it closes it and does nothing else.
+**Help.** Behind a **?** at the top-right of the left panel: the keys, and the
+two options. It draws over everything, and a click anywhere off it closes it and
+does nothing else.
 
 ## 5. Presentation
 
@@ -130,36 +133,42 @@ the wheel moves the selection from anywhere on screen, so the pointer can
 already be over the tile you mean to click.
 
 **Every edit happens at the current action**, which is why there are no modes.
+The route's name sits in the toolbar and can be edited there: what was imported
+is named for a save slot, and what the player builds is theirs to name.
 
 - A row's checkbox switches its action off. Unticked it fills dim red, so a
   disabled action can be found by scanning the column; the row greys out but
   keeps its number and its place on the slider, and scrubs through unchanged.
 - **Inserting is a click on a floor cell**, and it lands directly after the
-  current action. A slot for it is always held open there, so nothing jumps as
-  the pointer moves; hovering a cell shows the `+` badge on it and drops a
-  greyed preview into the slot. A cell that implies no action shows nothing at
-  all; one the rules would refuse shows the **no-entry sign**.
+  current action. Hovering a cell shows the `+` badge on it and a preview row
+  offset up and to the right of the current one — where it would land — outlined
+  in the **blue** that means *the player added this*, green being taken by *the
+  route passes*. A cell that implies no action shows nothing at all; one the
+  rules would refuse shows the **no-entry sign**.
 - `Z` and `Y` undo and redo insertions, as the game's own undo and redo do.
   They reach back over the current run of them and no further: insert four
   here, scrub away, insert four there, and `Z` takes back four.
 - Clicking a row moves to it and **that row does not move**: the list shifts
-  around it. Dragging on from there tracks the pointer a row at a time, so
-  bringing it back where it started comes back to the same action.
+  around it. Dragging on from there holds the rows still and **keeps the current
+  action under the cursor**, so the row being aimed at is the row landed on.
 
 The current action is drawn as an **action**, not as a position. The player
-stands where it acts *from*, so the affected tile is visible; an arrow says
-which way it goes; and the target is knocked askew, as though shoved aside. Its
-row is repeated at the right of that floor's name strip, joined to the player by
-a thick line — a display, not a control, and in the strip rather than over the
-grid so it never covers a cell worth clicking.
+stands where it acts *from*, so the affected tile is visible; **one box covers
+both squares** — the one stood on and the one acted on — and the target is
+knocked askew, as though shoved aside. Its row is repeated at the right of that
+floor's name strip, joined to the player by a thick line: a display, not a
+control, in the strip rather than over the grid so it never covers a cell worth
+clicking, and without its number, which the list already carries.
 
 **Where it fails**, the target is left square and whole — it has not been
 knocked anywhere — and the player ring, the connecting line, the summary's frame
 and the floor's own frame all turn red. The row is outlined red too, whether or
 not it is the one being looked at, and its **spent** column says what it was
-short of: a bag reading **-21** for gold, the player sprite with a power deficit
-to four figures, a boxed key or pickaxe where there is no number to give, an
-arrow where the square cannot be reached at all.
+short of: a bag reading **-21** for gold, the player with a power deficit to
+four figures, a boxed key or pickaxe where there is no number to give, an arrow
+where the square cannot be reached at all. The whole failing stretch is outlined
+as well as banded — the band has to stay faint enough to read through, and faint
+is not enough to say where the stretch begins.
 
 **Past** a failure everything is drawn as usual but in grey: those actions
 *would* happen and cannot. The floors keep coming, so the route can be scrubbed

@@ -117,7 +117,9 @@ export default function App(): React.ReactElement {
       s.savedHash = savedHash;
       s.restoreInserted(inserted);
       setTower(t);
-      setRecords(null);
+      // `[I]` The record list is NOT cleared. Closing a route should go back to
+      // the list it was chosen from, not all the way out to the file picker:
+      // picking another record from the same save is the common next thing.
       setPendingOrd(null);
       setRestorable(null);
       // Whatever the shell was saying was about getting here, and we are here.
@@ -295,7 +297,17 @@ export default function App(): React.ReactElement {
       <div className="app" {...shell}>
         <canvas ref={canvasRef} className="stage" />
         <div className="tools">
-          <button onClick={() => setSession(null)}>← close</button>
+          <button onClick={() => setSession(null)}>← routes</button>
+          <input
+            className="name"
+            value={session.route.name}
+            onChange={(e) => {
+              session.rename(e.target.value);
+              setRevision((r) => r + 1);
+            }}
+            title="The route's name, as it will be saved"
+            spellCheck={false}
+          />
           <button onClick={() => s?.undo()} disabled={!session.canUndo} title="Take back the last insertion (Z)">undo</button>
           <button onClick={() => s?.redo()} disabled={!session.canRedo} title="Put it back (Y)">redo</button>
           <span className="sep" />
@@ -304,7 +316,6 @@ export default function App(): React.ReactElement {
             export .sav
           </button>
           <button onClick={() => s?.saveCapture()} title="Save this frame as a PNG (S)">screenshot</button>
-          <span className="keys">← → scrub · Z/Y undo · click a cell to insert · +/− zoom · S shot</span>
           {dirty && <span className="unsaved">UNSAVED CHANGES</span>}
         </div>
         {notice && <p className="toast" onClick={() => setNotice(null)}>{notice}</p>}

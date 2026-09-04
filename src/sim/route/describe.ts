@@ -35,8 +35,14 @@ export type ActionKind =
    */
   | "noop";
 
-/** An item an action used up. `pickaxe` is the counter, not a held item. */
-export type Spent = HeldItem | "pickaxe" | null;
+/**
+ * What an action used up: a held item, or one of the counters.
+ *
+ * `[F]` Not every cost is a held item — a Light Door takes a key, a Money Gate
+ * takes gold, a Gem Gate takes gems, a Weak Wall takes a pickaxe — and the row
+ * that says what an action spent has to be able to name all of them.
+ */
+export type Spent = HeldItem | "pickaxe" | "key" | "dark_key" | "money" | "gem" | null;
 
 export interface ActionSummary {
   kind: ActionKind;
@@ -77,18 +83,34 @@ export function describeAction(
   const summary: ActionSummary = {
     kind: opts.noop === true ? "noop" : kindOf(cell),
     cell,
-    spent:
-      before.held !== null && after.held === null
-        ? before.held
-        : after.pickaxes < before.pickaxes
-          ? "pickaxe"
-          : null,
+    spent: spentBy(cell, before, after),
     held: before.held !== null && after.held === before.held ? before.held : null,
     goldGained: after.gold - before.gold,
     powerDelta: after.power - before.power,
   };
   if (opts.error !== undefined) summary.error = opts.error;
   return summary;
+}
+
+/**
+ * `[F]` A held item is spent exactly where the rules leave `held` null, and the
+ * counters are spent exactly where they fall — both are outcomes, not rules
+ * restated (D33). The two doors are the one place the outcome is ambiguous: on
+ * a `negative_keys` tower a Dark Door *raises* the light-key count rather than
+ * lowering a dark one, so the door itself says which key it took.
+ */
+function spentBy(cell: Cell, before: Player, after: Player): Spent {
+  if (before.held !== null && after.held === null) return before.held;
+  if (after.pickaxes < before.pickaxes) return "pickaxe";
+  if (isEntity(cell)) {
+    if (cell.type === "door") return "key";
+    if (cell.type === "dark_door") return "dark_key";
+  }
+  if (after.gemsSpent > before.gemsSpent) return "gem";
+  if (after.gold < before.gold) return "money";
+  if (after.lightKeys < before.lightKeys) return "key";
+  if (after.darkKeys < before.darkKeys) return "dark_key";
+  return null;
 }
 
 export function kindOf(cell: Cell): ActionKind {

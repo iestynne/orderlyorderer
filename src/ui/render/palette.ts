@@ -36,8 +36,23 @@ export const DISABLED_FILL = "#7a3030";
 /** A deficit badge: the number you are short. */
 export const SHORTFALL = "#e04040";
 
-/** An added action. */
-export const ADDED = "#8fe08f";
+/**
+ * An added action.
+ *
+ * `[I]` **Blue, not green.** Green already means the route passes; an added
+ * action is neither passing nor failing, it is the player's own mark, and two
+ * meanings on one colour is one too many.
+ */
+export const ADDED = "#7fb4ff";
+
+/**
+ * The player.
+ *
+ * `[F]` The game tints it `(0.5, 1, 1)` under its player_tint setting
+ * (leveldata.lua:281-284) and draws everything else white — D26's "monochrome
+ * apart from the player". Untinted it is one more white sprite among fifteen.
+ */
+export const PLAYER_TINT = "rgb(128, 255, 255)";
 
 // --- surfaces -------------------------------------------------------------
 

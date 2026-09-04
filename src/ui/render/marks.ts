@@ -31,6 +31,8 @@ export interface Icons {
   cogOpen: HTMLCanvasElement | null;
   noEntry: HTMLCanvasElement | null;
   arrow: HTMLCanvasElement | null;
+  /** `[F]` The game tints the player, and so does everywhere we draw it (D26). */
+  player: HTMLCanvasElement | null;
   /** The enable box, which is square, so one number sizes every hitbox. */
   boxSize: number;
   badge: number;
@@ -46,6 +48,7 @@ export function bakeIcons(manifest: AtlasManifest, sheet: CanvasImageSource): Ic
     cogOpen: tint(manifest, sheet, "icon_cog", "#15151a"),
     noEntry: tint(manifest, sheet, "no_entry", C.REFUSED),
     arrow: tint(manifest, sheet, "icon_arrow", C.FAIL_BRIGHT),
+    player: tint(manifest, sheet, "player", C.PLAYER_TINT),
     boxSize: manifest.sprites["icon_box"]?.w ?? 9,
     badge: manifest.sprites["icon_plus"]?.w ?? 9,
   };
@@ -116,15 +119,27 @@ export function cogHitbox(layout: Layout, panelW: number): { x: number; y: numbe
   return { x: layout.w - panelW - PANEL_PAD - GAP - COG_BOX, y: GAP, w: COG_BOX, h: COG_BOX };
 }
 
-export function drawCog(ctx: CanvasRenderingContext2D, icons: Icons, layout: Layout, panelW: number, open: boolean): void {
+/**
+ * `[I]` **A question mark, not a cog.** The drawn cog never read as one at
+ * eleven pixels, and what is behind it is mostly the keys — so the panel is
+ * help that happens to hold two switches, and the button says so. The glyph is
+ * the font's own, in a thin box the colour of an ordinary floor's outline.
+ */
+export function drawHelpButton(
+  ctx: CanvasRenderingContext2D,
+  sheet: CanvasImageSource,
+  font: AtlasFontRef,
+  layout: Layout,
+  panelW: number,
+  open: boolean,
+): void {
   const b = cogHitbox(layout, panelW);
-  ctx.fillStyle = open ? C.LAVENDER : "#22222c";
+  ctx.fillStyle = open ? C.LAVENDER : C.PANEL;
   ctx.fillRect(b.x, b.y, b.w, b.h);
-  ctx.strokeStyle = "#0c0c10";
+  ctx.strokeStyle = open ? C.LAVENDER : C.LINE;
   ctx.lineWidth = 1;
   ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
-  const art = open ? icons.cogOpen : icons.cog;
-  if (art) ctx.drawImage(art, b.x + ((b.w - art.width) >> 1), b.y + ((b.h - art.height) >> 1));
+  drawText(ctx, sheet, font, "?", b.x + 6, b.y + 4);
 }
 
 export interface Toggle {
@@ -135,10 +150,10 @@ export interface Toggle {
 const PANEL_ROW = 14;
 const PANEL_INSET = 5;
 
-export function settingsPanel(layout: Layout, panelW: number, n: number): { x: number; y: number; w: number; h: number } {
+export function settingsPanel(layout: Layout, panelW: number, n: number, keys = 0): { x: number; y: number; w: number; h: number } {
   const b = cogHitbox(layout, panelW);
-  const w = 116;
-  return { x: b.x + b.w - w, y: b.y + b.h + 3, w, h: n * PANEL_ROW + PANEL_INSET * 2 };
+  const w = 210;
+  return { x: b.x + b.w - w, y: b.y + b.h + 3, w, h: n * PANEL_ROW + keys * 11 + PANEL_INSET * 2 + (keys > 0 ? 5 : 0) };
 }
 
 export function settingsHitboxes(layout: Layout, panelW: number, n: number): Array<{ x: number; y: number; w: number; h: number }> {
@@ -164,8 +179,9 @@ export function drawSettingsPanel(
   layout: Layout,
   panelW: number,
   toggles: readonly Toggle[],
+  keys: readonly string[] = [],
 ): void {
-  const p = settingsPanel(layout, panelW, toggles.length);
+  const p = settingsPanel(layout, panelW, toggles.length, keys.length);
   ctx.fillStyle = C.PANEL;
   ctx.fillRect(p.x, p.y, p.w, p.h);
   ctx.strokeStyle = C.LAVENDER;
@@ -178,6 +194,11 @@ export function drawSettingsPanel(
     drawCheckbox(ctx, icons, b.x, b.y + 2, t.on);
     drawText(ctx, sheet, font, t.label, b.x + icons.boxSize + 5, b.y + 3);
   });
+  let y = p.y + PANEL_INSET + toggles.length * PANEL_ROW + 3;
+  for (const line of keys) {
+    drawText(ctx, sheet, font, line, p.x + PANEL_INSET, y);
+    y += 11;
+  }
 }
 
 /**

@@ -9,11 +9,11 @@
 // the bottom. The two are read together, and disagreeing about which way time
 // goes would make that impossible.
 //
-// `[D]` **The current action holds a fixed pixel row and the list moves under
-// it.** Centring on every seek made the list saw back and forth as the slider
-// was dragged. The row changes only when the player clicks one, and then it
-// becomes exactly where that row already was — so the thing they aimed at does
-// not move at all, and everything else shifts around it.
+// `[D]` **Rows are a plain stack; nothing opens or closes.** The current action
+// used to hold a blank row either side of it, which moved everything above the
+// cursor whenever the current action changed. The clearance is gone: the
+// current row is outlined instead, and a pending insertion is drawn offset from
+// it rather than in a slot the list has to make room for.
 //
 // `[D]` A row says what the action **did**, not where it happened. The
 // classification is `src/sim/route/describe.ts`, which is pure and tested; this
@@ -42,14 +42,14 @@ const NUM_W = 20;
 const SLOT = 17;
 /** The spent slot holds a deficit number as well as an icon, so it is wider. */
 const SPENT_W = 30;
+/** Where each column starts, relative to the row's left edge. */
+const SPENT_X = NUM_W + 2;
+const CELL_X = SPENT_X + SPENT_W;
+const GOLD_X = CELL_X + SLOT;
+const HELD_X = GOLD_X + SLOT;
 
-/**
- * `[I]` A blank row above the current action and another below it. The one
- * above is where a pending insertion lands — insertions go *after* the current
- * action, and later is higher — and the one below is its mirror, so the current
- * row sits in clear air rather than at the top of a gap.
- */
-const CLEARANCE = ROW_H;
+/** The card under a floor drops the number, so it starts a column earlier. */
+export const CARD_W = ACTIONS_W - NUM_W - 2;
 
 export interface ActionRow {
   /** Steps from the current action: 0 is current, +1 the next, -1 the previous. */
@@ -77,7 +77,6 @@ export function actionsGeometry(layout: Layout, slider: { y: number; h: number }
   return { x: layout.w - PANEL_W - PANEL_PAD + SLIDER_W, y: slider.y, w: ACTIONS_W, h: slider.h };
 }
 
-/** How many rows fit, the two blank ones included. */
 export function slotCount(g: ActionListGeometry): number {
   return Math.max(1, Math.floor(g.h / ROW_H));
 }
@@ -91,26 +90,15 @@ export function clampPinY(g: ActionListGeometry, y: number): number {
   return Math.max(g.y, Math.min(g.y + g.h - ROW_H, y));
 }
 
-/**
- * The top of the row `offset` actions away from the current one, given where
- * the current one sits.
- *
- * Later actions are above and earlier ones below, and the clearance either side
- * of the current row is what pushes them one further out.
- */
+/** The top of the row `offset` actions away from the current one. */
 export function rowTop(pinY: number, offset: number): number {
-  return pinY - offset * ROW_H - (offset > 0 ? CLEARANCE : offset < 0 ? -CLEARANCE : 0);
+  return pinY - offset * ROW_H;
 }
 
-/** Which offset a point is over, or null. */
+/** Which offset a point is over, or null when it is outside the list. */
 export function offsetAt(g: ActionListGeometry, pinY: number, x: number, y: number): number | null {
-  if (x < g.x || x > g.x + g.w) return null;
-  const span = slotCount(g) + 2;
-  for (let offset = -span; offset <= span; offset++) {
-    const top = rowTop(pinY, offset);
-    if (y >= top && y < top + ROW_H && top >= g.y - ROW_H && top < g.y + g.h) return offset;
-  }
-  return null;
+  if (x < g.x || x > g.x + g.w || y < g.y || y >= g.y + g.h) return null;
+  return Math.floor((pinY + ROW_H - y) / ROW_H) - 1;
 }
 
 /** The checkbox of a row, for hit-testing a toggle. */
@@ -138,13 +126,39 @@ export function drawActionList(
   for (const row of rows) {
     drawRow(ctx, sheet, manifest, fonts, g, row, rowTop(pinY, row.offset), icons, hovered === row.offset);
   }
+
+  // `[I]` The failing stretch gets an outline of its own. The band behind those
+  // rows is deliberately faint — it must not fight the text — and faint is not
+  // enough to say where the stretch begins and ends, which is the thing the
+  // slider says in a different set of pixels entirely.
+  const failed = rows.filter((r) => r.failed);
+  if (failed.length > 0) {
+    const top = Math.min(...failed.map((r) => rowTop(pinY, r.offset)));
+    const bottom = Math.max(...failed.map((r) => rowTop(pinY, r.offset) + ROW_H));
+    ctx.strokeStyle = C.FAIL;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(g.x + 0.5, top + 0.5, g.w - 1, bottom - top - 1);
+  }
+
+  // `[I]` A pending insertion sits up and to the right of the current action,
+  // which is where it would land, rather than in a gap the list has to hold
+  // open for it. Its own colour, and a soft shadow so it reads as floating.
   if (pending !== null) {
+    const x = g.x + 8;
+    const y = rowTop(pinY, 0) - ROW_H / 2;
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 1, y + 1, g.w - 8, ROW_H);
+    ctx.globalAlpha = 1;
     drawRow(
-      ctx, sheet, manifest, fonts, g,
-      { offset: 0, number: 0, summary: pending, enabled: true, inserted: true, current: false, failed: false, breaks: false },
-      rowTop(pinY, 0) - CLEARANCE,
-      icons, false, { pending: true },
+      ctx, sheet, manifest, fonts, { ...g, x },
+      { offset: 0, number: 0, summary: pending, enabled: true, inserted: false, current: false, failed: false, breaks: false },
+      y, icons, false, { pending: true },
     );
+    ctx.strokeStyle = C.ADDED;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, g.w - 9, ROW_H - 1);
   }
   ctx.restore();
 }
@@ -162,67 +176,73 @@ export function drawRow(
   opts: { pending?: boolean; number?: boolean } = {},
 ): void {
   const pending = opts.pending === true;
+  const numbered = !pending && opts.number !== false;
   ctx.fillStyle = hovered ? C.BAND_HOVER : (row.failed ? C.BAND_FAILED : C.BAND)[row.number % 2]!;
   ctx.fillRect(g.x, y, g.w, ROW_H);
-  ctx.globalAlpha = pending || !row.enabled ? 0.5 : 1;
+  // `[I]` A switched-off row is dimmer than it was: half strength still read as
+  // live at a glance.
+  ctx.globalAlpha = pending ? 0.55 : row.enabled ? 1 : 0.35;
 
-  let x = g.x;
-  // 1. the number, right-justified. `[I]` Omitted from the copy under the
-  //    floor: it is redundant with the list and not what that copy is for.
-  if (!pending && opts.number !== false) {
+  // The columns are at fixed offsets, so a missing icon leaves a hole rather
+  // than shuffling everything after it along.
+  const col = (x: number): number => g.x + (numbered ? x : x - NUM_W - 2);
+  if (numbered) {
     const n = String(row.number);
-    drawText(ctx, sheet, fonts.digits, n, x + NUM_W - textWidth(fonts.digits, n), y + 5);
+    drawText(ctx, sheet, fonts.digits, n, g.x + NUM_W - textWidth(fonts.digits, n), y + 5);
   }
-  x += NUM_W + 2;
 
   // `[I]` An action that found its work already done says nothing but its
   // number: there is no enemy left to draw, and drawing the dead one would be
   // a lie about what this action does now.
   if (row.summary.kind !== "noop") {
-    // 2. what it spent -- or, where it failed, what it was short of.
-    drawSpent(ctx, sheet, manifest, fonts, row, x, y, icons);
-    x += SPENT_W;
+    drawSpent(ctx, sheet, manifest, fonts, row, col(SPENT_X), y, icons);
 
-    // 3. what it acted on, with its own value badge where it has one: an enemy
-    //    without its number is just a silhouette.
+    // What it acted on, with its own value badge: an enemy without its number
+    // is just a silhouette. The badge is drawn last of all, over the outlines.
     const key = keyOf(row.summary.cell);
-    blit(ctx, sheet, manifest, spriteFor(key, manifest), x, y + 1);
-    const label = labelOf(key);
-    if (label !== null) {
-      drawText(ctx, sheet, fonts.digits, label, x + LABEL_RIGHT - textWidth(fonts.digits, label), y + 1 + LABEL_Y);
-    }
-    x += SLOT;
+    blit(ctx, sheet, manifest, spriteFor(key, manifest), col(CELL_X), y + 1);
 
-    // 4. gold, stamped low on the bag: higher up it sat on the neck, and the
-    //    silhouette is how the bag is recognised.
     if (row.summary.goldGained !== 0) {
-      blit(ctx, sheet, manifest, "money", x, y + 1);
-      const label2 = String(row.summary.goldGained);
-      drawText(ctx, sheet, fonts.digits, label2, x + ((16 - textWidth(fonts.digits, label2)) >> 1), y + 8);
+      blit(ctx, sheet, manifest, "money", col(GOLD_X), y + 1);
+      const label = String(row.summary.goldGained);
+      drawText(ctx, sheet, fonts.digits, label, col(GOLD_X) + ((16 - textWidth(fonts.digits, label)) >> 1), y + 8);
     }
-    x += SLOT;
-
-    // 5. what it was carrying that changed the outcome without being spent.
-    if (row.summary.held !== null) blit(ctx, sheet, manifest, row.summary.held, x, y + 1);
+    if (row.summary.held !== null) blit(ctx, sheet, manifest, row.summary.held, col(HELD_X), y + 1);
   }
 
-  // the toggles, hard right, the add badge always immediately left of the box.
-  // `[I]` The badge keeps full strength on a disabled row: "you added this" is
-  // still true when you switch it off.
   ctx.globalAlpha = 1;
   const box = g.x + g.w - icons.boxSize - 3;
-  if (row.inserted) drawPlus(ctx, icons, box - icons.badge - 2, y + ((ROW_H - icons.badge) >> 1));
   if (!pending) drawCheckbox(ctx, icons, box, y + ((ROW_H - icons.boxSize) >> 1), row.enabled);
 
   // `[I]` The failing action is outlined whether or not it is the one being
-  // looked at -- thicker when it is. It is the one thing on the screen the
-  // player has to be able to find.
+  // looked at — thicker when it is, and with a dark ring outside the lavender
+  // so it holds its own against whatever the row behind it is doing.
   if (row.breaks || row.current) {
+    if (row.current) {
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(g.x + 1.5, y + 1.5, g.w - 3, ROW_H - 3);
+    }
     ctx.strokeStyle = row.breaks ? C.FAIL_BRIGHT : C.LAVENDER;
     ctx.lineWidth = row.current ? 2 : 1;
     const i = row.current ? 1 : 0.5;
     ctx.strokeRect(g.x + i, y + i, g.w - i * 2, ROW_H - i * 2);
   }
+
+  // The value badge goes over the outlines: it is part of naming the thing.
+  if (row.summary.kind !== "noop") {
+    const label = labelOf(keyOf(row.summary.cell));
+    if (label !== null) {
+      ctx.globalAlpha = row.enabled || pending ? 1 : 0.35;
+      drawText(ctx, sheet, fonts.digits, label, col(CELL_X) + LABEL_RIGHT - textWidth(fonts.digits, label), y + 1 + LABEL_Y);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // `[I]` The add badge is centred on the row's left edge, above everything: on
+  // the right it collided with the gold column, and it belongs to the row as a
+  // whole rather than to any one of its columns.
+  if (row.inserted) drawPlus(ctx, icons, g.x - (icons.badge >> 1), y + ((ROW_H - icons.badge) >> 1));
 }
 
 /**
@@ -246,34 +266,34 @@ function drawSpent(
 ): void {
   const error = row.summary.error;
   if (error === undefined) {
-    // A Money Gate spends gold, which is not a held item; everything else that
-    // is spent is one.
-    const stem = row.summary.spent ?? (row.summary.goldGained < 0 ? "money" : null);
-    if (stem !== null) blit(ctx, sheet, manifest, stem, x, y + 1);
+    if (row.summary.spent !== null) blit(ctx, sheet, manifest, row.summary.spent, x, y + 1);
     return;
   }
 
   const want = shortfall(error);
   if (want !== null) {
-    blit(ctx, sheet, manifest, want.stem, x, y + 1);
-    const label = want.text;
-    const w = textWidth(fonts.digits, label);
+    // The player is drawn tinted, as it is everywhere else: untinted it is one
+    // more white sprite (D26).
+    if (want.stem === "player" && icons.player) ctx.drawImage(icons.player, x, y + 1);
+    else blit(ctx, sheet, manifest, want.stem, x, y + 1);
+    // The number sits where an entity's value badge sits, and in the failure
+    // colour, so it reads as a shortfall rather than as a quantity held.
+    const w = textWidth(fonts.digits, want.text);
     ctx.fillStyle = C.SHORTFALL;
-    ctx.fillRect(x - 1, y + 8, w + 2, 8);
-    drawText(ctx, sheet, fonts.digits, label, x, y + 8);
+    ctx.fillRect(x + LABEL_RIGHT - w - 1, y + LABEL_Y, w + 2, 9);
+    drawText(ctx, sheet, fonts.digits, want.text, x + LABEL_RIGHT - w, y + 1 + LABEL_Y);
     return;
   }
   if (error.code === "NO_PATH" || error.code === "NOT_ADJACENT" || error.code === "OFF_MAP") {
     if (icons.arrow) ctx.drawImage(icons.arrow, x, y + ((ROW_H - icons.arrow.height) >> 1));
     return;
   }
-  // A missing item: name it, and box it in red a pixel taller than the row's
-  // own outline so the two do not read as one.
   const stem = MISSING[error.code];
   if (stem !== undefined) blit(ctx, sheet, manifest, stem, x, y + 1);
+  // A pixel taller at the top than the row's own outline, so the two read apart.
   ctx.strokeStyle = C.FAIL_BRIGHT;
   ctx.lineWidth = 1;
-  ctx.strokeRect(x - 0.5, y - 0.5, 17, ROW_H + 1);
+  ctx.strokeRect(x - 0.5, y - 1.5, 17, ROW_H + 1);
 }
 
 const MISSING: Record<string, string> = {
@@ -327,8 +347,9 @@ export function abbreviate(n: number): string {
  *
  * `[D]` **A fixed place, and never over the grid.** It used to sit a tile and a
  * half below the cell, which put it on top of squares the player may want to
- * click. The name strip is already there, already the right height, and nothing
- * in it is ever clicked — so the name gives way to it instead.
+ * click. The name strip is already there and nothing in it is ever clicked — so
+ * the name gives way to it. `[I]` Narrower by the number it does not draw: the
+ * number is in the list already, and every pixel here is a pixel of floor name.
  */
 export function drawActionCard(
   ctx: CanvasRenderingContext2D,
@@ -341,11 +362,11 @@ export function drawActionCard(
   icons: Icons,
   outline: string,
 ): void {
-  const g: ActionListGeometry = { x, y, w: ACTIONS_W, h: ROW_H };
+  const g: ActionListGeometry = { x, y, w: CARD_W, h: ROW_H };
   drawRow(ctx, sheet, manifest, fonts, g, { ...row, current: false, breaks: false }, y, icons, false, { number: false });
   ctx.strokeStyle = row.breaks ? C.FAIL_BRIGHT : outline;
   ctx.lineWidth = 2;
-  ctx.strokeRect(x - 1, y - 1, ACTIONS_W + 2, ROW_H + 2);
+  ctx.strokeRect(x - 1, y - 1, CARD_W + 2, ROW_H + 2);
 }
 
 function blit(

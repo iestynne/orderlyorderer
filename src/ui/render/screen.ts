@@ -68,7 +68,7 @@ export const STACK_W = 232;
 export const PANEL_W = SLIDER_W + ACTIONS_W + STACK_W; // 348
 export const PANEL_PAD = 6;
 /** Two lines of header at the top of the panel, which the columns start below. */
-export const PANEL_HEAD = 30;
+export const PANEL_HEAD = 33;
 
 /**
  * A tile is its floor plus its name strip.

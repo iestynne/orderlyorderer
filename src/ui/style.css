@@ -243,3 +243,21 @@ code {
   color: #f0a0a0;
   border-color: #6a3a3a;
 }
+
+/* The route's name, editable in place: what was imported is named for a save
+   slot, and what the player builds is theirs to name. */
+.name {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--ink);
+  font: inherit;
+  padding: 1px 5px;
+  min-width: 12ch;
+  max-width: 32ch;
+}
+
+.name:focus {
+  border-color: var(--accent);
+  outline: none;
+}

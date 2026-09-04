@@ -29,6 +29,7 @@ import {
   type WorkingSet,
 } from "./render/left";
 import {
+  CARD_W,
   ROW_H,
   actionsGeometry,
   checkboxAt,
@@ -46,7 +47,7 @@ import {
   bakeIcons,
   cogHitbox,
   drawCellMark,
-  drawCog,
+  drawHelpButton,
   drawSettingsPanel,
   settingsHitboxes,
   settingsPanel,
@@ -54,7 +55,7 @@ import {
 } from "./render/marks";
 import { drawRightPanel, panelX, sliderGeometry, statusRowAt, stopToY, yToStop } from "./render/right";
 import { drawTrail, playerScreenPos, trailPoints, type TrailPoint } from "./render/trail";
-import { Screen, ACTIONS_W, CELL, FLOOR, PANEL_PAD, PANEL_W, type Layout, type ScreenSettings } from "./render/screen";
+import { Screen, CELL, FLOOR, PANEL_PAD, PANEL_W, type Layout, type ScreenSettings } from "./render/screen";
 import { drawText, fontFrom, keyOf, spriteFor, type AtlasFontRef } from "./render/atlas";
 import * as C from "./render/palette";
 import { textWidth } from "./imagefont";
@@ -231,7 +232,7 @@ export class Scrubber {
         number: i + 1,
         summary,
         enabled: site.action.disabled !== true,
-        inserted: this.session.badgeOf(site.action) === "inserted",
+        inserted: this.session.isInserted(site.action),
         current: offset === 0,
         failed: failedFrom !== null && i >= failedFrom,
         breaks: failedFrom === i,
@@ -424,7 +425,7 @@ export class Scrubber {
     drawTrail(ctx, this.points, this.visits, set, this.stop, grid, layout);
     this.drawHover(set, grid);
     this.drawCurrentAction(set, grid, fonts);
-    drawCog(ctx, this.icons, layout, PANEL_W, this.settingsOpen);
+    drawHelpButton(ctx, this.sheet, fonts.standard, layout, PANEL_W, this.settingsOpen);
 
     const player = this.cursor.player;
     drawRightPanel(ctx, this.manifest, this.sheet, this.floors, {
@@ -445,7 +446,7 @@ export class Scrubber {
 
     // Last of all, so nothing covers it: it is a thing the player has opened.
     if (this.settingsOpen) {
-      drawSettingsPanel(ctx, this.icons, this.sheet, fonts.standard, layout, PANEL_W, this.toggles());
+      drawSettingsPanel(ctx, this.icons, this.sheet, fonts.standard, layout, PANEL_W, this.toggles(), this.keys);
     }
 
     this.screen.present();
@@ -466,6 +467,18 @@ export class Scrubber {
   private toggles(): Array<{ label: string; on: boolean }> {
     return [{ label: "perf test", on: this.settings.perf }];
   }
+
+  /** `[I]` The keys moved off the bottom strip and in here, where help lives. */
+  private readonly keys = [
+    "click a cell   insert after here",
+    "click a row    go to that action",
+    "drag a row     scrub",
+    "wheel          step",
+    "left / right   step",
+    "Z / Y          undo / redo an add",
+    "+ / - / 0      zoom",
+    "S              screenshot",
+  ];
 
   private failureHitbox(layout: Layout, at: number): { x: number; y: number; w: number; h: number } {
     const g = sliderGeometry(layout);
@@ -504,7 +517,7 @@ export class Scrubber {
     if (!site || !row) {
       // The last stop is a position, not an action: just the player.
       const at = playerScreenPos(this.points, this.visits, set, this.stop, grid, this.screen.layout);
-      if (at) this.drawPlayer(at, accent);
+      if (at) this.drawPlayer(at, accent, null);
       return;
     }
 
@@ -518,7 +531,7 @@ export class Scrubber {
     ctx.globalAlpha = site.live ? 1 : 0.45;
     if (to) this.drawTarget(row, to, accent);
 
-    const cardX = tile.x + FLOOR - ACTIONS_W;
+    const cardX = tile.x + FLOOR - CARD_W;
     const cardY = tile.y + FLOOR + 1;
     const at = from ?? playerScreenPos(this.points, this.visits, set, this.stop, grid, this.screen.layout);
     if (at) {
@@ -526,18 +539,15 @@ export class Scrubber {
       ctx.strokeStyle = "#000";
       ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.moveTo(cardX + ACTIONS_W / 2, cardY);
+      ctx.moveTo(cardX + CARD_W / 2, cardY);
       ctx.lineTo(at.x + CELL / 2, at.y + CELL + 2);
       ctx.stroke();
       ctx.strokeStyle = accent;
       ctx.lineWidth = 2;
       ctx.stroke();
-      this.drawPlayer(at, accent);
+      this.drawPlayer(at, accent, from !== null && to !== null ? to : null);
     }
     drawActionCard(ctx, this.sheet, this.manifest, fonts, row, cardX, cardY, this.icons, accent);
-    // `[I]` The arrow last of all: it is the thing that says which way the
-    // action goes, and under the player or the ring it was half hidden.
-    if (from && to) this.drawArrow(from, to, accent);
     ctx.globalAlpha = 1;
   }
 
@@ -573,36 +583,6 @@ export class Scrubber {
     ctx.restore();
   }
 
-  /** Which way the action goes, from the approach square onto the target. */
-  private drawArrow(from: { x: number; y: number }, to: { x: number; y: number }, accent: string): void {
-    const { ctx } = this.screen;
-    const ax = from.x + CELL / 2;
-    const ay = from.y + CELL / 2;
-    const dx = Math.sign(to.x - from.x);
-    const dy = Math.sign(to.y - from.y);
-    if (dx === 0 && dy === 0) return;
-    const bx = ax + dx * CELL * 0.8;
-    const by = ay + dy * CELL * 0.8;
-
-    for (const [colour, width] of [["#000", 5], [accent, 3]] as const) {
-      ctx.strokeStyle = colour;
-      ctx.fillStyle = colour;
-      ctx.lineWidth = width;
-      ctx.beginPath();
-      ctx.moveTo(ax, ay);
-      ctx.lineTo(bx, by);
-      ctx.stroke();
-      // A head, pointing the way the step goes.
-      const h = width + 2;
-      ctx.beginPath();
-      ctx.moveTo(bx + dx * h, by + dy * h);
-      ctx.lineTo(bx - dx * h + dy * h, by - dy * h + dx * h);
-      ctx.lineTo(bx - dx * h - dy * h, by - dy * h - dx * h);
-      ctx.closePath();
-      ctx.fill();
-    }
-  }
-
   private drawHover(set: WorkingSet, grid: Grid): void {
     if (this.hover === null || this.hover.kind === "none") return;
     const pos = this.cellOrigin(set, grid, this.hover.cell);
@@ -619,18 +599,28 @@ export class Scrubber {
     return { x: o.x + (w.x - 1) * CELL, y: o.y + (w.y - 1) * CELL };
   }
 
-  private drawPlayer(pos: { x: number; y: number }, accent: string): void {
+  /**
+   * `[I]` **One box around both squares**, rather than a box on the player
+   * and an arrow to the target. The arrow said which way the action went and
+   * hid too much of the floor saying it; a box that covers the square the
+   * player stands on and the square they act on says the same thing and covers
+   * only its own outline.
+   */
+  private drawPlayer(pos: { x: number; y: number }, accent: string, target: { x: number; y: number } | null): void {
     const { ctx } = this.screen;
-    // `[I]` The ring was still hard to find among fifteen white sprites, so it
-    // is bedded on black: two pixels of dark either side is what separates it
-    // from whatever the floor happens to be under it.
+    const x = Math.min(pos.x, target?.x ?? pos.x);
+    const y = Math.min(pos.y, target?.y ?? pos.y);
+    const w = Math.max(pos.x, target?.x ?? pos.x) + CELL - x;
+    const h = Math.max(pos.y, target?.y ?? pos.y) + CELL - y;
+    // The ring is bedded on black: two pixels of dark either side is what
+    // separates it from whatever the floor happens to be under it.
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 2;
-    ctx.strokeRect(pos.x - 2, pos.y - 2, CELL + 4, CELL + 4);
-    ctx.strokeRect(pos.x, pos.y, CELL, CELL);
+    ctx.strokeRect(x - 2, y - 2, w + 4, h + 4);
+    ctx.strokeRect(x, y, w, h);
     ctx.strokeStyle = accent;
     ctx.lineWidth = 2;
-    ctx.strokeRect(pos.x - 1, pos.y - 1, CELL + 2, CELL + 2);
+    ctx.strokeRect(x - 1, y - 1, w + 2, h + 2);
     const sprite = this.playerSprite();
     if (sprite) ctx.drawImage(sprite, pos.x, pos.y);
     const digits = fontFrom(this.manifest, "FONT_DIGITS");
@@ -742,12 +732,13 @@ export class Scrubber {
           return;
         }
         // `[I]` The clicked row must not move, so the pin goes to exactly where
-        // that row already is and everything else shifts around it. Dragging on
-        // from there tracks the pointer one row per row of travel, so bringing
-        // the pointer back to where it started comes back to the same action.
+        // that row already is and everything else shifts around it. From there
+        // the drag keeps **the current action under the cursor**: the rows hold
+        // still and the highlight follows the pointer, so the row you are
+        // aiming at is the row you land on.
         this.pinY = clampPinY(g, rowTop(this.pinY, offset));
         this.draggingList = true;
-        this.dragFrom = { y: p.y, stop: row.number - 1 };
+        this.dragFrom = { y: this.pinY, stop: row.number - 1 };
         this.canvas.setPointerCapture(e.pointerId);
         this.seek(row.number - 1);
         return;
@@ -771,9 +762,13 @@ export class Scrubber {
       }
       const p = logical(e.clientX, e.clientY);
       if (this.draggingList) {
-        // Quantised travel from where the drag began: up is later, and bringing
-        // the pointer back to where it started comes back to the same action.
-        this.seek(this.dragFrom.stop + Math.round((this.dragFrom.y - p.y) / ROW_H));
+        // The rows stay where they were when the drag began; the current action
+        // becomes whichever of them the cursor is over, and the pin moves with
+        // it so the highlight is under the pointer rather than beside it.
+        const g0 = this.listGeometry();
+        const steps = Math.floor((this.dragFrom.y + ROW_H - p.y) / ROW_H);
+        this.pinY = clampPinY(g0, this.dragFrom.y - steps * ROW_H);
+        this.seek(this.dragFrom.stop + steps);
         return;
       }
       const offset = offsetAt(this.listGeometry(), this.pinY, p.x, p.y);

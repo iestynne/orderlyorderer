@@ -142,6 +142,15 @@ export class RouteSession {
     this.replace(apply(this.route, { op: "insert", ...at }));
   }
 
+  /**
+   * `[I]` Whether the player added this — which stays true when they switch it
+   * off. `badgeOf` answered "disabled" first and so hid the `+` on exactly the
+   * rows where it mattered most: an action you added and then tried without.
+   */
+  isInserted(action: Action): boolean {
+    return this.insertedSet.has(action);
+  }
+
   badgeOf(action: Action): Badge | null {
     if (action.disabled === true) return "disabled";
     return this.insertedSet.has(action) ? "inserted" : null;
@@ -180,6 +189,20 @@ export class RouteSession {
     );
     cursor.seekTo(was);
     return summary;
+  }
+
+  /**
+   * `[I]` The route's name, which the player will want to change: what they
+   * imported was named for a save slot, and what they are building is theirs.
+   *
+   * `[D]` Document-tier, so it sets the unsaved-changes marker like every other
+   * edit — but not an `Edit`, because it is not undoable and does not belong in
+   * a run of insertions.
+   */
+  rename(name: string): void {
+    const routes = this.document.routes.slice();
+    routes[this.routeIndex] = { ...this.route, name };
+    this.document = { ...this.document, routes };
   }
 
   markSaved(): void {

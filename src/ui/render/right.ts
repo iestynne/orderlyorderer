@@ -194,7 +194,7 @@ export function drawRightPanel(
   // `[I]` A line under the header, with air either side, so the two lines read
   // as a heading rather than as the top of the slider.
   ctx.fillStyle = C.DIVIDER;
-  ctx.fillRect(x0, PANEL_HEAD - 4, PANEL_W, 1);
+  ctx.fillRect(x0, PANEL_HEAD - 5, PANEL_W, 1);
 
   drawSlider(ctx, sheet, standard, s, layout);
   drawStack(ctx, floors, standard, sheet, s, layout);
@@ -311,7 +311,10 @@ function drawStack(
   const x0 = stackX(layout);
   ctx.save();
   ctx.beginPath();
-  ctx.rect(x0, g.y, STACK_W, g.h);
+  // `[F]` The clip has to allow for the outline, which is drawn ON the floor's
+  // edge and so reaches half its width outside it. Clipped to the floors alone
+  // it cut the left and right sides of every outline off.
+  ctx.rect(x0 - STACK_BORDER, g.y, STACK_W + STACK_BORDER * 2, g.h);
   ctx.clip();
 
   // Floor 1 at the bottom, as the tower is numbered (D1). The whole tower is
