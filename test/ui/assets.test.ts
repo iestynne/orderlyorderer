@@ -12,7 +12,7 @@ import { decodePng } from "../../src/mapdiff/png";
 import { convertValueStr, enemyTier, keyOf, labelOf, spriteFor, tileKeys } from "../../src/ui/render/atlas";
 import { ICONS } from "../../tools/atlas/icons";
 import { readImageFont, textWidth, type Rgba } from "../../src/ui/imagefont";
-import { buildAtlas, parseEntitySprites, FONTS, type AtlasManifest } from "../../tools/atlas/build";
+import { buildAtlas, parseEntitySprites, FONTS, SHEET_SPRITES, type AtlasManifest } from "../../tools/atlas/build";
 import { TOWER_IDS, type TowerJSON } from "../../tools/maps/types";
 
 const GAME_DIR = process.env["TOS_GAME_DIR"] ?? join(process.cwd(), "..", "local", "game", "v0.7-455");
@@ -35,14 +35,19 @@ function fontImage(file: string): Rgba {
   return { width: p.width, height: p.height, pixels: p.pixels };
 }
 
+/** 16x16 files under res/sprite/, which the build sweeps up wholesale. */
+const SPRITE_FILES = 65;
+
 d("SPEC-007 §8 — the sprite atlas", () => {
   it("packs the game's sprites, the marker, and the app's own icons", () => {
     const { manifest } = atlas();
     const rects = Object.entries(manifest.sprites);
-    // 65 sprite files plus the one cell cut out of markers.png: the no-entry
-    // sign, for "the rules refuse this".
+    // 65 sprite files, plus one cell per SHEET_SPRITES entry -- cut out of
+    // markers.png, which is not a 16x16 file and so is not swept up with them.
+    // Derived rather than written down: a cut that never reaches the atlas is
+    // exactly the failure this count is here to catch.
     const game = rects.filter(([name]) => !name.startsWith("icon_"));
-    expect(game.length).toBe(66);
+    expect(game.length).toBe(SPRITE_FILES + SHEET_SPRITES.length);
     expect(game.every(([, r]) => r.w === 16 && r.h === 16)).toBe(true);
     // ...and one icon per pixel map, for the things the game has no art for.
     const icons = rects.filter(([name]) => name.startsWith("icon_"));
@@ -50,7 +55,7 @@ d("SPEC-007 §8 — the sprite atlas", () => {
     // An icon's rect is its own size, not a padded cell: the runtime draws 9 or
     // 13 px of it and nothing else.
     expect(icons.every(([, r]) => r.w === r.h && r.w <= 16)).toBe(true);
-    expect(rects.length).toBe(66 + icons.length);
+    expect(rects.length).toBe(SPRITE_FILES + SHEET_SPRITES.length + icons.length);
   });
 
   // `[F]` The sheet's width is set by its widest bitmap font. At the 8 columns

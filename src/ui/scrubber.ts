@@ -8,6 +8,7 @@
 // back once, at the speed of a click.
 
 import { Cursor } from "../sim/cursor";
+import { coords } from "../sim/grid";
 import { activeSegment } from "../sim/route/document";
 import { describeAction, type ActionSummary } from "../sim/route/describe";
 import { simulate } from "../sim/simulate";
@@ -52,6 +53,7 @@ import {
   drawSettingsPanel,
   settingsHitboxes,
   settingsPanel,
+  settingsWidth,
   type Icons,
 } from "./render/marks";
 import { drawRightPanel, panelX, sliderGeometry, statusRowAt, stopToY, yToStop } from "./render/right";
@@ -100,7 +102,8 @@ export class Scrubber {
   private settings: ScrubberSettings;
   private settingsOpen = false;
   private hover: Hover | null = null;
-  private hoverRow: number | null = null;
+  /** Where the pointer last was, in logical pixels; null when it is off the canvas. */
+  private pointer: { x: number; y: number } | null = null;
   /** Rebuilt when the stop, the document or the hover changes — never per frame. */
   private rows: ActionRow[] = [];
   private pending: ActionSummary | null = null;
@@ -113,6 +116,23 @@ export class Scrubber {
    * all and the others shift around it.
    */
   private pinY = -1;
+
+  /**
+   * Which row the pointer is over.
+   *
+   * `[F]` **Derived, never stored.** It was cached as an offset from the pin —
+   * and a click moves the pin, so the cached number went on naming a row that
+   * far from the *new* one: the highlight jumped by exactly the distance
+   * clicked, away from the row that had just been selected. An offset only
+   * means anything beside the pin it was measured from, so the pointer is what
+   * is kept and the offset is worked out where it is wanted. Two call sites
+   * would each have had to remember to re-read it; none has to now.
+   */
+  private get hoverRow(): number | null {
+    return this.pointer === null
+      ? null
+      : offsetAt(this.listGeometry(), this.pinY, this.pointer.x, this.pointer.y);
+  }
   private draggingList = false;
   /** Where the drag began, so the selection follows the pointer one-for-one. */
   private dragFrom = { y: 0, stop: 0 };
@@ -457,16 +477,34 @@ export class Scrubber {
     this.dirty = this.settings.perf;
   }
 
-  /** `[I]` The failing action gets the no-entry sign on the track, and clicks through. */
+  /**
+   * `[I]` The failing action is marked on the track, and clicks through to it.
+   *
+   * `[F]` **The exclamation, not the no-entry sign.** The two say different
+   * things — no entry is the rules refusing a move, which is what a hovered
+   * cell wears — and the slider is 16 px wide, where the no-entry sign's
+   * diagonal fill has nowhere to read as a diagonal and went to a blob. Two
+   * strokes survive being small. Both are the game's own art (markers.png), so
+   * neither is a shape the player has to be taught.
+   */
   private drawFailureMarker(layout: Layout): void {
     const at = this.session.failedFrom;
-    if (at === null || this.icons.noEntry === null) return;
+    if (at === null || this.icons.exclaim === null) return;
     const b = this.failureHitbox(layout, at);
-    this.screen.ctx.drawImage(this.icons.noEntry, b.x, b.y);
+    this.screen.ctx.drawImage(this.icons.exclaim, b.x, b.y);
   }
 
   private toggles(): Array<{ label: string; on: boolean }> {
     return [{ label: "perf test", on: this.settings.perf }];
+  }
+
+  /**
+   * `[F]` The help panel sizes itself to its widest line, so the two hitbox
+   * calls have to ask for the same width the draw call works out — otherwise a
+   * click lands where the panel used to end.
+   */
+  private settingsW(): number {
+    return settingsWidth(fontFrom(this.manifest, "FONT_STANDARD"), this.toggles(), this.keys, this.icons.boxSize);
   }
 
   /** `[I]` The keys moved off the bottom strip and in here, where help lives. */
@@ -522,7 +560,7 @@ export class Scrubber {
       return;
     }
 
-    const from = this.cellOrigin(set, grid, site.action.from);
+    const from = this.cellOrigin(set, grid, this.approachOf(this.stop) ?? site.action.from);
     const to = this.cellOrigin(set, grid, site.action.to);
     const slot = set.floors.indexOf(site.action.to.z);
     if (slot < 0) return;
@@ -530,7 +568,11 @@ export class Scrubber {
     if (tile.x + FLOOR < 0 || tile.x > this.screen.layout.w) return;
 
     ctx.globalAlpha = site.live ? 1 : 0.45;
-    if (to) this.drawTarget(row, to, accent);
+    // `[F]` The target is framed **only** where the box over both squares will
+    // not reach it — which is when the player is on a floor this working set
+    // does not show. Drawn always, its rect ran down the middle of that box and
+    // read as a divider splitting one mark into two.
+    if (to) this.drawTarget(row, to, accent, from === null);
 
     const cardX = tile.x + FLOOR - CARD_W;
     const cardY = tile.y + FLOOR + 1;
@@ -553,6 +595,34 @@ export class Scrubber {
   }
 
   /**
+   * Where the player stands **immediately before** this action: the square the
+   * auto-pather walks them to, adjacent to the target.
+   *
+   * `[F]` Not `action.from`. That is what was recorded when the action was
+   * made — where the player stood after the *previous* action — and for an
+   * inserted action the two are usually different squares and often different
+   * floors: the pather covers the distance between them and the box was drawn
+   * around the start of that walk rather than its end. The journal has the
+   * answer already, in the `from` of the action's own step.
+   *
+   * `[F]` A stop whose step does not end on this action's target is not this
+   * action's step: a disabled action, or one past the break, holds its
+   * predecessor's step index (`stopModel`). Checking the target rather than
+   * re-deriving which case it is keeps the guard true for all of them.
+   */
+  private approachOf(stop: number): Waypoint | null {
+    const step = this.stops[stop];
+    const site = this.session.sites[stop];
+    if (site === undefined || step === undefined || step < 1) return null;
+    const s = this.timeline.steps[step - 1];
+    if (s === undefined) return null;
+    const to = coords(s.to);
+    const t = site.action.to;
+    if (to.z !== t.z || to.x !== t.x || to.y !== t.y) return null;
+    return coords(s.from);
+  }
+
+  /**
    * The cell the action is made on, redrawn over the floor.
    *
    * `[I]` Shrunk and turned, as if the player had knocked it away — the floor
@@ -562,14 +632,16 @@ export class Scrubber {
    * has been taken out — it hid the very thing the player needed to look at,
    * and the red frame and the deficit in the row already say what it said.
    */
-  private drawTarget(row: ActionRow, at: { x: number; y: number }, accent: string): void {
+  private drawTarget(row: ActionRow, at: { x: number; y: number }, accent: string, frame: boolean): void {
     const { ctx } = this.screen;
     const stem = row.summary.kind === "noop" ? null : spriteFor(keyOf(row.summary.cell), this.manifest);
     const r = stem === null ? undefined : this.manifest.sprites[stem] ?? this.manifest.sprites[this.manifest.entities[stem]?.[0] ?? ""];
 
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(at.x + 0.5, at.y + 0.5, CELL - 1, CELL - 1);
+    if (frame) {
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(at.x + 0.5, at.y + 0.5, CELL - 1, CELL - 1);
+    }
     if (!r) return;
 
     if (row.summary.error !== undefined) {
@@ -694,6 +766,8 @@ export class Scrubber {
 
     const onDown = (e: PointerEvent): void => {
       const p = logical(e.clientX, e.clientY);
+      // A press is a position too: on a touch there may have been no move.
+      this.pointer = p;
       const layout = this.screen.layout;
 
       if (inBox(p, cogHitbox(layout, PANEL_W))) {
@@ -706,12 +780,13 @@ export class Scrubber {
       // scrub, or insert an action under it.
       if (this.settingsOpen) {
         const toggles = this.toggles();
-        for (const [i, b] of settingsHitboxes(layout, PANEL_W, toggles.length).entries()) {
+        const w = this.settingsW();
+        for (const [i, b] of settingsHitboxes(layout, PANEL_W, toggles.length, w).entries()) {
           if (!inBox(p, b)) continue;
           if (i === 0) this.onSettings({ ...this.settings, perf: !this.settings.perf });
           return;
         }
-        if (!inBox(p, settingsPanel(layout, PANEL_W, toggles.length))) {
+        if (!inBox(p, settingsPanel(layout, PANEL_W, toggles.length, this.keys.length, w))) {
           this.settingsOpen = false;
           this.dirty = true;
         }
@@ -762,6 +837,9 @@ export class Scrubber {
         return;
       }
       const p = logical(e.clientX, e.clientY);
+      const was = this.hoverRow;
+      this.pointer = p;
+      if (this.hoverRow !== was) this.dirty = true;
       if (this.draggingList) {
         // The rows stay where they were when the drag began; the current action
         // becomes whichever of them the cursor is over, and the pin moves with
@@ -772,11 +850,7 @@ export class Scrubber {
         this.seek(this.dragFrom.stop + steps);
         return;
       }
-      const offset = offsetAt(this.listGeometry(), this.pinY, p.x, p.y);
-      if (offset !== this.hoverRow) {
-        this.hoverRow = offset;
-        this.dirty = true;
-      }
+      const offset = this.hoverRow;
       // `[I]` The status column has no room for words, so they are on hover.
       const status = statusRowAt(this.session.tower, this.cursor.player, this.screen.layout, p.x, p.y);
       this.canvas.title = status?.title ?? "";
@@ -786,7 +860,7 @@ export class Scrubber {
     this.canvas.addEventListener("pointerdown", onDown, { signal });
     this.canvas.addEventListener("pointermove", onMove, { signal });
     this.canvas.addEventListener("pointerleave", () => {
-      this.hoverRow = null;
+      this.pointer = null;
       this.setHover(null);
       this.dirty = true;
     }, { signal });

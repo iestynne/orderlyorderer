@@ -87,6 +87,10 @@ worth several rounds of review will outlive one context. Suspending is cheap —
 but only if the state is in the repository first, because a fresh session gets
 the branch, the docs and the code, and nothing else. Before stopping:
 
+- **Kill your dev server.** A live Vite holds `node_modules` open — on Windows
+  the rollup and esbuild binaries — and `npm ci` is the first thing the next
+  session runs. Left up, it lets that `npm ci` delete 171 of 174 packages and
+  then fail on the two it cannot unlink, which is a broken tree and no server.
 - **Commit everything**, broken states included (Hard rules).
 - **Write down what is still wrong**, in `docs/TODO.md` §A: a numbered section,
   one line each, marked as the branch's own and deleted when it merges. The
@@ -100,6 +104,12 @@ reuses it, and the session starts from that §A section rather than from the
 branch's diff. Run `npm ci` and `npm run build-atlas` anyway — `node_modules/`
 and `build/` are gitignored — and start a dev server of your own; the port the
 last session reported is not yours.
+
+`[F]` If that `npm ci` fails `EPERM` or `EBUSY` on a `.node` or an `.exe`, a
+previous session left its server running. **Ask iestyn to kill it** rather than
+fighting the file; the agent cannot. Renaming the locked binary and re-running
+does work — Windows permits rename on a mapped file where it refuses unlink —
+but it has to be repeated per file and leaves a zombie server behind.
 
 **5. Merge back only when iestyn says so.** Conflicts are resolved in the
 worktree; `main` only ever fast-forwards.

@@ -140,6 +140,33 @@ export function shearRows(s: Pixels, shear: (row: number) => number): Pixels {
   return { width: w, height: s.height, data };
 }
 
+/**
+ * Pull a floor's pixels halfway to mid-grey — every floor of the stack but the
+ * one being read.
+ *
+ * `[I]` iestyn: 50% grey at 50%. Halving a floor's range and centring it does
+ * three things at once. The black outline around it gains contrast, because the
+ * floor can no longer be black where they meet. Fifteen sprites at a sixth of
+ * their size stop competing with the one floor that matters. And a floor's own
+ * dark ground separates from the darker panel behind it.
+ *
+ * `[F]` **Alpha is untouched and transparent pixels are skipped**, so the wash
+ * follows the sheared floor's stepped edge exactly. That is why it belongs here
+ * and not in `drawStack`: a straight-edged parallelogram filled over the blit
+ * would miss those steps by a pixel apiece, all the way down both rakes. Being
+ * in the cached miniature it also costs nothing per frame (D39).
+ */
+export function knockBack(s: Pixels): Pixels {
+  const data = new Uint8ClampedArray(s.data);
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue;
+    data[i] = (data[i]! + 128) >> 1;
+    data[i + 1] = (data[i + 1]! + 128) >> 1;
+    data[i + 2] = (data[i + 2]! + 128) >> 1;
+  }
+  return { width: s.width, height: s.height, data };
+}
+
 export class FloorCache {
   private readonly canvases: HTMLCanvasElement[] = [];
   private readonly ctxs: CanvasRenderingContext2D[] = [];
@@ -174,12 +201,18 @@ export class FloorCache {
    * to blit whole. Built on demand and cached, because the stack redraws on
    * every scrub update and a floor changes only when a seek edits one of its
    * cells.
+   *
+   * `[D]` `dim` is part of the key, so a floor holds both variants once it has
+   * been current and not current. Two miniatures per floor is the price of the
+   * knock-back costing nothing per frame; an edit still retires both together,
+   * because `invalidate` matches on the floor at the front of the key.
    */
-  mini(z: number, w: number, h: number, shear: (row: number) => number): HTMLCanvasElement {
-    const key = `${z}:${w}x${h}+${shear(0)}`;
+  mini(z: number, w: number, h: number, shear: (row: number) => number, dim = false): HTMLCanvasElement {
+    const key = `${z}:${w}x${h}+${shear(0)}${dim ? "d" : ""}`;
     let c = this.minis.get(key);
     if (!c) {
-      const px = shearRows(boxFilter(this.ctxs[z - 1]!.getImageData(0, 0, FLOOR, FLOOR), w, h), shear);
+      const filtered = shearRows(boxFilter(this.ctxs[z - 1]!.getImageData(0, 0, FLOOR, FLOOR), w, h), shear);
+      const px = dim ? knockBack(filtered) : filtered;
       const made = this.make(px.width, px.height);
       made.ctx.putImageData(new ImageData(px.data as Uint8ClampedArray<ArrayBuffer>, px.width, px.height), 0, 0);
       c = made.canvas;

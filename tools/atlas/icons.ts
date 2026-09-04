@@ -13,15 +13,23 @@
 // packed black, which a multiply tint leaves alone.
 
 export const ICONS: Readonly<Record<string, readonly string[]>> = {
-  /** An added action. */
+  /**
+   * An added action.
+   *
+   * `[F]` **Opaque inside, not hollow.** The disc used to be a tinted ring with
+   * a tinted plus and nothing but transparency between them, so the row outline
+   * underneath showed through the badge and read as a smear across the glyph.
+   * The gaps are black now: outline black, which a multiply tint leaves alone,
+   * so the badge is a solid disc at any tint.
+   */
   icon_plus: [
     "..ooooo..",
     ".oo###oo.",
-    "o##...##o",
-    "o#..#..#o",
-    "o#.###.#o",
-    "o#..#..#o",
-    "o##...##o",
+    "o##ooo##o",
+    "o#oo#oo#o",
+    "o#o###o#o",
+    "o#oo#oo#o",
+    "o##ooo##o",
     ".oo###oo.",
     "..ooooo..",
   ],

@@ -16,6 +16,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import {
   FloorCache,
   boxFilter,
+  knockBack,
   shearRows,
   type CanvasAttrs,
   type CanvasFactory,
@@ -118,6 +119,38 @@ describe("the shear, baked into the miniature", () => {
       for (let x = 0; x < out.width; x++) if (out.data[(r * out.width + x) * 4 + 3] !== 0) opaque.push(x);
       expect(opaque, `row ${r}`).toEqual([0, 1, 2, 3, 4].map((i) => i + shear(r)));
     }
+  });
+});
+
+// docs/TODO.md §A7.12 -- every floor of the stack but the current one is
+// pulled halfway to mid-grey, so the black outline between overlapping floors
+// has something to be dark against.
+describe("the knock-back", () => {
+  const px = (rgba: number[][]): Pixels => ({
+    width: rgba.length,
+    height: 1,
+    data: new Uint8ClampedArray(rgba.flat()),
+  });
+
+  it("pulls an opaque pixel halfway to mid-grey", () => {
+    const out = knockBack(px([[0, 0, 0, 255], [255, 255, 255, 255], [128, 128, 128, 255]]));
+    expect([...out.data]).toEqual([64, 64, 64, 255, 191, 191, 191, 255, 128, 128, 128, 255]);
+  });
+
+  // `[F]` The shear leaves whole transparent columns down both rakes. Washing
+  // those too would put grey outside the floor, which is precisely the edge the
+  // outline is drawn on -- and is why this is baked into the miniature rather
+  // than filled as a parallelogram over the blit.
+  it("leaves transparent pixels alone, colour and alpha both", () => {
+    const out = knockBack(px([[0, 0, 0, 0], [10, 20, 30, 0]]));
+    expect([...out.data]).toEqual([0, 0, 0, 0, 10, 20, 30, 0]);
+  });
+
+  it("never changes alpha, and never changes the source", () => {
+    const src = px([[10, 200, 90, 128]]);
+    const out = knockBack(src);
+    expect(out.data[3]).toBe(128);
+    expect([...src.data]).toEqual([10, 200, 90, 128]);
   });
 });
 

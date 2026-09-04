@@ -76,7 +76,9 @@ the final position. Ticks mark floor changes; a counter reads which action you
 are on. The handle is an hourglass on its side, crossing the track at its waist:
 wide enough to grab, pinched so it never hides its tick. **The track is the
 verdict**: green the whole way from a clean load, turning red from the action an
-edit has broken, with the **no-entry sign** on it — which clicks through to it.
+edit has broken, with an **exclamation** on it — which clicks through to it.
+The no-entry sign means something else here: *the rules refuse this*, which is
+a hovered cell's answer, not the slider's.
 
 **Tower stack.** The whole tower as a vertical stack of floors, each squashed
 and raked over at **2:1**, reusing the timeline's floor images so the two agree.
@@ -85,8 +87,10 @@ for. **The whole tower always fits — nothing scrolls.** Floors are spaced to
 fill the panel, so a tall tower's overlap behind a 2 px outline, each showing a
 band of itself; a short tower spreads to a limit of two pixels of air. Every
 floor is drawn identically: the current one is marked by being drawn last, with
-a lavender outline, and by being the only one labelled. Nothing moves as you
-scrub.
+a lavender outline, by being the only one labelled, and by being the only one
+at full contrast — the rest are pulled halfway to mid-grey, which gives the
+black outline between overlapping floors something to be dark against and stops
+a tall tower reading as one field of noise. Nothing moves as you scrub.
 
 **Player status.** Along the top of the panel and down its right edge. **Power
 leads, on its own line above the stack**, in full with the game's dot separators
@@ -153,9 +157,12 @@ is named for a save slot, and what the player builds is theirs to name.
   action under the cursor**, so the row being aimed at is the row landed on.
 
 The current action is drawn as an **action**, not as a position. The player
-stands where it acts *from*, so the affected tile is visible; **one box covers
-both squares** — the one stood on and the one acted on — and the target is
-knocked askew, as though shoved aside. Its row is repeated at the right of that
+stands where it acts *from*, so the affected tile is visible — that being the
+square the auto-pather leaves them on, **adjacent to the target**, and not
+wherever the previous action ended, which for an inserted action is usually a
+different square and often a different floor. **One box covers both squares** —
+the one stood on and the one acted on, so neither wears a second frame — and
+the target is knocked askew, as though shoved aside. Its row is repeated at the right of that
 floor's name strip, joined to the player by a thick line: a display, not a
 control, in the strip rather than over the grid so it never covers a cell worth
 clicking, and without its number, which the list already carries.
@@ -164,9 +171,10 @@ clicking, and without its number, which the list already carries.
 knocked anywhere — and the player ring, the connecting line, the summary's frame
 and the floor's own frame all turn red. The row is outlined red too, whether or
 not it is the one being looked at, and its **spent** column says what it was
-short of: a bag reading **-21** for gold, the player with a power deficit to
-four figures, a boxed key or pickaxe where there is no number to give, an arrow
-where the square cannot be reached at all. The whole failing stretch is outlined
+short of: a bag reading **-21** for gold in red ink — the digits themselves,
+not a red block behind them — the player with a power deficit to four figures, a
+boxed key or pickaxe where there is no number to give, an arrow where the square
+cannot be reached at all. The whole failing stretch is outlined
 as well as banded — the band has to stay faint enough to read through, and faint
 is not enough to say where the stretch begins.
 

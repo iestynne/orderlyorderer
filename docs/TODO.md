@@ -9,14 +9,15 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 
 ## A. Next action
 
-**SPEC-007 and SPEC-008 are both built** — 308 tests green (`STATUS.md`). The
+**SPEC-007 and SPEC-008 are both built** — 320 tests green (`STATUS.md`). The
 scrubber has had four rounds of visual review and its performance faults are
-fixed and confirmed by eye (§A5). The **editing UI has now had five rounds**,
-and what each round found is fixed except the eight in §A7. The top of this
-list needs a browser, and so needs iestyn:
+fixed and confirmed by eye (§A5). The **editing UI has now had six rounds**,
+and everything all six found is fixed in code. **None of round six is
+confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
 
-1. **Finish §A7**, then look again. D24a is the editing UI's only judge and it
-   has not passed yet. `docs/UI.md` §7.
+1. **Look at §A7 again — round seven.** All thirteen are fixed and none is
+   confirmed. D24a is the editing UI's only judge and it has not passed yet.
+   `docs/UI.md` §7.
 2. **Floor entry thresholds — the *number*.** Skippable segments are the
    predicate; what is left is a search over it.
 3. **The two open pieces of editing UX** — §A6.
@@ -61,12 +62,27 @@ work, not padding. Either the budget moves or something leaves the docs.
 `[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
 own capture control: press `S` or the button, share the PNG.
 
-## A7. Open corrections — the editing UI, by eye
+## A7. The editing UI, by eye — thirteen fixed, none confirmed
 
 `[I]` iestyn, six rounds of looking at it. **This section is the branch's, not
 the project's: delete it when `session-route-edit-implementation` merges.** It
 exists so the work survives a session boundary — a commit log says what landed,
 never what is still wrong.
+
+`[F]` **All thirteen are fixed in code and are what round seven has to check.**
+Kept as a list rather than folded into the log because each is a separate thing
+to look at, and because a fix that misses by a pixel is invisible to a test:
+five of the thirteen have diagnostic tests under `test/ui/` (checked by
+reverting each and watching it fail), and the other eight can only be judged by
+looking. Delete an item when it has passed, not when it has been written.
+
+`[D]` Two were not the fault they looked like, and both are worth knowing:
+**13** was the hover holding an offset measured against a pin that a click had
+since moved — a cached derived value, not a hit-test error, so the fix was to
+stop caching it. **2** was reading the action's recorded `from`, which is where
+the *previous* action ended; the journal already held the right square in the
+action's own step. Both are in `DECISIONS.md` terms the same mistake: asking a
+stored answer a question it was not the answer to.
 
 1. **The `+` badge is transparent inside.** It should be opaque black, so the
    lavender outline underneath does not show through the glyph. It overlaps the

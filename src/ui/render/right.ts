@@ -47,7 +47,7 @@ export const STACK_FLOOR_H = 64;
 /** `[D]` Floors may overlap, so at most this much clear air between them. */
 const STACK_MAX_GAP = 2;
 /** Thick enough to read as a boundary where floors overlap. */
-const STACK_BORDER = 2;
+export const STACK_BORDER = 2;
 
 /**
  * `[F]` **Derived, not chosen.** The shear pushes the top row of a floor
@@ -55,8 +55,14 @@ const STACK_BORDER = 2;
  * is the real width of the stack. Picking the width by eye and the height
  * separately silently cropped every floor's right-hand edge against the clip
  * box, so the width comes out of the budget instead, and is asserted in test.
+ *
+ * `[F]` **The outline is part of the width.** It is stroked ON the floor's edge
+ * and so reaches `STACK_BORDER / 2` outside it at each side — which put the left
+ * one under the action list, drawn afterwards, and cost every floor two pixels
+ * of its own boundary. A whole border at each end buys the outline its room and
+ * leaves the drawn stack inside the column it was given.
  */
-export const STACK_FLOOR_W = STACK_W - Math.ceil((STACK_FLOOR_H - 1) / STACK_SHEAR);
+export const STACK_FLOOR_W = STACK_W - STACK_BORDER * 2 - Math.ceil((STACK_FLOOR_H - 1) / STACK_SHEAR);
 
 /**
  * How far apart consecutive floors sit, so the whole tower fits without
@@ -146,9 +152,10 @@ export function panelX(layout: Layout): number {
   return layout.w - PANEL_W - PANEL_PAD;
 }
 
-/** Left edge of the tower stack: past the slider and the action list. */
+/** Left edge of the tower stack: past the slider, the action list, and the
+ * border's own width, which is drawn outside this edge. */
 export function stackX(layout: Layout): number {
-  return panelX(layout) + SLIDER_W + ACTIONS_W;
+  return panelX(layout) + SLIDER_W + ACTIONS_W + STACK_BORDER;
 }
 
 
@@ -188,15 +195,19 @@ export function drawRightPanel(
   // ...and under it the action counter, which is short and fixed, opposite
   // everything the player is carrying. The floor name is not here: the stack
   // labels the current floor and every tile in the strip is captioned.
+  //
+  // `[F]` **Drawn once.** The slider drew it a second time three pixels lower,
+  // from before it moved up here, and two copies of a changing number three
+  // pixels apart read as one number that will not hold still.
   drawText(ctx, sheet, standard, `${s.stop + 1}/${s.stopCount}`, x0, 17);
   drawStatus(ctx, sheet, manifest, digits, s, layout);
 
   // `[I]` A line under the header, with air either side, so the two lines read
   // as a heading rather than as the top of the slider.
   ctx.fillStyle = C.DIVIDER;
-  ctx.fillRect(x0, PANEL_HEAD - 5, PANEL_W, 1);
+  ctx.fillRect(x0, PANEL_HEAD - 4, PANEL_W, 1);
 
-  drawSlider(ctx, sheet, standard, s, layout);
+  drawSlider(ctx, s, layout);
   drawStack(ctx, floors, standard, sheet, s, layout);
 }
 
@@ -238,8 +249,6 @@ export function yToStop(y: number, stopCount: number, g: { y: number; h: number 
 
 function drawSlider(
   ctx: CanvasRenderingContext2D,
-  sheet: CanvasImageSource,
-  font: AtlasFontRef,
   s: RightPanelState,
   layout: Layout,
 ): void {
@@ -281,10 +290,6 @@ function drawSlider(
   ctx.lineTo(mid - 1, cy);
   ctx.closePath();
   ctx.fill();
-
-  // Which action you are on, out of how many. Sits on its own line under the
-  // two-line header rather than over it.
-  drawText(ctx, sheet, font, `${s.stop + 1}/${s.stopCount}`, g.x, g.y - 13);
 }
 
 /** Half the height of the hourglass nub's flared end. */
@@ -343,7 +348,11 @@ function drawStack(
     const top = base - (z - 1) * pitch - h;
     if (top + h < g.y || top > g.y + g.h) return;
 
-    ctx.drawImage(floors.mini(z, STACK_FLOOR_W, h, shear), x0, top);
+    // `[I]` Every floor but the current one is knocked back towards grey, which
+    // is what lets the black outline separate them and stops a tall tower
+    // reading as one field of noise. `knockBack` says why it is baked into the
+    // miniature rather than washed over it here.
+    ctx.drawImage(floors.mini(z, STACK_FLOOR_W, h, shear, !current), x0, top);
 
     // Outline every floor, following the shear. Floors overlap on a tall tower,
     // so this is the only thing separating one from the next.

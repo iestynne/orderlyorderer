@@ -57,9 +57,15 @@ export const FONTS: Record<string, { file: string; charset: string; spacing: num
  * no-entry sign. `[D]` The app uses it for **the rules refusing a move**, which
  * is a different thing from the player switching an action off; that wears the
  * minus badge. Two states that look alike would be worse than either.
+ *
+ * `[I]` (5, 4) is the exclamation, which marks the break **on the slider**. The
+ * no-entry sign is 16 px of dense diagonal and at slider width it read as a
+ * blob; the exclamation is two strokes and survives being small. Both are the
+ * game's own art, so neither is a shape the player has to learn.
  */
 export const SHEET_SPRITES: ReadonlyArray<{ name: string; file: string; col: number; row: number }> = [
   { name: "no_entry", file: "markers.png", col: 4, row: 4 },
+  { name: "exclaim", file: "markers.png", col: 5, row: 4 },
 ];
 
 export interface Rect {

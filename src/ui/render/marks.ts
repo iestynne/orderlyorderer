@@ -18,10 +18,26 @@
 
 import type { AtlasManifest } from "../../../tools/atlas/build";
 import type { SimError } from "../../sim/types";
-import { drawText, type AtlasFontRef } from "./atlas";
+import { drawText, fontFrom, type AtlasFontRef } from "./atlas";
+import { textWidth } from "../imagefont";
 import { CELL, GAP, PANEL_PAD, type Layout } from "./screen";
 
 import * as C from "./palette";
+
+/**
+ * A font baked in one ink, drawn from its own sheet.
+ *
+ * `[D]` **A colour is a property of the glyphs, not of a rectangle behind
+ * them.** A deficit used to be white digits on a red block, which is a red
+ * *label*, not a red *number* — and it fought every sprite it sat on. Tinting
+ * the font gives the digits the colour and leaves the outline black and the
+ * ground transparent, so the badge is the same shape as every other value badge
+ * and differs from them only in the one way it means to.
+ */
+export interface InkedFont {
+  sheet: CanvasImageSource;
+  font: AtlasFontRef;
+}
 
 export interface Icons {
   plus: HTMLCanvasElement | null;
@@ -30,9 +46,13 @@ export interface Icons {
   cog: HTMLCanvasElement | null;
   cogOpen: HTMLCanvasElement | null;
   noEntry: HTMLCanvasElement | null;
+  /** The break, on the slider: the game's own exclamation. */
+  exclaim: HTMLCanvasElement | null;
   arrow: HTMLCanvasElement | null;
   /** `[F]` The game tints the player, and so does everywhere we draw it (D26). */
   player: HTMLCanvasElement | null;
+  /** The digits a shortfall is written in, inked red. */
+  deficit: InkedFont | null;
   /** The enable box, which is square, so one number sizes every hitbox. */
   boxSize: number;
   badge: number;
@@ -47,8 +67,10 @@ export function bakeIcons(manifest: AtlasManifest, sheet: CanvasImageSource): Ic
     cog: tint(manifest, sheet, "icon_cog", C.LAVENDER),
     cogOpen: tint(manifest, sheet, "icon_cog", "#15151a"),
     noEntry: tint(manifest, sheet, "no_entry", C.REFUSED),
+    exclaim: tint(manifest, sheet, "exclaim", C.FAIL_BRIGHT),
     arrow: tint(manifest, sheet, "icon_arrow", C.FAIL_BRIGHT),
     player: tint(manifest, sheet, "player", C.PLAYER_TINT),
+    deficit: inkFont(manifest, sheet, "FONT_DIGITS", C.SHORTFALL),
     boxSize: manifest.sprites["icon_box"]?.w ?? 9,
     badge: manifest.sprites["icon_plus"]?.w ?? 9,
   };
@@ -70,6 +92,30 @@ function tint(manifest: AtlasManifest, sheet: CanvasImageSource, name: string, c
   g.globalCompositeOperation = "destination-in";
   g.drawImage(sheet, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   return c;
+}
+
+/**
+ * The same bake, over a font's block of the sheet rather than one sprite.
+ *
+ * `[F]` A font is drawn glyph by glyph out of one rect (`drawText`), so an
+ * inked copy is that rect baked once and a font ref pointing at the copy's own
+ * origin. Nothing per-glyph, and nothing per frame.
+ */
+export function inkFont(manifest: AtlasManifest, sheet: CanvasImageSource, name: string, colour: string): InkedFont | null {
+  const font = fontFrom(manifest, name);
+  const c = document.createElement("canvas");
+  c.width = font.rect.w;
+  c.height = font.rect.h;
+  const g = c.getContext("2d");
+  if (!g) return null;
+  g.imageSmoothingEnabled = false;
+  g.drawImage(sheet, font.rect.x, font.rect.y, font.rect.w, font.rect.h, 0, 0, font.rect.w, font.rect.h);
+  g.globalCompositeOperation = "multiply";
+  g.fillStyle = colour;
+  g.fillRect(0, 0, font.rect.w, font.rect.h);
+  g.globalCompositeOperation = "destination-in";
+  g.drawImage(sheet, font.rect.x, font.rect.y, font.rect.w, font.rect.h, 0, 0, font.rect.w, font.rect.h);
+  return { sheet: c, font: { ...font, rect: { x: 0, y: 0, w: font.rect.w, h: font.rect.h } } };
 }
 
 /** The `+` an added action wears. */
@@ -115,8 +161,15 @@ export function drawCellMark(
 
 export const COG_BOX = 15;
 
+/**
+ * `[F]` **Clear of the panel, not merely left of it.** The panel is painted from
+ * `panelX - PANEL_PAD`, one pad's width outside its own left edge, and the
+ * button used to stop at `panelX - GAP` — inside that. It was drawn first, so
+ * the panel took two pixels off its right side every frame. Measuring from the
+ * painted edge rather than from `panelX` is what makes the gap real.
+ */
 export function cogHitbox(layout: Layout, panelW: number): { x: number; y: number; w: number; h: number } {
-  return { x: layout.w - panelW - PANEL_PAD - GAP - COG_BOX, y: GAP, w: COG_BOX, h: COG_BOX };
+  return { x: layout.w - panelW - PANEL_PAD * 2 - GAP - COG_BOX, y: GAP, w: COG_BOX, h: COG_BOX };
 }
 
 /**
@@ -150,14 +203,28 @@ export interface Toggle {
 const PANEL_ROW = 14;
 const PANEL_INSET = 5;
 
-export function settingsPanel(layout: Layout, panelW: number, n: number, keys = 0): { x: number; y: number; w: number; h: number } {
+/**
+ * How wide the panel has to be for the lines it holds.
+ *
+ * `[F]` **Measured, not chosen.** It was a flat 210, which fits some strings
+ * and not others: the longest key line ran off the right-hand edge and there
+ * was nothing to notice it, because a number cannot be wrong until someone
+ * looks. Deriving it from the same font `drawSettingsPanel` draws with means a
+ * line that does not fit cannot be written, whatever is added to the list.
+ */
+export function settingsWidth(font: AtlasFontRef, toggles: readonly Toggle[], keys: readonly string[], boxSize: number): number {
+  const rows = toggles.map((t) => boxSize + 5 + textWidth(font, t.label));
+  const lines = keys.map((k) => textWidth(font, k));
+  return Math.max(120, ...rows, ...lines) + PANEL_INSET * 2;
+}
+
+export function settingsPanel(layout: Layout, panelW: number, n: number, keys = 0, w = 210): { x: number; y: number; w: number; h: number } {
   const b = cogHitbox(layout, panelW);
-  const w = 210;
   return { x: b.x + b.w - w, y: b.y + b.h + 3, w, h: n * PANEL_ROW + keys * 11 + PANEL_INSET * 2 + (keys > 0 ? 5 : 0) };
 }
 
-export function settingsHitboxes(layout: Layout, panelW: number, n: number): Array<{ x: number; y: number; w: number; h: number }> {
-  const p = settingsPanel(layout, panelW, n);
+export function settingsHitboxes(layout: Layout, panelW: number, n: number, w?: number): Array<{ x: number; y: number; w: number; h: number }> {
+  const p = settingsPanel(layout, panelW, n, 0, w);
   return Array.from({ length: n }, (_, i) => ({
     x: p.x + PANEL_INSET,
     y: p.y + PANEL_INSET + i * PANEL_ROW,
@@ -181,14 +248,15 @@ export function drawSettingsPanel(
   toggles: readonly Toggle[],
   keys: readonly string[] = [],
 ): void {
-  const p = settingsPanel(layout, panelW, toggles.length, keys.length);
+  const w = settingsWidth(font, toggles, keys, icons.boxSize);
+  const p = settingsPanel(layout, panelW, toggles.length, keys.length, w);
   ctx.fillStyle = C.PANEL;
   ctx.fillRect(p.x, p.y, p.w, p.h);
   ctx.strokeStyle = C.LAVENDER;
   ctx.lineWidth = 2;
   ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
 
-  const boxes = settingsHitboxes(layout, panelW, toggles.length);
+  const boxes = settingsHitboxes(layout, panelW, toggles.length, w);
   toggles.forEach((t, i) => {
     const b = boxes[i]!;
     drawCheckbox(ctx, icons, b.x, b.y + 2, t.on);

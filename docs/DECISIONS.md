@@ -707,3 +707,30 @@ sometimes a parameter that is already determined by something else.** Before
 adding a knob, look for the quantity the system already knows. This is not a
 licence to eliminate every parameter — `dHue` and the stack's dimensions are
 genuinely matters of taste and stay tunable — but it earned its keep once.
+
+**D44. A value badge is a label, and labels are drawn last, in a pass of their
+own.**
+
+`[F]` The action list drew each row whole — background, columns, badges — and
+then outlined the failing action and the failing stretch on top. Both outlines
+landed on badges belonging to rows drawn before them, so an enemy's value and a
+deficit could each be struck through by a line that was not about them. The
+atlas had already met this once and answered it the same way (`atlas.ts`: every
+tile, then every label), because the game does: `leveldata.lua` paints the grid
+and then the value strings over it.
+
+`[D]` The rule is about what the two kinds of mark *are*, not about who happens
+to draw last. **An outline is a surface — it says which row you are on and
+where the route breaks. A badge is a label on a thing.** A label that a surface
+can cover is unreadable exactly when it matters most, so labels go last,
+everywhere, and per-row ordering cannot express that.
+
+`[D]` It also buys the clip: a pass of its own can be clipped differently, and
+the `+` an inserted action wears straddles the list's left edge over the slider
+— the list's own clip cut it in half. Two faults, one shape.
+
+`[I]` The same reasoning is why a deficit is red **ink** rather than white
+digits on a red block. A block is a surface pretending to be a label; it fights
+the sprite it sits on, and it says the colour belongs to the rectangle rather
+than to the number. `marks.ts` bakes an inked copy of the font once, exactly as
+it bakes a tinted copy of a sprite.

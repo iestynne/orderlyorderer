@@ -188,6 +188,30 @@ export function drawActionList(
     ctx.strokeRect(x + 0.5, y + 0.5, g.w - 9, ROW_H - 1);
   }
   ctx.restore();
+
+  // `[D]` **Badges last, over every outline in the list, and in a clip of
+  // their own.** Two reasons, either of which would be enough on its own. A
+  // badge names a thing, while an outline says which row you are on and where
+  // the route breaks — drawn row by row, the failing action's outline and the
+  // failed stretch's outline both landed on badges belonging to rows drawn
+  // before them, so the two kinds of mark fought over the same pixels. And the
+  // `+` straddles the list's left edge, over the slider, so it needs a clip
+  // wider than the list on that side; the list's own cut it in half.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(g.x - icons.badge, g.y, g.w + icons.badge, g.h);
+  ctx.clip();
+  for (const row of rows) {
+    drawRowBadges(ctx, sheet, fonts, g, row, rowTop(pinY, row.offset), icons);
+  }
+  if (pending !== null) {
+    drawRowBadges(
+      ctx, sheet, fonts, { ...g, x: g.x + 8 },
+      { offset: 0, number: 0, summary: pending, enabled: true, inserted: false, current: false, failed: false, breaks: false },
+      rowTop(pinY, 0) - ROW_H / 2, icons, { pending: true },
+    );
+  }
+  ctx.restore();
 }
 
 export function drawRow(
@@ -222,7 +246,7 @@ export function drawRow(
   // number: there is no enemy left to draw, and drawing the dead one would be
   // a lie about what this action does now.
   if (row.summary.kind !== "noop") {
-    drawSpent(ctx, sheet, manifest, fonts, row, col(SPENT_X), y, icons);
+    drawSpent(ctx, sheet, manifest, row, col(SPENT_X), y, icons);
 
     // What it acted on, with its own value badge: an enemy without its number
     // is just a silhouette. The badge is drawn last of all, over the outlines.
@@ -256,14 +280,46 @@ export function drawRow(
     ctx.strokeRect(g.x + i, y + i, g.w - i * 2, ROW_H - i * 2);
   }
 
-  // The value badge goes over the outlines: it is part of naming the thing.
-  if (row.summary.kind !== "noop") {
-    const label = labelOf(keyOf(row.summary.cell));
-    if (label !== null) {
-      ctx.globalAlpha = row.enabled || pending ? 1 : 0.35;
-      drawText(ctx, sheet, fonts.digits, label, col(CELL_X) + LABEL_RIGHT - textWidth(fonts.digits, label), y + 1 + LABEL_Y);
-      ctx.globalAlpha = 1;
-    }
+}
+
+/**
+ * The badges a row wears: the value naming what it acted on, the number it was
+ * short by, and the `+` an inserted action carries.
+ *
+ * Drawn in a pass of its own after every row body and every outline — see
+ * `drawActionList` for why that is not merely tidier.
+ */
+export function drawRowBadges(
+  ctx: CanvasRenderingContext2D,
+  sheet: CanvasImageSource,
+  fonts: { standard: AtlasFontRef; digits: AtlasFontRef },
+  g: ActionListGeometry,
+  row: ActionRow,
+  y: number,
+  icons: Icons,
+  opts: { pending?: boolean; number?: boolean } = {},
+): void {
+  const pending = opts.pending === true;
+  const numbered = !pending && opts.number !== false;
+  const col = (x: number): number => g.x + (numbered ? x : x - NUM_W - 2);
+  if (row.summary.kind === "noop") return;
+
+  // `[I]` **The deficit is a red number, not a number on red.** A block of
+  // colour behind white digits is a red label; what should carry the failure is
+  // the digits' own ink, which is what `icons.deficit` bakes. It sits where an
+  // entity's value badge sits, so a shortfall and a quantity are read in the
+  // same place and told apart by colour and by sign.
+  const want = row.summary.error === undefined ? null : shortfall(row.summary.error);
+  if (want !== null && icons.deficit !== null) {
+    const { sheet: ink, font } = icons.deficit;
+    drawText(ctx, ink, font, want.text, col(SPENT_X) + LABEL_RIGHT - textWidth(font, want.text), y + 1 + LABEL_Y);
+  }
+
+  const label = labelOf(keyOf(row.summary.cell));
+  if (label !== null) {
+    ctx.globalAlpha = row.enabled || pending ? 1 : 0.35;
+    drawText(ctx, sheet, fonts.digits, label, col(CELL_X) + LABEL_RIGHT - textWidth(fonts.digits, label), y + 1 + LABEL_Y);
+    ctx.globalAlpha = 1;
   }
 
   // `[I]` The add badge is centred on the row's left edge, above everything: on
@@ -285,7 +341,6 @@ function drawSpent(
   ctx: CanvasRenderingContext2D,
   sheet: CanvasImageSource,
   manifest: AtlasManifest,
-  fonts: { standard: AtlasFontRef; digits: AtlasFontRef },
   row: ActionRow,
   x: number,
   y: number,
@@ -300,15 +355,10 @@ function drawSpent(
   const want = shortfall(error);
   if (want !== null) {
     // The player is drawn tinted, as it is everywhere else: untinted it is one
-    // more white sprite (D26).
+    // more white sprite (D26). The number it carries is a badge, and is drawn
+    // with the others once every outline is down.
     if (want.stem === "player" && icons.player) ctx.drawImage(icons.player, x, y + 1);
     else blit(ctx, sheet, manifest, want.stem, x, y + 1);
-    // The number sits where an entity's value badge sits, and in the failure
-    // colour, so it reads as a shortfall rather than as a quantity held.
-    const w = textWidth(fonts.digits, want.text);
-    ctx.fillStyle = C.SHORTFALL;
-    ctx.fillRect(x + LABEL_RIGHT - w - 1, y + LABEL_Y, w + 2, 9);
-    drawText(ctx, sheet, fonts.digits, want.text, x + LABEL_RIGHT - w, y + 1 + LABEL_Y);
     return;
   }
   if (error.code === "NO_PATH" || error.code === "NOT_ADJACENT" || error.code === "OFF_MAP") {
@@ -390,10 +440,14 @@ export function drawActionCard(
   outline: string,
 ): void {
   const g: ActionListGeometry = { x, y, w: CARD_W, h: ROW_H };
-  drawRow(ctx, sheet, manifest, fonts, g, { ...row, current: false, breaks: false }, y, icons, false, { number: false });
+  const body = { ...row, current: false, breaks: false };
+  drawRow(ctx, sheet, manifest, fonts, g, body, y, icons, false, { number: false });
   ctx.strokeStyle = row.breaks ? C.FAIL_BRIGHT : outline;
   ctx.lineWidth = 2;
   ctx.strokeRect(x - 1, y - 1, CARD_W + 2, ROW_H + 2);
+  // The card wears its own frame, so its badges come after it for the same
+  // reason the list's come after the list's outlines.
+  drawRowBadges(ctx, sheet, fonts, g, body, y, icons, { number: false });
 }
 
 function blit(

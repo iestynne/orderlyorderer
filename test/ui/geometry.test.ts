@@ -25,7 +25,16 @@ import {
   rowPitch,
   tileHeight,
 } from "../../src/ui/render/screen";
-import { powerToString } from "../../src/ui/render/right";
+import { clampPinY, offsetAt } from "../../src/ui/render/actions";
+import { cogHitbox, COG_BOX } from "../../src/ui/render/marks";
+import {
+  powerToString,
+  stackX,
+  STACK_BORDER,
+  STACK_FLOOR_H,
+  STACK_FLOOR_W,
+  STACK_SHEAR,
+} from "../../src/ui/render/right";
 
 const ROOT = process.cwd();
 const GAME_DIR = process.env["TOS_GAME_DIR"] ?? join(ROOT, "..", "local", "game", "v0.7-455");
@@ -188,6 +197,70 @@ describe("the action list's columns", () => {
       const top = rowTop(pinY, offset);
       expect(offsetOfY(pinY, top), `top of ${offset}`).toBe(offset);
       expect(offsetOfY(pinY, top + ROW_H - 1), `foot of ${offset}`).toBe(offset);
+    }
+  });
+});
+
+// docs/TODO.md §A7.11, §A7.6, §A7.13 -- three places where one thing was drawn
+// over another because the arithmetic said they did not touch, and it was
+// measuring the wrong edge.
+describe("the right panel's columns do not overlap each other", () => {
+  const layout = layoutFor(1920, 1080, { pixelPerfect: true, linearFilter: false, zoom: "auto" }, 1);
+  const panelX = layout.w - PANEL_W - PANEL_PAD;
+  const listEnd = panelX + SLIDER_W + ACTIONS_W;
+
+  // `[F]` The outline is stroked ON the floor's edge, so it reaches half its
+  // width outside it. Measured to the floor rather than to the outline, the
+  // stack ended exactly where the action list began -- and the list is drawn
+  // afterwards, so it took two pixels off every floor's left boundary.
+  it("the stack's outline clears the action list", () => {
+    expect(stackX(layout) - STACK_BORDER / 2).toBeGreaterThanOrEqual(listEnd);
+  });
+
+  it("and the stack, shear and outline included, stays inside the panel", () => {
+    const top = Math.ceil((STACK_FLOOR_H - 1) / STACK_SHEAR);
+    const right = stackX(layout) + top + STACK_FLOOR_W + STACK_BORDER / 2;
+    expect(right).toBeLessThanOrEqual(panelX + PANEL_W);
+  });
+
+  // `[F]` The panel is painted from panelX - PANEL_PAD, one pad OUTSIDE its
+  // own left edge, and the help button is drawn before it. Stopping short of
+  // panelX was not far enough left, and the panel clipped the button.
+  it("the help button clears the panel's painted edge", () => {
+    const b = cogHitbox(layout, PANEL_W);
+    expect(b.w).toBe(COG_BOX);
+    expect(b.x + b.w).toBeLessThanOrEqual(panelX - PANEL_PAD);
+  });
+});
+
+// `[F]` A click moves the pin to the clicked row, which renumbers every offset
+// in the list around it. The hover held an offset taken against the OLD pin, so
+// afterwards it named a row that far from the new one and the highlight jumped
+// by exactly the distance clicked. The scrubber derives it from the pointer
+// now, which is why this is a claim about the arithmetic rather than about a
+// call site: what it pins is that the stale number and the live one genuinely
+// differ, so caching it could never have been right.
+describe("a click renumbers the list around the row it lands on", () => {
+  const g = { x: 100, y: 40, w: ACTIONS_W, h: 20 * ROW_H };
+  const pinY = g.y + 10 * ROW_H;
+  const x = g.x + 4;
+
+  it("puts the pointer on offset 0, wherever in the row it pressed", () => {
+    for (const offset of [-4, -1, 0, 1, 3, 7]) {
+      for (const dy of [0, 5, ROW_H - 1]) {
+        const y = rowTop(pinY, offset) + dy;
+        const moved = clampPinY(g, rowTop(pinY, offset));
+        expect(offsetAt(g, moved, x, y), `offset ${offset} + ${dy}`).toBe(0);
+      }
+    }
+  });
+
+  it("and the offset read before the click is wrong by the distance clicked", () => {
+    for (const offset of [-4, -1, 1, 3, 7]) {
+      const y = rowTop(pinY, offset) + 5;
+      const stale = offsetAt(g, pinY, x, y);
+      expect(stale, `offset ${offset}`).toBe(offset);
+      expect(stale, `offset ${offset} is not the new current row`).not.toBe(0);
     }
   });
 });
