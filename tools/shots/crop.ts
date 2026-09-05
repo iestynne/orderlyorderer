@@ -12,15 +12,12 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { decodePng, encodePng } from "../../src/mapdiff/png";
+import { decodePng, encodePng, type Png } from "../../src/mapdiff/png";
 
-export interface Png {
-  width: number;
-  height: number;
-  pixels: Uint8Array;
-}
+/** A PNG's pixels without its provenance: what a crop reads and what it makes. */
+type Raster = Pick<Png, "width" | "height" | "pixels">;
 
-export function crop(src: Png, x: number, y: number, w: number, h: number, scale: number): Png {
+export function crop(src: Raster, x: number, y: number, w: number, h: number, scale: number): Raster {
   if (w <= 0 || h <= 0 || scale < 1) throw new Error("crop: width, height and scale must be positive");
   if (x < 0 || y < 0 || x + w > src.width || y + h > src.height) {
     throw new Error(`crop: ${x},${y} ${w}x${h} is outside a ${src.width}x${src.height} image`);

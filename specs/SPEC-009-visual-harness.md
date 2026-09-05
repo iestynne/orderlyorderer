@@ -1,6 +1,8 @@
 # SPEC: Visual Harness
 
-Status: **draft 1**, 2026-09-04. Not started.
+Status: **draft 2**, 2026-09-04. Implemented, except the goldens: taking them
+needs the browser, and installing that is iestyn's (§2). Draft 2 is what
+building it changed — each change is marked `[D] draft 2` where it lands.
 Depends on: SPEC-007 (the scrubber, `Screen`, `capture()`), SPEC-008 (fixtures
 under `data/saves/tests/`).
 Load with this spec: `CLAUDE.md` Hard rules, `DECISIONS.md` D24a, D30, D45.
@@ -34,9 +36,11 @@ clipped badge — and none is visible in a static frame.
 
 ```
 tools/shots/browser.ts     launch: the project's own Chromium, confined to localhost
-tools/shots/scenarios.ts   the list: fixture, stop, pointer steps, crop
+tools/shots/scenarios.ts   the list, and pointOf: a named target to a pixel
+tools/shots/install.ts     the one command that reaches the network. iestyn runs it.
 tools/shots/run.ts         drive every scenario; write build/shots/<name>.png
 tools/shots/crop.ts        magnify a region of a PNG, for one-pixel claims
+tools/shots/diff.ts        two PNGs to a differing-pixel count and a diff image
 src/ui/dev.ts              ?fixture=&record=&stop=, and window.__orderly (DEV only)
 test/ui/shots.test.ts      the Verification Contract
 test/ui/golden/*.png       committed references, one per scenario
@@ -46,8 +50,15 @@ test/ui/golden/*.png       committed references, one per scenario
 ## 2. The browser
 
 `[D]` **A browser the project owns and iestyn never opens.** Playwright's
-bundled Chromium, installed by `npx playwright install chromium` with
-`PLAYWRIGHT_BROWSERS_PATH=.browsers` — a project-local, gitignored directory.
+bundled Chromium, in a project-local, gitignored `.browsers/`.
+
+`[D] draft 2` **The dependency is `playwright-core`, and the install is
+`npm run shots:install`.** The `playwright` package runs a `postinstall` that
+downloads browsers, which would put a network fetch inside the `npm ci` every
+session begins with (`CLAUDE.md` step 2); `playwright-core` is the same library
+without it. The install is a script rather than a bare command because
+`PLAYWRIGHT_BROWSERS_PATH` has to be set and an npm script cannot set an
+environment variable on both Windows and POSIX — `tools/shots/install.ts`.
 `[I]` **Only iestyn runs the install:** it reaches the network. Nothing in
 `package.json`'s ordinary scripts does. `[F]` No profile is ever shared with
 anything: every launch gets a fresh, temporary user-data directory, deleted on
@@ -87,9 +98,18 @@ match Chromium's before trusting it for goldens.
   already served), opens it, picks `record=<n>` (default 0) and seeks to
   `stop=<n>` (default 0). Everything after that is the ordinary app.
 - **Exposes `window.__orderly`**: `{ capture(): string, stop(): number,
-  layout(): Layout }`. `capture` is SPEC-007 §7's existing 1× PNG. `[D]` Nothing
-  else: pointer input goes through the real listeners, driven by Playwright's
-  mouse, so a scenario tests the same path a hand does.
+  layout(): Layout, state(): OrderlyState }`. `capture` is SPEC-007 §7's
+  existing 1× PNG. `[D]` Nothing that *acts*: pointer input goes through the
+  real listeners, driven by Playwright's mouse, so a scenario tests the same
+  path a hand does.
+
+`[D] draft 2` **`state()` is the fourth member.** Draft 1 had three, and three
+is not enough: `run.ts` resolves a target with the app's own pure functions,
+and `rowTop`, `stopToY` and `gridFor` each take app state that `Layout` cannot
+supply. `OrderlyState` is exactly those three numbers and the failing stop —
+the list's pin, the slider's divisions, the floors on screen — and nothing that
+is already computable from `Layout`. It is read-back, not an affordance: the
+rule that the harness may not click for the app is untouched.
 
 `[F]` The harness knows where to point because the geometry is pure and
 importable: `actionsGeometry`, `rowTop`, `stopToY`, `cogHitbox`,
@@ -102,16 +122,38 @@ to draw it.
 A scenario is data, not code:
 
 ```ts
-{ name: "deficit-gold", fixture: "1-5.INSUFFICIENT-POWER", record: 0, stop: 41,
-  steps: [{ hover: { row: 0 } }],            // or { click: "exclaim" }, { drag: { rows: 3 } }, { hover: { cell: {x, y} } }
-  crop?: { x, y, w, h } }
+{ name: "break", fixture: "2-1.INSUFFICIENT-GOLD", record: 10, stop: 2,
+  steps: [{ hover: { row: 0 } }],  // or { click: "exclaim" }, { click: "help" },
+                                   // { hover: { cell: { tile, x, y } } },
+                                   // { drag: { from: { row: 0 }, rows: 3 } }
+  shows: "what this shot is evidence about" }
 ```
+
+`[F] draft 2` **A fixture's name says what the *game* refused, not what the app
+refuses.** 34 of `1-5.INSUFFICIENT-POWER`'s 35 records simulate perfectly well;
+record 25 is the one that breaks, and it has two stops. The deficit scenarios
+use `2-1.INSUFFICIENT-GOLD` record 10 instead — four stops, the break at 2 — so
+one fixture can show clean, red and grey.
+
+`[D] draft 2` **A cell target is `{ tile, x, y }`, not `{ x, y }`.** Which
+floor a tile shows depends on the working set, which depends on the stop; the
+tile index is what `tileOrigin` takes and what stays true when the set changes.
+
+`[D] draft 2` **No per-scenario `crop`.** It would make that scenario's golden
+the cropped region, and a golden that sees less of the frame catches less.
+Cropping is for reporting a claim about a shot that already exists, so it stays
+on the command line (`crop.ts`).
 
 `run.ts` launches once, and per scenario: navigate, wait for `__orderly`, play
 the steps through `page.mouse`, read `capture()`, write
 `build/shots/<name>.png` — the app's own 1× frame, not a window screenshot, so
 every pixel is a logical pixel. `[D]` The window is sized so the layout lands
 at **scale 1** (`layoutFor`, SPEC-007 §5): a shot is the logical canvas exactly.
+`[F]` **1280 × 720**, `deviceScaleFactor` 1 (`VIEWPORT`). `layoutFor` floors the
+scale, so anything from SPEC-007 §5's minimum of 1096 × 524 up to just under
+twice it gives scale 1 — and at scale 1 the logical canvas *is* the viewport,
+so every shot is 1280 × 720. A `deviceScaleFactor` of 2 would put a fractional
+scale under the integer one; case 5 asserts the 1.
 
 `[D]` **Goldens are exact.** `test/ui/golden/<name>.png` is committed; the test
 runs the scenario and asserts **0 differing pixels**, writing
@@ -121,7 +163,7 @@ bump re-baselines on purpose, in its own commit, with the diffs looked at.
 `[D]` Re-baselining is a command (`npm run shots -- --update`) that a task
 runs only when the change to the picture was the point of the task.
 
-`[D]` **For a one-pixel claim, crop.** `Read` shows a 1920-wide frame small;
+`[D]` **For a one-pixel claim, crop.** `Read` shows a 1280-wide frame small;
 `tools/shots/crop.ts <png> <x> <y> <w> <h> --scale 8` writes a magnified
 region. The agent's report of "the divider is one pixel lower" cites a crop or
 a diff, never a glance at the whole frame.
@@ -143,10 +185,20 @@ Report: PASS/FAIL per named case; per scenario the differing-pixel count;
 | 4. `fetch("/data/saves/tests/1-5.INSUFFICIENT-POWER.sav")` | **200**, abort log unchanged |
 | 5. `?fixture=1-5.INSUFFICIENT-POWER&stop=0` → `__orderly.stop()` | **0**; `layout().scale` **1** |
 | 6. `capture()` PNG dimensions | `layout().w × layout().h` exactly |
-| 7. Scenarios in `scenarios.ts` | **≥ 8**: clean current action, added action (blue), the break (red), past the break (grey), hover row, hover exclaim, hover cell with preview, help open |
+| 7. Scenarios in `scenarios.ts` | **≥ 8**: clean current action, added action (blue), the break (red), past the break (grey), hover row, hover exclaim, hover cell with preview, help open. **10** are built: `hover-invalid` and `drag-list` as well |
 | 8. Golden diff, every scenario | **0** differing pixels |
-| 9. Diagnostic (D18): revert the `SHORTFALL` colour and run case 8 | the deficit scenario **fails**, and only it |
+| 9. Diagnostic (D18): dim the `SHORTFALL` colour and run case 8 | `break` **fails**, and **no scenario of a clean route** does |
 | 10. `npm run build` (production) | `__orderly` **undefined** in the built app; `?fixture=` does nothing |
+
+`[D] draft 2` **Case 9 was "and only it".** Every shot of a *breaking* route
+carries deficit ink — the list window at stop 0 already holds the row that
+breaks — so what the diagnostic can say is that no shot of a clean route moves.
+That is still diagnostic in D18's sense: a `SHORTFALL` used somewhere it does
+not belong shows up here as a clean shot that changed.
+
+`[F] draft 2` **Case 10 is checked against a real `dist/`**, by reading every
+built `.js`/`.html`/`.css` for `__orderly` and for a string only `dev.ts`
+contains. It reports itself skipped when `dist/` is absent.
 
 **Invariants**
 

@@ -27,7 +27,8 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
    an insertion or a disable on a corpus record that triggers it. From that
    list: one `.ord` holding every such route, as the regression corpus for
    failed-action behaviour — the deficit badges, the outlines, the grey tail.
-1c. **The visual harness** — SPEC-009. Its own session.
+1c. **The visual harness** — SPEC-009. Built on `session-visual-harness`;
+   blocked on the browser install, which is iestyn's. See §A9.
 2. **Floor entry thresholds — the *number*.** Skippable segments are the
    predicate; what is left is a search over it.
 3. **The two open pieces of editing UX** — §A6.
@@ -205,6 +206,39 @@ leaves to design rather than answers. Neither blocks the editor as it stands.
 - **Autosave behaviour for the working store.** It writes on every edit today,
   which is what DESIGN §2.2 asks for and may be more than is wanted on a long
   route. Also unanswered: whether to request `navigator.storage.persist()`.
+
+## A9. The visual harness — built, and it has never run
+
+`session-visual-harness`. Delete this section when the branch merges with its
+goldens in place.
+
+**iestyn does this first**, and nothing below can happen until he has:
+
+```sh
+cd ../git-visual-harness
+npm run shots:install        # downloads Chromium into .browsers/. Reaches the
+                             # network, which is why no agent may run it.
+```
+
+`[I]` Then the Windows Firewall outbound block on `.browsers/**/chrome.exe` —
+SPEC-009 §2's third confinement, the one the spec asks for and cannot verify.
+
+1. **The goldens do not exist.** `test/ui/golden/` is empty, so §5 case 8 fails
+   by design until the ten shots have been *looked at* and blessed:
+   `npm run dev`, then `npm run shots -- --update` against that server. Looking
+   first is the whole point — a golden nobody has seen freezes whatever was on
+   the screen, including a fault.
+2. **Cases 2-6 and 8-9 and all three invariants have never executed.** They are
+   written and they skip, loudly, while `.browsers/` is absent. Cases 1, 7 and
+   10 and the pure geometry, diff and crop checks do run and pass. Expect the
+   first real run to need fixing; the likely places are the waits in
+   `shoot()` (invariant 3) and case 9's palette patch.
+3. **Nothing has confirmed that a scenario points where it claims.** `pointOf`
+   is checked against the app's own geometry functions, which is not the same
+   as checking it against the app. The first ten shots are that check.
+4. `[O]` **Option B is still open** — SPEC-009 §2's `@napi-rs/canvas`, no
+   browser at all. Worth measuring only if the browser route proves painful;
+   it exercises no input path, and the input path is where the faults were.
 
 ## B. Loose ends from the oracle work
 
