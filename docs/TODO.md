@@ -23,10 +23,15 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
    conceptual locality so a doc's few references land, and bring every doc
    down to a minimal, consistent, reference-centric summary — visual
    description excepted. Use Fable. The evidence it answers is §A8.
-1b. **A failure corpus.** `[I]` iestyn will list, per SPEC-004 §7 error code,
-   an insertion or a disable on a corpus record that triggers it. From that
-   list: one `.ord` holding every such route, as the regression corpus for
-   failed-action behaviour — the deficit badges, the outlines, the grey tail.
+1b. **A failure corpus — mostly done, inside SPEC-009.** `scenarios.ts`'s
+   `FAILURES` holds one shot per error code the UI can be asked to draw:
+   eight, each a single disable on a clean corpus route, found by sweeping
+   every clean record of all 14 towers. Six of the remaining seven codes
+   **cannot** be a break at all (SPEC-009 §4). No separate `.ord` was needed —
+   a scenario names the record and the disable, which is the same information
+   and is executable. What is left is `SPIKE_TOO_STRONG`: not reachable by any
+   single disable in the corpus, and probably a no-entry case like the two
+   other aimed-at-the-obstacle codes, but not yet proved either way.
 1c. **The visual harness** — SPEC-009. Built on `session-visual-harness`;
    blocked on the browser install, which is iestyn's. See §A9.
 2. **Floor entry thresholds — the *number*.** Skippable segments are the
@@ -207,36 +212,43 @@ leaves to design rather than answers. Neither blocks the editor as it stands.
   which is what DESIGN §2.2 asks for and may be more than is wanted on a long
   route. Also unanswered: whether to request `navigator.storage.persist()`.
 
-## A9. The visual harness — built, and it has never run
+## A9. The visual harness — running; the goldens are not blessed
 
 `session-visual-harness`. Delete this section when the branch merges with its
 goldens in place.
 
-**iestyn does this first**, and nothing below can happen until he has:
+Chromium is installed and the harness runs end to end: 19 shots, no off-host
+request. Cases 1-7 and 10 and all three invariants pass; 8 and 9 fail only
+because no golden exists yet.
 
-```sh
-cd ../git-visual-harness
-npm run shots:install        # downloads Chromium into .browsers/. Reaches the
-                             # network, which is why no agent may run it.
-```
-
-`[I]` Then the Windows Firewall outbound block on `.browsers/**/chrome.exe` —
-SPEC-009 §2's third confinement, the one the spec asks for and cannot verify.
+`[F]` **The binary is `chrome-headless-shell.exe`**, not `chrome.exe` —
+`headless: true` launches the shell. Any firewall rule naming `chrome.exe`
+alone blocks nothing that this harness runs.
 
 1. **The goldens do not exist.** `test/ui/golden/` is empty, so §5 case 8 fails
-   by design until the eleven shots have been *looked at* and blessed:
+   by design until the nineteen shots have been *looked at* and blessed:
    `npm run dev`, then `npm run shots -- --update` against that server. Looking
    first is the whole point — a golden nobody has seen freezes whatever was on
-   the screen, including a fault.
-2. **Cases 2-6 and 8-9 and all three invariants have never executed.** They are
-   written and they skip, loudly, while `.browsers/` is absent. Cases 1, 7 and
-   10 and the pure geometry, diff and crop checks do run and pass. Expect the
-   first real run to need fixing; the likely places are the waits in
-   `shoot()` (invariant 3) and case 9's palette patch.
-3. **Nothing has confirmed that a scenario points where it claims.** `pointOf`
-   is checked against the app's own geometry functions, which is not the same
-   as checking it against the app. The first eleven shots are that check.
-4. `[O]` **Option B is still open** — SPEC-009 §2's `@napi-rs/canvas`, no
+   the screen, including a fault. Case 9 needs them too; it has never run.
+2. **Grey over blue is not covered.** `accentOf` treats `inserted` and the
+   break state as independent, so there are three added-action pictures: blue
+   (`added-action`), red (`added-then-broken`), and grey — an added action
+   *past* a break, which no scenario reaches. It needs an insertion plus a
+   disable that breaks the route **before** the inserted action; the search
+   that found red-over-blue can be pointed at it.
+3. `[O]` **`SPIKE_TOO_STRONG` is unproved.** No single disable in the corpus
+   produces it. Probably a no-entry case like `BLOCKED_IRON` and
+   `BLOCKED_ONE_WAY` (SPEC-009 §4), but that has not been shown.
+4. `[O]` **§2's third confinement is still trust.** A Windows Firewall rule
+   takes one absolute program path — no wildcards, no folder trees — so there
+   is nothing to set once, and a Playwright version bump makes a new
+   `.browsers/chromium-NNNN/` that any existing rule silently misses. The fix
+   is to make it unforgettable rather than global: have `shots:install` create
+   the block rules for what it just downloaded, and have `browser.ts` refuse
+   to launch unless a Block rule covers the executable it is about to run.
+   Reading rules needs no elevation, so the check works from any shell; only
+   creating them does. Not built.
+5. `[O]` **Option B is still open** — SPEC-009 §2's `@napi-rs/canvas`, no
    browser at all. Worth measuring only if the browser route proves painful;
    it exercises no input path, and the input path is where the faults were.
 

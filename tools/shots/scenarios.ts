@@ -102,6 +102,100 @@ export function pointOf(t: Target, layout: Layout, s: OrderlyState): { x: number
  * — four stops, the break at 2 — because a route with a stop either side of
  * its break can show clean, red and grey from one fixture.
  */
+/**
+ * One shot per error code the deficit UI can actually be asked to draw
+ * (`TODO.md` §A1b, the failure corpus).
+ *
+ * `[D]` **Each is a single disable on a clean corpus route**, taken at the stop
+ * that then breaks — so the shot is the red row, its frame, and that code's own
+ * deficit badge. A disable rather than an addition because a disable can be
+ * aimed: work back from the gate to the action that supplies what it needs and
+ * switch that one off. An addition has to be a cell that is insertable *and*
+ * spends the right resource, which is a search. `[I]` iestyn.
+ *
+ * `[F]` **Found by sweep, not by reading the map**: every clean record of all
+ * 14 towers, disabling each of its first 150 actions, keeping one example per
+ * code. The numbers below are that sweep's output.
+ *
+ * `[F]` **Seven of the fifteen codes are missing, and six of them cannot
+ * appear here at all.** `NEED_GEMS` cannot fire while a route carries the
+ * `UNLIMITED_GEMS` sentinel (`STATUS.md`). `OFF_MAP` and `NOT_ADJACENT` guard
+ * malformed input, not anything a pointer can do. `UNSUPPORTED_ENTITY` is
+ * orbs, which the corpus excludes. And `BLOCKED_IRON`, `BLOCKED_ONE_WAY` and
+ * `SPIKE_TOO_STRONG` are codes for an action **aimed at** the obstacle: the
+ * auto-pather routes around anything it cannot cross and reports `NO_PATH`
+ * instead, and an action aimed straight at one is refused at click time by
+ * `classify` — so they are the no-entry sign (`hover-invalid`), never a break.
+ * The sweep found none of the three anywhere in the corpus, which is that
+ * argument measured rather than asserted.
+ */
+const FAILURES: readonly Scenario[] = [
+  {
+    name: "break-enemy",
+    fixture: "iestyn.2026.08.28/1-5",
+    record: 0,
+    stop: 18,
+    steps: [{ click: { checkbox: -1 } }],
+    shows: "ENEMY_TOO_STRONG: the power deficit under the player, the enemy's own value beside it",
+  },
+  {
+    name: "break-no-path",
+    fixture: "iestyn.2026.08.28/EX-3",
+    record: 0,
+    stop: 3,
+    steps: [{ click: { checkbox: -1 } }],
+    shows: "NO_PATH: a break with no deficit numbers at all, because nothing is short — the square is unreachable",
+  },
+  {
+    name: "break-gold",
+    fixture: "iestyn.2026.08.28/2-4",
+    record: 19,
+    stop: 1,
+    steps: [{ click: { checkbox: -1 } }],
+    shows: "NEED_GOLD: the gold deficit on a gold gate, the first action of the route having been switched off",
+  },
+  {
+    name: "break-light-key",
+    fixture: "iestyn.2026.08.28/EX-2",
+    record: 3,
+    stop: 1,
+    steps: [{ click: { checkbox: -1 } }],
+    shows: "NEED_LIGHT_KEY: the light-key deficit on a light gate",
+  },
+  {
+    name: "break-dark-key",
+    fixture: "iestyn.2026.08.28/1-3",
+    record: 8,
+    stop: 67,
+    steps: [{ click: { checkbox: -8 } }],
+    shows: "NEED_DARK_KEY: the dark-key deficit, and eight rows of clean actions between the disable and the break",
+  },
+  {
+    name: "break-pickaxe",
+    fixture: "iestyn.2026.08.28/EX-1",
+    record: 8,
+    stop: 58,
+    steps: [{ click: { checkbox: -14 } }],
+    shows: "NEED_PICKAXE: a Weak Wall with no pickaxe, fourteen rows after the action that would have supplied one",
+  },
+  {
+    name: "break-hyper-pickaxe",
+    fixture: "iestyn.2026.08.28/2-3",
+    record: 8,
+    stop: 4,
+    steps: [{ click: { checkbox: -1 } }],
+    shows: "NEED_HYPER_PICKAXE: a Reinforced Wall — a different code and a different remedy from the Weak Wall above",
+  },
+  {
+    name: "break-battle-gate",
+    fixture: "iestyn.2026.08.28/2-4",
+    record: 15,
+    stop: 40,
+    steps: [{ click: { checkbox: -6 } }],
+    shows: "BLOCKED_BATTLE_GATE: a gate that will not open because the floor's enemies are not all dead",
+  },
+];
+
 export const SCENARIOS: readonly Scenario[] = [
   {
     name: "clean",
@@ -126,11 +220,19 @@ export const SCENARIOS: readonly Scenario[] = [
     shows: "the action that breaks the route: red row and frame, the gold deficit, the mark on the track",
   },
   {
+    // `[F]` **This was `2-1.INSUFFICIENT-GOLD` stop 3 and showed nothing.**
+    // That route has four stops and breaks at 2, and `stops.length ===
+    // sites.length + 1` (SPEC-008 §4.1) — so stop 3 is the route's *final
+    // position*, which has no action and therefore no row. The shot had a list
+    // of three actions and no current row at all, which is not "one past the
+    // break" and is not grey. A route needs actions **after** its break to show
+    // this, so it is built by disabling one early in a longer route.
     name: "past-break",
-    fixture: "2-1.INSUFFICIENT-GOLD",
-    record: 10,
-    stop: 3,
-    shows: "one past the break: grey, for an action that would happen and cannot",
+    fixture: "iestyn.2026.08.28/1-5",
+    record: 0,
+    stop: 20,
+    steps: [{ click: { checkbox: -3 } }],
+    shows: "two past the break: grey rows and a grey frame, for actions that would happen and cannot",
   },
   {
     name: "hover-row",
@@ -205,4 +307,5 @@ export const SCENARIOS: readonly Scenario[] = [
     steps: [{ click: { cell: { tile: 1, x: 3, y: 14 } } }, { click: { checkbox: -4 } }],
     shows: "red over blue: the added action is the break — red row and frame, and the + badge still says it was added",
   },
+  ...FAILURES,
 ];

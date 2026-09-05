@@ -139,6 +139,25 @@ one fixture can show clean, red and grey.
 floor a tile shows depends on the working set, which depends on the stop; the
 tile index is what `tileOrigin` takes and what stays true when the set changes.
 
+`[F] draft 2` **Six error codes can never be a break, so no shot can show one.**
+`scenarios.ts`'s `FAILURES` has one scenario per code the deficit UI can be
+asked to draw — eight, each a single disable on a clean corpus route, found by
+sweeping every clean record of all 14 towers. The other seven: `NEED_GEMS`
+cannot fire under the `UNLIMITED_GEMS` sentinel; `OFF_MAP` and `NOT_ADJACENT`
+guard malformed input; `UNSUPPORTED_ENTITY` is orbs; and `BLOCKED_IRON`,
+`BLOCKED_ONE_WAY` and `SPIKE_TOO_STRONG` name an action *aimed at* the
+obstacle — the auto-pather routes around what it cannot cross and reports
+`NO_PATH`, and an action aimed straight at one is refused by `classify` before
+it is ever inserted. Those three are the no-entry sign, never a break. The
+sweep found none of them, which is the argument measured rather than asserted.
+
+`[F] draft 2` **A break needs actions after it to show grey.** `past-break`
+first used `2-1.INSUFFICIENT-GOLD` stop 3 — but that route has four stops and
+`stops.length === sites.length + 1`, so stop 3 is the terminal *position*,
+which has no action and no row. The shot showed three actions and no current
+row: not grey, and not what it claimed. It is built from a disable early in a
+longer route instead.
+
 `[D] draft 2` **No per-scenario `crop`.** It would make that scenario's golden
 the cropped region, and a golden that sees less of the frame catches less.
 Cropping is for reporting a claim about a shot that already exists, so it stays
@@ -185,7 +204,7 @@ Report: PASS/FAIL per named case; per scenario the differing-pixel count;
 | 4. `fetch("/data/saves/tests/1-5.INSUFFICIENT-POWER.sav")` | **200**, abort log unchanged |
 | 5. `?fixture=1-5.INSUFFICIENT-POWER&stop=0` → `__orderly.stop()` | **0**; `layout().scale` **1** |
 | 6. `capture()` PNG dimensions | `layout().w × layout().h` exactly |
-| 7. Scenarios in `scenarios.ts` | **≥ 8**: clean current action, added action (blue), the break (red), past the break (grey), hover row, hover exclaim, hover cell with preview, help open. **11** are built: `hover-invalid`, `drag-list` and `added-then-broken` as well |
+| 7. Scenarios in `scenarios.ts` | **≥ 8**: clean current action, added action (blue), the break (red), past the break (grey), hover row, hover exclaim, hover cell with preview, help open. **19** are built: `hover-invalid`, `drag-list`, `added-then-broken`, and one per error code (`FAILURES`) |
 | 8. Golden diff, every scenario | **0** differing pixels |
 | 9. Diagnostic (D18): dim the `SHORTFALL` colour and run case 8 | `break` **fails**, and **no scenario of a clean route** does |
 | 10. `npm run build` (production) | `__orderly` **undefined** in the built app; `?fixture=` does nothing |

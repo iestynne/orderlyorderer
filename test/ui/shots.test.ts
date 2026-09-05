@@ -91,6 +91,9 @@ describe("SPEC-009 §5 — confinement and scenarios", () => {
     });
     expect(devParams("?fixture=a&record=10&stop=2")).toEqual({ fixture: "a", record: 10, stop: 2 });
     expect(() => devParams("?fixture=../../etc/passwd")).toThrow();
+    expect(() => devParams("?fixture=a/b/c")).toThrow();
+    expect(devParams("?fixture=iestyn.2026.08.28/2-1")?.fixture).toBe("iestyn.2026.08.28/2-1");
+    expect(towerOfFixture("iestyn.2026.08.28/2-1")).toBe("2-1");
     expect(() => devParams("?fixture=a&stop=-1")).toThrow();
     expect(() => devParams("?fixture=a&record=1.5")).toThrow();
     expect(towerOfFixture("2-1.INSUFFICIENT-GOLD")).toBe("2-1");
@@ -98,7 +101,9 @@ describe("SPEC-009 §5 — confinement and scenarios", () => {
 
   it("every scenario names a fixture that exists, and a record inside it", () => {
     for (const s of SCENARIOS) {
-      expect(existsSync(`data/saves/tests/${s.fixture}.sav`), `${s.name}: ${s.fixture}.sav`).toBe(true);
+      // A fixture is a test stem, or `<corpus dir>/<tower>` for the full corpus.
+      const path = s.fixture.includes("/") ? s.fixture : `tests/${s.fixture}`;
+      expect(existsSync(`data/saves/${path}.sav`), `${s.name}: ${path}.sav`).toBe(true);
       expect(existsSync(`data/towers/v0.7-455/${towerOfFixture(s.fixture)}.json`)).toBe(true);
       expect(s.record).toBeGreaterThanOrEqual(0);
       expect(s.stop).toBeGreaterThanOrEqual(0);
@@ -317,6 +322,14 @@ describe("SPEC-009 §5 — the browser", () => {
       await h.page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
       const url = await h.page.evaluate(() => window.__orderly!.capture());
       const own = new Uint8Array(Buffer.from(url.slice(url.indexOf(",") + 1), "base64"));
+      // `[F]` **The toolbar is hidden for this one comparison, and only this
+      // one.** `.tools` is `position: fixed` and deliberately sits *over* the
+      // canvas (docs/UI.md §1), and Playwright's element screenshot captures
+      // the page region the element occupies — chrome painted on top included.
+      // Without this the invariant failed by 29 564 pixels, which is the strip,
+      // not a rendering fault. What the invariant is about is the backing store
+      // against what the canvas itself paints.
+      await h.page.addStyleTag({ content: ".tools { display: none !important }" });
       const shown = new Uint8Array(await h.page.locator("canvas.stage").screenshot({ type: "png" }));
       expect(diffPng(own, shown).count).toBe(0);
     } finally {

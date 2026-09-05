@@ -66,10 +66,15 @@ export function devParams(search: string): DevParams | null {
   const q = new URLSearchParams(search);
   const fixture = q.get("fixture");
   if (fixture === null) return null;
-  // `[F]` A stem, not a path. Anything with a separator in it would let the
-  // query string read outside data/saves/tests/, and the dev server serves the
-  // repository root.
-  if (/[\/\\]/.test(fixture)) throw new Error(`fixture is a stem, not a path: ${fixture}`);
+  // `[F]` **A stem, or one directory and a stem** — `1-5.SUFFICIENT-POWER`, or
+  // `iestyn.2026.08.28/2-1` to reach the full corpus, which is where most
+  // failure cases are built from. Nothing else: the dev server's root is the
+  // repository, so an unchecked value here reads any file in it. The pattern
+  // admits no `..` segment and no second separator, which is what keeps this
+  // inside `data/saves/`.
+  if (!/^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)?$/.test(fixture) || fixture.split("/").includes("..")) {
+    throw new Error(`fixture must be <stem> or <dir>/<stem>: ${fixture}`);
+  }
   return { fixture, record: int(q.get("record")), stop: int(q.get("stop")) };
 }
 
@@ -84,11 +89,13 @@ function int(v: string | null): number {
  * The tower a fixture belongs to.
  *
  * `[F]` Not `towerIdFromFilename`, which wants the whole stem to be a tower id
- * and hands back null for every name in `data/saves/tests/`. These are named
- * `<tower>.<TEST>.sav` (D16), so the id is what precedes the first dot.
+ * and hands back null for every name in `data/saves/tests/`. Those are named
+ * `<tower>.<TEST>.sav` (D16), so the id is what precedes the first dot — and a
+ * corpus save is `<dir>/<tower>.sav`, where the directory is dated and full of
+ * dots of its own, so the directory goes first.
  */
-export function towerOfFixture(stem: string): string {
-  return stem.split(".")[0]!;
+export function towerOfFixture(fixture: string): string {
+  return (fixture.split("/").pop() ?? fixture).split(".")[0]!;
 }
 
 /** Guards against StrictMode's double invocation opening the fixture twice. */
@@ -104,7 +111,7 @@ export async function openFromUrl(
   const p = devParams(window.location.search);
   if (p === null || opened) return;
   opened = true;
-  const res = await fetch(`/data/saves/tests/${p.fixture}.sav`);
+  const res = await fetch(`/data/saves/${p.fixture.includes("/") ? p.fixture : `tests/${p.fixture}`}.sav`);
   if (!res.ok) throw new Error(`fixture ${p.fixture}: ${res.status}`);
   const bytes = new Uint8Array(await res.arrayBuffer());
   const tower = await loadTower(towerOfFixture(p.fixture));
