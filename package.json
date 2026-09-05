@@ -10,7 +10,10 @@
     "build-atlas": "tsx tools/atlas/build.ts",
     "dev": "vite",
     "build": "npm run build-atlas && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "shots": "tsx tools/shots/run.ts",
+    "shots:install": "tsx tools/shots/install.ts",
+    "crop": "tsx tools/shots/crop.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

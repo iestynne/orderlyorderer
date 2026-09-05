@@ -9,3 +9,6 @@ dist/
 
 # SPEC-007 §6.1: the asset build output. Game art, never publishable (D14b).
 build/
+
+# SPEC-009 §2: the harness browser. iestyn installs it; it is never committed.
+.browsers/
