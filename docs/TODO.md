@@ -224,7 +224,7 @@ npm run shots:install        # downloads Chromium into .browsers/. Reaches the
 SPEC-009 §2's third confinement, the one the spec asks for and cannot verify.
 
 1. **The goldens do not exist.** `test/ui/golden/` is empty, so §5 case 8 fails
-   by design until the ten shots have been *looked at* and blessed:
+   by design until the eleven shots have been *looked at* and blessed:
    `npm run dev`, then `npm run shots -- --update` against that server. Looking
    first is the whole point — a golden nobody has seen freezes whatever was on
    the screen, including a fault.
@@ -235,7 +235,7 @@ SPEC-009 §2's third confinement, the one the spec asks for and cannot verify.
    `shoot()` (invariant 3) and case 9's palette patch.
 3. **Nothing has confirmed that a scenario points where it claims.** `pointOf`
    is checked against the app's own geometry functions, which is not the same
-   as checking it against the app. The first ten shots are that check.
+   as checking it against the app. The first eleven shots are that check.
 4. `[O]` **Option B is still open** — SPEC-009 §2's `@napi-rs/canvas`, no
    browser at all. Worth measuring only if the browser route proves painful;
    it exercises no input path, and the input path is where the faults were.

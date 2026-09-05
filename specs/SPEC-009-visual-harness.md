@@ -185,7 +185,7 @@ Report: PASS/FAIL per named case; per scenario the differing-pixel count;
 | 4. `fetch("/data/saves/tests/1-5.INSUFFICIENT-POWER.sav")` | **200**, abort log unchanged |
 | 5. `?fixture=1-5.INSUFFICIENT-POWER&stop=0` → `__orderly.stop()` | **0**; `layout().scale` **1** |
 | 6. `capture()` PNG dimensions | `layout().w × layout().h` exactly |
-| 7. Scenarios in `scenarios.ts` | **≥ 8**: clean current action, added action (blue), the break (red), past the break (grey), hover row, hover exclaim, hover cell with preview, help open. **10** are built: `hover-invalid` and `drag-list` as well |
+| 7. Scenarios in `scenarios.ts` | **≥ 8**: clean current action, added action (blue), the break (red), past the break (grey), hover row, hover exclaim, hover cell with preview, help open. **11** are built: `hover-invalid`, `drag-list` and `added-then-broken` as well |
 | 8. Golden diff, every scenario | **0** differing pixels |
 | 9. Diagnostic (D18): dim the `SHORTFALL` colour and run case 8 | `break` **fails**, and **no scenario of a clean route** does |
 | 10. `npm run build` (production) | `__orderly` **undefined** in the built app; `?fixture=` does nothing |

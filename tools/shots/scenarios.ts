@@ -15,7 +15,7 @@
 // the frame catches less. Cropping is for reporting a claim about a shot that
 // already exists, so it lives in `crop.ts` and on the command line.
 
-import { ROW_H, actionsGeometry } from "../../src/ui/render/actions";
+import { ROW_H, actionsGeometry, checkboxAt } from "../../src/ui/render/actions";
 import { gridFor, tileOrigin } from "../../src/ui/render/left";
 import { cogHitbox } from "../../src/ui/render/marks";
 import { failureMarkBox, sliderGeometry } from "../../src/ui/render/right";
@@ -32,6 +32,8 @@ export interface CellTarget {
 export type Target =
   /** A row of the action list, in offsets from the current action. */
   | { row: number }
+  /** That row's enable box, hard right — the toggle, not the selection. */
+  | { checkbox: number }
   | { cell: CellTarget }
   /** The break mark beside the slider. */
   | "exclaim"
@@ -79,6 +81,10 @@ export function pointOf(t: Target, layout: Layout, s: OrderlyState): { x: number
     // the middle of the whole row would toggle the action instead of picking
     // it, and a scenario that meant to select would silently disable.
     return { x: g.x + (g.w - 14) / 2, y: s.pinY - t.row * ROW_H + ROW_H / 2 };
+  }
+  if ("checkbox" in t) {
+    const b = checkboxAt(actionsGeometry(layout, sliderGeometry(layout)), s.pinY, t.checkbox);
+    return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
   }
   const grid = gridFor(layout, PANEL_W, s.floorsShown);
   if (t.cell.tile >= s.floorsShown) {
@@ -173,5 +179,30 @@ export const SCENARIOS: readonly Scenario[] = [
     stop: 40,
     steps: [{ drag: { from: { row: 0 }, rows: 3 } }],
     shows: "a drag up the list: the rows hold still and the current action lands under the pointer",
+  },
+  {
+    // `[F]` **The one picture that needs an addition.** Every other failure
+    // here is cheaper to reach by disabling an action, and `accentOf` treats
+    // `inserted` and `breaks` as independent — a break outranks the add, so
+    // the row goes red and *keeps* its `+`. That combination exists only when
+    // an added action is the one that fails, and nothing else covers it.
+    //
+    // `[F]` It takes two edits, because an addition **cannot fail on its own**:
+    // `insertAt` only inserts when `classify` says the action succeeds, so a
+    // click that would break the route is refused with the no-entry sign
+    // instead. The inserted attack is made while the power is there, and the
+    // disable then takes that power away — `[I]` iestyn's framing: a failure
+    // from an addition is always a resource the addition spent, or one the
+    // route no longer collects.
+    //
+    // `[F]` Measured, not chosen: at stop 7 of this record, inserting z1 (3,14)
+    // lands the new action at stop 8, and disabling the action four rows below
+    // it leaves that attack short of power. `ENEMY_TOO_STRONG`.
+    name: "added-then-broken",
+    fixture: "1-5.INSUFFICIENT-POWER",
+    record: 0,
+    stop: 7,
+    steps: [{ click: { cell: { tile: 1, x: 3, y: 14 } } }, { click: { checkbox: -4 } }],
+    shows: "red over blue: the added action is the break — red row and frame, and the + badge still says it was added",
   },
 ];
