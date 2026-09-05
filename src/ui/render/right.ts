@@ -247,6 +247,31 @@ export function yToStop(y: number, stopCount: number, g: { y: number; h: number 
   return Math.round(t * (stopCount - 1));
 }
 
+/** How far left of the slider the break mark sits, clear of the track it marks. */
+const MARK_LEFT = 6;
+
+/**
+ * The failure mark's box on the track: what it is drawn in and what a click on
+ * it hits.
+ *
+ * `[F]` **Beside the track, not on it.** Centred on the slider the mark sat on
+ * the red stretch it marks — always, since the red starts exactly there — so a
+ * red glyph was asked to read against red. Six pixels left clears the track
+ * and leaves it inside the panel's own padding.
+ *
+ * `[D]` Here rather than in `Scrubber` because the harness aims at it too
+ * (SPEC-009 §4), and a hitbox with two definitions is a hitbox that can drift
+ * from the mark it is supposed to be under.
+ */
+export function failureMarkBox(
+  layout: Layout,
+  at: number,
+  stopCount: number,
+): { x: number; y: number; w: number; h: number } {
+  const g = sliderGeometry(layout);
+  return { x: g.x - MARK_LEFT, y: Math.round(stopToY(at, stopCount, g)) - 8, w: 16, h: 16 };
+}
+
 function drawSlider(
   ctx: CanvasRenderingContext2D,
   s: RightPanelState,

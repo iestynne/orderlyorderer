@@ -193,8 +193,9 @@ export default function App(): React.ReactElement {
     }
   }, []);
 
+  /** `stop` is for the visual harness (SPEC-009 §3); a hand always starts at 0. */
   const chooseRecord = useCallback(
-    (record: SaveRecord, t: TowerJSON) => {
+    (record: SaveRecord, t: TowerJSON, stop = 0) => {
       const route = importRoute({
         name: record.name,
         tower: t.tower_id,
@@ -202,10 +203,23 @@ export default function App(): React.ReactElement {
         waypoints: routeFromRecord(record),
         source: { file: `${t.tower_id}.sav`, record: record.name, hash: payloadHash(emitPayload(record.entries)) },
       });
-      start(ordFile([route]), t, DEFAULT_VIEW);
+      start(ordFile([route]), t, { ...DEFAULT_VIEW, stop });
     },
     [start],
   );
+
+  // SPEC-009 §3 — the visual harness. The dynamic import inside the DEV guard
+  // is what keeps every line of it out of a production build: Vite replaces
+  // the condition with `false` and Rollup drops the import with the branch.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    void import("./dev")
+      .then((dev) => {
+        dev.expose(scrubberRef);
+        return dev.openFromUrl(chooseRecord);
+      })
+      .catch((e: Error) => setError(String(e)));
+  }, [chooseRecord]);
 
   // Mount the scrubber once a session exists, and never re-render it after.
   useEffect(() => {

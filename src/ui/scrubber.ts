@@ -57,7 +57,7 @@ import {
   settingsWidth,
   type Icons,
 } from "./render/marks";
-import { drawRightPanel, panelX, sliderGeometry, statusRowAt, stopToY, yToStop } from "./render/right";
+import { drawRightPanel, failureMarkBox, panelX, sliderGeometry, statusRowAt, stopToY, yToStop } from "./render/right";
 import { drawTrail, playerScreenPos, trailPoints, type TrailPoint } from "./render/trail";
 import { Screen, CELL, FLOOR, PANEL_PAD, PANEL_W, type Layout, type ScreenSettings } from "./render/screen";
 import { drawText, fontFrom, keyOf, spriteFor, type AtlasFontRef } from "./render/atlas";
@@ -68,9 +68,6 @@ import { PerfHarness, type PerfReport } from "./perf";
 export interface ScrubberSettings extends ScreenSettings {
   perf: boolean;
 }
-
-/** How far left of the slider the break mark sits, clear of the track it marks. */
-const MARK_LEFT = 6;
 
 /** What clicking the hovered cell would do. */
 type HoverKind = "action" | "invalid" | "none";
@@ -376,6 +373,32 @@ export class Scrubber {
     return this.screen.buffer.toDataURL("image/png");
   }
 
+  /**
+   * SPEC-009 §3 — what the visual harness reads back, and all it reads back.
+   *
+   * `[D]` `harnessState` is the app state a pointer target needs and `Layout`
+   * cannot give: the list's pin, the slider's divisions, and how many floors
+   * the panel is showing. `run.ts` computes the pixel itself, from these and
+   * the same pure functions the app drew with, so a wrong hitbox shows up as a
+   * shot pointing at the wrong thing rather than as agreement with itself.
+   */
+  get stopIndex(): number {
+    return this.stop;
+  }
+
+  get layout(): Layout {
+    return this.screen.layout;
+  }
+
+  get harnessState(): { pinY: number; stopCount: number; failedFrom: number | null; floorsShown: number } {
+    return {
+      pinY: this.pinY,
+      stopCount: this.stops.length,
+      failedFrom: this.session.failedFrom,
+      floorsShown: this.currentSet().floors.length,
+    };
+  }
+
   saveCapture(): void {
     const url = this.capture();
     const a = document.createElement("a");
@@ -534,15 +557,9 @@ export class Scrubber {
     "S              screenshot",
   ];
 
-  /**
-   * `[F]` **Beside the track, not on it.** Centred on the slider the mark sat on
-   * the red stretch it marks — always, since the red starts exactly there — so a
-   * red glyph was asked to read against red. Six pixels left clears the track
-   * and leaves it inside the panel's own padding.
-   */
+  /** The break mark's box; `failureMarkBox` holds the reasoning and the numbers. */
   private failureHitbox(layout: Layout, at: number): { x: number; y: number; w: number; h: number } {
-    const g = sliderGeometry(layout);
-    return { x: g.x - MARK_LEFT, y: Math.round(stopToY(at, this.stops.length, g)) - 8, w: 16, h: 16 };
+    return failureMarkBox(layout, at, this.stops.length);
   }
 
   /** The one colour every mark of the current action wears: `accentOf`. */
