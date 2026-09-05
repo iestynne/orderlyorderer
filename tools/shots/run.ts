@@ -24,7 +24,7 @@ import type { Layout } from "../../src/ui/render/screen";
 import type { OrderlyState } from "../../src/ui/dev";
 import { launch, type Harness } from "./browser";
 import { SCENARIOS, pointOf, type Scenario, type Step } from "./scenarios";
-import { diffPng } from "./diff";
+import { diffPng, reviewImage } from "./diff";
 
 export const SHOTS_DIR = "build/shots";
 export const GOLDEN_DIR = "test/ui/golden";
@@ -147,8 +147,17 @@ export async function runAll(names: readonly string[], update: boolean, base = B
         results.push({ name: s.name, differing: -1, first: null, goldenMissing: true });
         continue;
       }
-      const d = diffPng(png, new Uint8Array(readFileSync(golden)));
-      if (d.count !== 0 && d.image !== null) writeFileSync(join(SHOTS_DIR, `${s.name}.diff.png`), d.image);
+      const goldenBytes = new Uint8Array(readFileSync(golden));
+      const d = diffPng(png, goldenBytes);
+      if (d.count !== 0 && d.image !== null) {
+        writeFileSync(join(SHOTS_DIR, `${s.name}.diff.png`), d.image);
+        // `[D]` The review sheet is written whenever a shot moves, not only
+        // when asked for. A changed golden is always a question — bug or
+        // intended churn — and the answer is always this picture, so making it
+        // conditional would only mean running the whole suite twice.
+        const sheet = reviewImage(goldenBytes, png, d.image);
+        if (sheet !== null) writeFileSync(join(SHOTS_DIR, `${s.name}.review.png`), sheet);
+      }
       results.push({ name: s.name, differing: d.count, first: d.first, goldenMissing: false });
     }
   } finally {
@@ -178,7 +187,11 @@ async function main(argv: string[]): Promise<void> {
   }
   const bad = results.filter((r) => r.differing !== null && r.differing !== 0).length;
   if (bad > 0) {
-    console.log(`\n${bad} scenario(s) differ. The diffs are in ${SHOTS_DIR}/<name>.diff.png.`);
+    console.log(
+      `\n${bad} scenario(s) differ. Look at ${SHOTS_DIR}/<name>.review.png — golden, then shot,\n` +
+        "then the diff — and decide which it is: a fault to fix, or intended churn to re-baseline\n" +
+        "with --update. A count cannot tell you which, and that is the only question worth asking.",
+    );
     process.exitCode = 1;
   }
 }

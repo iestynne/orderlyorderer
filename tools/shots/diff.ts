@@ -20,6 +20,45 @@ export interface Diff {
   image: Uint8Array | null;
 }
 
+/**
+ * Golden, shot and diff stacked into one image, for judging intended churn.
+ *
+ * `[I]` iestyn: when a UI change makes every golden fail, the question is not
+ * "did it change" — it is *did it change the way I meant*. A count cannot
+ * answer that and two files in a directory make you flick between them. One
+ * image, before over after over diff, can be looked at once and answered.
+ *
+ * `[D]` Stacked, not side by side: the frame is 1280 wide and a row of three
+ * would be 3840, which no reader sees at once. Magenta rules separate the
+ * panels because nothing in the app's palette is magenta, so a rule can never
+ * be mistaken for content.
+ */
+export function reviewImage(golden: Uint8Array, shot: Uint8Array, diff: Uint8Array): Uint8Array | null {
+  const panels = [decodePng(golden), decodePng(shot), decodePng(diff)];
+  const w = panels[0]!.width;
+  if (panels.some((p) => p.width !== w)) return null;
+  const RULE = 2;
+  const h = panels.reduce((n, p) => n + p.height, 0) + RULE * (panels.length - 1);
+  const out = new Uint8Array(w * h * 4);
+  let y = 0;
+  panels.forEach((p, i) => {
+    out.set(p.pixels, y * w * 4);
+    y += p.height;
+    if (i === panels.length - 1) return;
+    for (let r = 0; r < RULE; r++) {
+      for (let x = 0; x < w; x++) {
+        const d = ((y + r) * w + x) * 4;
+        out[d] = 255;
+        out[d + 1] = 0;
+        out[d + 2] = 255;
+        out[d + 3] = 255;
+      }
+    }
+    y += RULE;
+  });
+  return encodePng(w, h, out);
+}
+
 export function diffPng(shot: Uint8Array, golden: Uint8Array): Diff {
   const a = decodePng(shot);
   const b = decodePng(golden);
