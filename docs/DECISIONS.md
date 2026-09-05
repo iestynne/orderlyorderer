@@ -735,3 +735,45 @@ digits on a red block. A block is a surface pretending to be a label; it fights
 the sprite it sits on, and it says the colour belongs to the rectangle rather
 than to the number. `marks.ts` bakes an inked copy of the font once, exactly as
 it bakes a tinted copy of a sprite.
+
+**D45. Code is authoritative; docs are reference-centric maps into it.**
+Inverts the "docs are canonical; code is derived" rule this project began
+under, and amends D31.
+
+`[I]` iestyn, 2026-09-04. The canonical-docs framing was an experiment: could
+the app be regenerated from its docs and come out effectively the same? What
+the experiment showed is that **incremental change fights it** — nothing
+regenerates the code each round, so docs and code are free to diverge, and
+did. Two divergences surfaced in one session (`TODO.md` §A8), both by hand,
+neither by anything that could have caught them. The regeneration endpoint is
+still wanted; it is a research goal, and the goal *now* is productivity with
+these tools — building functional things quickly. Restructuring at that level
+is revisited later.
+
+`[I]` The two framings disagree on mechanism and agree on the thing that
+matters: **consistency is king.**
+
+`[D]` So, once implemented, a thing is described by its code. A doc is a
+**summary with references** — enough shape for a fresh context to know where
+to look, and the names to `grep` for — and a paragraph explaining a few lines
+is deleted: it can only be as accurate as the lines, and usually less. Two
+consequences follow.
+
+- **Code is organised for the references to land.** A concept sprinkled across
+  files defeats a reference; a tight bundle of functionality serves one. Refactor
+  toward locality, not only toward size (D11).
+- **A review stage ends every task** (CLAUDE.md §3a). Reference-centric docs
+  make it greppable: a term clusters near its reference and appears nowhere
+  else, so a `grep` after a rename finds the stragglers.
+
+`[I]` **Visual descriptions and example images are the exception.** How a
+piece of software looks is much harder to infer correctly from its code —
+this session demonstrated it repeatedly, and humans are no better at it — so
+prose about appearance is not redundant with code in the way prose about
+behaviour is. `UI.md` keeps it.
+
+`[D]` **D31 rule 2 is inverted.** It forbade module names in a design doc
+because they drift; they are now the point. What is forbidden instead is
+restating what the referenced code does. Rules 1, 3, 5 and 6 stand, and rule 3
+— a change that makes a sentence false deletes it in the same edit — is the
+discipline both framings depend on.

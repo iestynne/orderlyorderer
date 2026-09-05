@@ -70,6 +70,12 @@ nothing to what his browser already holds, and he is the only one who can.
 
 **3. Work there, and only there.** Never edit a file under `../git/`.
 
+**3a. Review before reporting.** The last stage of every task: walk every diff
+hunting disagreement — doc against code, doc against doc, comment against the
+lines under it — and `grep` each renamed or removed term across the tree. Two
+such disagreements surfaced by luck in one session; none was caught by a test,
+and none could have been. D45.
+
 **4. Stop, and hand the branch over.** Green tests are necessary and are not
 sufficient: **anything iestyn has to look at, he looks at before it lands.**
 A green suite is never a working UI (D24a, D30), and `main` is what a fresh
@@ -135,8 +141,14 @@ and ask.
   See `docs/DECISIONS.md` D14b.
 - The game archive is a **build-time input**, not a runtime dependency. Parse it
   once, commit the derived tower JSON, and depend on that. D14e.
-- **Docs are canonical; code is derived.** A behaviour change updates the
-  relevant doc in the same commit. Disagreement between them is a bug in both.
+- **Code is authoritative; a doc is the map into it.** Once a thing is built,
+  the code is its description. A doc says what a reader needs to find the code
+  and read it right — the shape, and references — and never re-explains lines
+  the code says better. Two exceptions: **how a thing looks** (not readable
+  from its code; keep descriptions and example images), and **the game's
+  rules** (`GAME_MECHANICS.md` is the map into *the game's* code, which is
+  authoritative for them). A doc the code contradicts is wrong, and is fixed in
+  the commit that made it wrong. D45.
 - **A game rule has exactly one home: `docs/GAME_MECHANICS.md`.** Specs cite it,
   never restate it — a paraphrase reads as independent confirmation and is not
   one. A spec may state the app's *encoding* of a rule, and cites the rule it

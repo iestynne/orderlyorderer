@@ -18,21 +18,11 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
 1. **Look at §A7 again — round seven.** All thirteen are fixed and none is
    confirmed. D24a is the editing UI's only judge and it has not passed yet.
    `docs/UI.md` §7.
-1a. **A refactor-and-review task, then make it the last stage of every task.**
-   `[I]` iestyn, 2026-09-04, after two doc/code disagreements surfaced in one
-   session (§A8). **Code is authoritative, because it *is* the behaviour;** a
-   paragraph explaining a few lines can only be ≤ as accurate as the lines.
-   So: docs are a summary with brief references into the code that let a
-   fresh context zoom in — never prose that re-explains what the code says
-   better. That in turn wants the code organised so a few references land:
-   tight bundles of functionality, not concepts sprinkled through files. And
-   a **review stage** at the end of every task: walk every diff hunting
-   doc-vs-code and doc-vs-doc inconsistency, which reference-centric docs
-   make greppable — the terms cluster near the reference and nowhere else.
-   Minimise code length, maximise conceptual locality, make every doc
-   minimal, consistent and reference-centric. Use Fable for it. `[D]` This
-   **inverts CLAUDE.md's "docs are canonical; code is derived"** and D31's
-   framing; taking the task means settling that rule, not working around it.
+1a. **The D45 refactor.** The framing is decided (D45, CLAUDE.md §3a); the
+   pass that applies it is not done: minimise code length, maximise
+   conceptual locality so a doc's few references land, and bring every doc
+   down to a minimal, consistent, reference-centric summary — visual
+   description excepted. Use Fable. The evidence it answers is §A8.
 2. **Floor entry thresholds — the *number*.** Skippable segments are the
    predicate; what is left is a search over it.
 3. **The two open pieces of editing UX** — §A6.
