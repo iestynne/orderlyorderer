@@ -76,10 +76,9 @@ own capture control: press `S` or the button, share the PNG.
 
 ## A7. The editing UI, by eye — thirteen fixed, none confirmed
 
-`[I]` iestyn, six rounds of looking at it. **This section is the branch's, not
-the project's: delete it when `session-route-edit-implementation` merges.** It
-exists so the work survives a session boundary — a commit log says what landed,
-never what is still wrong.
+`[I]` iestyn, six rounds of looking at it. Merged to `main` 2026-09-04 with
+none of the thirteen confirmed by eye — iestyn: keep main moving. **Delete each
+item when round seven passes it, and the section when the last one goes.**
 
 `[F]` **All thirteen are fixed in code and are what round seven has to check.**
 Kept as a list rather than folded into the log because each is a separate thing
