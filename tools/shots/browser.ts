@@ -16,10 +16,13 @@
 // intended. The browser is installed separately, by iestyn, by the one command
 // in `npm run shots:install`.
 
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromium, type BrowserContext, type Page } from "playwright-core";
+// `[F]` **Type-only, and the runtime import is dynamic** — see
+// `useProjectBrowsers`. A static `import { chromium }` here is enough to make
+// the library read `PLAYWRIGHT_BROWSERS_PATH` before anything has set it.
+import type { BrowserContext, Page } from "playwright-core";
 
 /**
  * `[F]` A dead proxy for everything, bypassed for loopback only. Port 9 is
@@ -65,18 +68,30 @@ export function isLoopback(url: string): boolean {
 }
 
 /**
- * `PLAYWRIGHT_BROWSERS_PATH` decides where the library looks, and it is read
- * at different moments in different versions, so it is set by the npm scripts
- * *and* here. The harness must not depend on which.
+ * `[F]` **`PLAYWRIGHT_BROWSERS_PATH` is read when `playwright-core` is first
+ * imported, not when a browser is launched.** Setting it in a function that
+ * runs after a static `import { chromium }` is too late: the library has
+ * already resolved its browsers directory to `%LOCALAPPDATA%\ms-playwright`,
+ * and the launch fails saying the executable is not there — while `.browsers/`
+ * holds it all along. So the env var is set here and the library is imported
+ * *after*, dynamically.
  */
-function useProjectBrowsers(): void {
+async function playwright(): Promise<typeof import("playwright-core")> {
   process.env["PLAYWRIGHT_BROWSERS_PATH"] ??= BROWSERS_PATH;
+  return import("playwright-core");
 }
 
+/**
+ * Whether `npm run shots:install` has been run.
+ *
+ * `[D]` A filesystem check rather than `chromium.executablePath()`, so it stays
+ * synchronous — the test suite decides at import time whether to skip — and so
+ * that asking the question cannot itself import the library at the wrong
+ * moment and pin the wrong directory.
+ */
 export function browsersInstalled(): boolean {
-  useProjectBrowsers();
   try {
-    return existsSync(chromium.executablePath());
+    return readdirSync(BROWSERS_PATH).some((d) => d.startsWith("chromium"));
   } catch {
     return false;
   }
@@ -105,7 +120,7 @@ export interface Harness {
  * deleted. Naming it is what makes §5 case 2 a check rather than a hope.
  */
 export async function launch(): Promise<Harness> {
-  useProjectBrowsers();
+  const { chromium } = await playwright();
   const profileDir = mkdtempSync(join(tmpdir(), "orderly-shots-"));
   const context = await chromium.launchPersistentContext(profileDir, {
     args: [...LAUNCH_ARGS],
