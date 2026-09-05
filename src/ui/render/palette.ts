@@ -42,9 +42,10 @@ export const DISABLED_FILL = "#7a3030";
  * not a fill: the glyphs carry their own black outline, so the colour is asked
  * to separate from black at the width of one pixel. At #e04040 it did not, and
  * the number read as a dark smudge. A fill has no such job, which is why FAIL
- * and FAIL_BRIGHT can be darker than this and still read.
+ * and FAIL_BRIGHT can be darker than this and still read — and it sits inside
+ * a row outlined in FAIL_BRIGHT, so it has to be well clear of that too.
  */
-export const SHORTFALL = "#ff7676";
+export const SHORTFALL = "#ffa3a3";
 
 /**
  * An added action.

@@ -32,6 +32,7 @@ import {
 import {
   CARD_W,
   ROW_H,
+  accentOf,
   actionsGeometry,
   checkboxAt,
   clampPinY,
@@ -544,17 +545,13 @@ export class Scrubber {
     return { x: g.x - MARK_LEFT, y: Math.round(stopToY(at, this.stops.length, g)) - 8, w: 16, h: 16 };
   }
 
-  /**
-   * What the accent colour says about where the slider is.
-   *
-   * `[I]` Lavender is the ordinary current action; **red** is the one that
-   * breaks the route; **grey** is everything after it — an action that *would*
-   * happen but cannot, because something earlier already failed.
-   */
+  /** The one colour every mark of the current action wears: `accentOf`. */
   private accent(): string {
+    // The last stop is a position with no row: it is past the break or not.
     const failed = this.session.failedFrom;
-    if (failed === null || this.stop < failed) return C.LAVENDER;
-    return this.stop === failed ? C.FAIL_BRIGHT : C.GREY;
+    const row = this.rows.find((r) => r.current) ??
+      { breaks: false, failed: failed !== null && this.stop >= failed, inserted: false };
+    return accentOf(row);
   }
 
   /**
@@ -872,7 +869,7 @@ export class Scrubber {
         return;
       }
       const offset = this.hoverRow;
-      // `[I]` The status column has no room for words, so they are on hover.
+      // `[I]` The status line has no room for words, so they are on hover.
       const status = statusRowAt(this.session.tower, this.cursor.player, this.screen.layout, p.x, p.y);
       this.canvas.title = status?.title ?? "";
       this.setHover(offset === null ? this.cellAt(p.x, p.y) : null);

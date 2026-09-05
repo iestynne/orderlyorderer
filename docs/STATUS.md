@@ -84,6 +84,7 @@ path (`TODO.md` §C).
 | SPEC-005 map diff | **implemented**, draft 2. Oracle 3 passes: 62 040 cells across all 14 towers, zero differences. |
 | SPEC-007 tower scrubber | **implemented**, all three stages. Stages 1-2 green against the contract; stage 3 awaits an eye (D24a). |
 | SPEC-008 route editing | **implemented**, draft 2. Three features, one machinery. Oracles 1-4 pass; the UI awaits an eye (D24a). |
+| SPEC-009 visual harness | **draft 1**, not started. The agent sees the app inside its own loop: a browser iestyn never opens, confined to localhost, and a golden diff per scenario. |
 | SPEC-003 headless Lua harness | stub. **Do not build:** its gate required manual verification to have become the bottleneck, and the replay sweep is that oracle instead. |
 | SPEC-001 overlay detector | **cancelled**, in `specs/obsolete/`. Overlays are declared in the level data, not inferred. |
 
@@ -110,9 +111,10 @@ Plus four hand-played experiments (C1-C4) predicted independently by the sim
   value in the contract reproduced first time, corpus maxima 1 773 stops and
   1 849 cell edits both in `2-5 / "F 211g 98.3M win H [A]"`. Invariants 1-4 and
   oracle 1 pass over all 326 records, seeking all 195 000 stops.
-- **Stage 2, assets** — `tools/atlas/build.ts` packs 66 sprites and the four
-  bitmap fonts into one 883×176 atlas, 9 KB, gitignored in `build/`. The 66th
-  is the no-entry sign, cut out of the game's marker sheet.
+- **Stage 2, assets** — `tools/atlas/build.ts` packs 67 sprites and the four
+  bitmap fonts into one 883×64 atlas, 8 KB, gitignored in `build/`. Two are
+  cells cut out of the game's marker sheet: the no-entry sign and the
+  exclamation.
 - **Stage 3, the UI** — Vite, React, one canvas, two panels. Through **four
   rounds of review by eye** (D24a), an MVP by iestyn's assessment. Both perf
   faults are fixed — four causes, D38-D41 — and **confirmed by eye 2026-09-02**

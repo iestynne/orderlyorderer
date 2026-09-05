@@ -23,6 +23,11 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
    conceptual locality so a doc's few references land, and bring every doc
    down to a minimal, consistent, reference-centric summary — visual
    description excepted. Use Fable. The evidence it answers is §A8.
+1b. **A failure corpus.** `[I]` iestyn will list, per SPEC-004 §7 error code,
+   an insertion or a disable on a corpus record that triggers it. From that
+   list: one `.ord` holding every such route, as the regression corpus for
+   failed-action behaviour — the deficit badges, the outlines, the grey tail.
+1c. **The visual harness** — SPEC-009. Its own session.
 2. **Floor entry thresholds — the *number*.** Skippable segments are the
    predicate; what is left is a search over it.
 3. **The two open pieces of editing UX** — §A6.

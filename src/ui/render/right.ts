@@ -97,7 +97,7 @@ export interface StatusRow {
 }
 
 /**
- * The narrow column: everything but Power, which leads on its own line.
+ * The status line: everything but Power, which leads on its own line.
  *
  * `[F]` Conditional rows, matching the game: dark keys are hidden under
  * negative_keys (the counter is meaningless on EX-3), gold appears only under

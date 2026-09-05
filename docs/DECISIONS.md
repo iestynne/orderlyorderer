@@ -15,8 +15,8 @@ cell. Converting at the parser boundary only — never mid-codebase — keeps on
 convention everywhere. Panel 0 of a map export is always the lowest floor, so
 `save_floor = panel_index + 1`.
 
-**D2. Docs are canonical; code is derived. Disagreement is a bug in both.**
-Independent conversations need a shared source of truth that isn't the code.
+**D2. Code is authoritative; a doc is the map into it.** D45 holds the
+reasoning and the two exceptions. Disagreement is still a bug — in the doc.
 
 **D3. `DECISIONS.md` holds current state only.**
 LLMs read supersession order unreliably, and a document containing its own
@@ -444,10 +444,11 @@ the upscale filter separately. We mirror both settings — two booleans for exac
 parity with however the user has the game configured. `[I]` iestyn: familiarity
 is what makes a tower state parseable at a glance after dozens of hours.
 
-**D27a. The game's status panel is exactly 186 logical pixels wide** — 426
-minus one 240px floor — and its layout coordinates are read from
-`game.lua:1995-2031`. Our status column reuses both, so the block is
-pixel-identical to the one the player already reads. SPEC-007 §8.1.
+**D27a. The game's status panel is not reproduced.** It is 186 logical pixels
+wide (`game.lua:1995-2031`) and a column of that width was ours too, until
+Power took a line of its own and the rest fitted on one line under it
+(`screen.ts`, `PANEL_W`; `right.ts`, `drawStatus`). The 76 px went to the
+stack. What is kept from the game is the sprites and the digits font.
 
 **D28. Visual mocks are snapshots, never canonical.**
 Every dimension a mock shows is restated in the spec as a number, because

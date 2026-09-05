@@ -229,14 +229,13 @@ All logical pixels at 1×. Behaviour that uses these is in `docs/UI.md`.
 | Tile block, captions on / off | 240 × 258 / 240 × 240 |
 | Gap between tiles | 4 |
 | Same-row pitch | 244 |
-| **Stagger pitch** | **122** — half of `240 + 4` |
-| Row pitch, captions on / off | 262 / 244 |
+| Row pitch | 262. The caption is not optional (`screen.ts`, `tileHeight`) |
 | Tile border | 1 |
 | Minimum tiles visible | **3**. `[F]` At 4 the minimum viewport is 1178 wide, so a 1080p window cannot reach 2× and renders everything at 1× |
-| **Status column width** | **186** |
 | Scrub slider width | 16 |
-| Tower stack width | **232** — floors 200 wide, squashed to 40, 64 for the current one |
-| Control panel total | **434** = 16 + 232 + 186, fixed |
+| Action list width | **104** (SPEC-008 §8) |
+| Tower stack width | **232** — floors 196 × 64, sheared 2:1, every floor alike (`right.ts`) |
+| Control panel total | **348** = 16 + 104 + 232, fixed. The 186 px status column is gone: D27a |
 
 `[F]` **186 is not a taste.** The game's base canvas is 426 wide and a floor is
 240, so the game's own status panel is exactly 186, and its layout coordinates
@@ -373,10 +372,8 @@ Report: test summary; PASS/FAIL + actual value per named case;
 |---|---|
 | Floor grid, every floor of every tower | 15 × 15 |
 | Floor bitmap | 240 × 240 px |
-| Stagger pitch | **122** |
 | Same-row pitch | 244 |
-| Tile block, captions on / off | 240 × 258 / 240 × 240 |
-| Status column width | **186** |
+| Tile block | 240 × 258 |
 | Atlas tile count, tower 2-6 | **160** |
 | Atlas tile count, tower EX-2 | **32** |
 | Distinct tiles, union of 16 towers | **325** |

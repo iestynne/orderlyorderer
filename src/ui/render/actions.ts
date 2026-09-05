@@ -77,6 +77,21 @@ export interface ActionRow {
   breaks: boolean;
 }
 
+/**
+ * The colour the current action's marks wear — every one of them: its row's
+ * outline here and, on the floor, its frame, the box over its two squares, the
+ * line to its card and the card's own frame. Red is the action that breaks the
+ * route; grey one after the break, which would happen and cannot; blue one the
+ * player added, as its `+` and the insertion preview already are; lavender any
+ * other. A break outranks the add: the `+` still says added, and the failure
+ * is what has to be found.
+ */
+export function accentOf(row: Pick<ActionRow, "breaks" | "failed" | "inserted">): string {
+  if (row.breaks) return C.FAIL_BRIGHT;
+  if (row.failed) return C.GREY;
+  return row.inserted ? C.ADDED : C.LAVENDER;
+}
+
 export interface ActionListGeometry {
   x: number;
   y: number;
@@ -274,7 +289,7 @@ export function drawRow(
       ctx.lineWidth = 1;
       ctx.strokeRect(g.x + 1.5, y + 1.5, g.w - 3, ROW_H - 3);
     }
-    ctx.strokeStyle = row.breaks ? C.FAIL_BRIGHT : C.LAVENDER;
+    ctx.strokeStyle = accentOf(row);
     ctx.lineWidth = row.current ? 2 : 1;
     const i = row.current ? 1 : 0.5;
     ctx.strokeRect(g.x + i, y + i, g.w - i * 2, ROW_H - i * 2);
@@ -442,7 +457,7 @@ export function drawActionCard(
   const g: ActionListGeometry = { x, y, w: CARD_W, h: ROW_H };
   const body = { ...row, current: false, breaks: false };
   drawRow(ctx, sheet, manifest, fonts, g, body, y, icons, false, { number: false });
-  ctx.strokeStyle = row.breaks ? C.FAIL_BRIGHT : outline;
+  ctx.strokeStyle = outline;
   ctx.lineWidth = 2;
   ctx.strokeRect(x - 1, y - 1, CARD_W + 2, ROW_H + 2);
   // The card wears its own frame, so its badges come after it for the same

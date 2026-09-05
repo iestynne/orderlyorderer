@@ -530,7 +530,7 @@ Report: test summary; PASS/FAIL + actual value per named case;
 | ...classified `attack` / `pickup` / `gate` / `hazard` / `dig` / `crown` | 118 724 / 32 973 / 24 497 / 11 945 / 10 205 / 151 |
 | ...classified `blocked` | **0** |
 | ...classified `walk` | **1** |
-| Sprites in the atlas | **66** — 65 files plus the no-entry marker |
+| Sprites in the atlas | **67** — 65 files plus two cells of `markers.png`: no-entry, exclamation |
 
 `[F]` The one `walk` is real and is the whole of the exception: `1-3`'s
 `POP-UP-FORMAT`, a save made while reverse-engineering the pop-up encoding,
