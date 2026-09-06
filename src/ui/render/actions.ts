@@ -86,10 +86,44 @@ export interface ActionRow {
  * other. A break outranks the add: the `+` still says added, and the failure
  * is what has to be found.
  */
-export function accentOf(row: Pick<ActionRow, "breaks" | "failed" | "inserted">): string {
+export function accentOf(row: Pick<ActionRow, "breaks" | "failed" | "inserted" | "enabled">): string {
   if (row.breaks) return C.FAIL_BRIGHT;
+  // `[I]` **Switched off is grey and dashed** (`dashOf`). Dimming alone said
+  // "less important" when what it has to say is "not happening": a dashed
+  // outline reads as inactive at a glance and is far easier to spot than a
+  // change of alpha, which is what finding one switched-off action in a long
+  // list actually needs. A disabled action is never the one that breaks, so
+  // this can sit under `breaks` and above everything else.
+  if (row.enabled === false) return C.GREY;
   if (row.failed) return C.GREY;
   return row.inserted ? C.ADDED : C.LAVENDER;
+}
+
+/** The dash pattern an accent is stroked with: only a disabled action has one. */
+export function dashOf(row: Pick<ActionRow, "enabled">): number[] {
+  return row.enabled === false ? [3, 3] : [];
+}
+
+/**
+ * Contiguous runs of rows matching `pred`, as offset ranges.
+ *
+ * `[I]` **A run is outlined once, not row by row.** Five switched-off actions
+ * in a row are one decision, and five separate boxes make it look like five;
+ * the failing stretch has read as a block since round six and the same is true
+ * of a disabled run and of a run of insertions.
+ */
+export function spansOf(
+  rows: readonly ActionRow[],
+  pred: (r: ActionRow) => boolean,
+): Array<{ from: number; to: number }> {
+  const offsets = rows.filter(pred).map((r) => r.offset).sort((a, b) => a - b);
+  const out: Array<{ from: number; to: number }> = [];
+  for (const o of offsets) {
+    const last = out[out.length - 1];
+    if (last !== undefined && o === last.to + 1) last.to = o;
+    else out.push({ from: o, to: o });
+  }
+  return out;
 }
 
 export interface ActionListGeometry {
@@ -169,17 +203,28 @@ export function drawActionList(
     drawRow(ctx, sheet, manifest, fonts, g, row, rowTop(pinY, row.offset), icons, hovered === row.offset);
   }
 
-  // `[I]` The failing stretch gets an outline of its own. The band behind those
-  // rows is deliberately faint — it must not fight the text — and faint is not
-  // enough to say where the stretch begins and ends, which is the thing the
-  // slider says in a different set of pixels entirely.
-  const failed = rows.filter((r) => r.failed);
-  if (failed.length > 0) {
-    const top = Math.min(...failed.map((r) => rowTop(pinY, r.offset)));
-    const bottom = Math.max(...failed.map((r) => rowTop(pinY, r.offset) + ROW_H));
-    ctx.strokeStyle = C.FAIL;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(g.x + 0.5, top + 0.5, g.w - 1, bottom - top - 1);
+  // `[I]` **A stretch gets an outline of its own, per kind.** The band behind
+  // failed rows is deliberately faint — it must not fight the text — and faint
+  // is not enough to say where a stretch begins and ends. The same argument
+  // applies to a run of switched-off actions and to a run of insertions: each
+  // is one decision the player made, and one box says so where a box per row
+  // does not. Drawn outermost-meaning-first so that where two coincide the
+  // failure is the one left on top.
+  for (const kind of [
+    { pred: (r: ActionRow) => r.inserted, stroke: C.ADDED, dash: [] as number[] },
+    { pred: (r: ActionRow) => !r.enabled, stroke: C.GREY, dash: [3, 3] },
+    { pred: (r: ActionRow) => r.failed, stroke: C.FAIL, dash: [] as number[] },
+  ]) {
+    for (const span of spansOf(rows, kind.pred)) {
+      // A larger offset is higher up the list, so the span's top is its `to`.
+      const top = rowTop(pinY, span.to);
+      const bottom = rowTop(pinY, span.from) + ROW_H;
+      ctx.strokeStyle = kind.stroke;
+      ctx.lineWidth = 1;
+      ctx.setLineDash(kind.dash);
+      ctx.strokeRect(g.x + 0.5, top + 0.5, g.w - 1, bottom - top - 1);
+      ctx.setLineDash([]);
+    }
   }
 
   // `[I]` A pending insertion sits up and to the right of the current action,
@@ -301,8 +346,10 @@ export function drawRow(
     }
     ctx.strokeStyle = accentOf(row);
     ctx.lineWidth = row.current ? 2 : 1;
+    ctx.setLineDash(dashOf(row));
     const i = row.current ? 1 : 0.5;
     ctx.strokeRect(g.x + i, y + i, g.w - i * 2, ROW_H - i * 2);
+    ctx.setLineDash([]);
   }
 
 }

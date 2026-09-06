@@ -34,6 +34,7 @@ import {
   ROW_H,
   accentOf,
   actionsGeometry,
+  dashOf,
   checkboxAt,
   clampPinY,
   defaultPinY,
@@ -567,7 +568,7 @@ export class Scrubber {
     // The last stop is a position with no row: it is past the break or not.
     const failed = this.session.failedFrom;
     const row = this.rows.find((r) => r.current) ??
-      { breaks: false, failed: failed !== null && this.stop >= failed, inserted: false };
+      { breaks: false, failed: failed !== null && this.stop >= failed, inserted: false, enabled: true };
     return accentOf(row);
   }
 
@@ -602,6 +603,8 @@ export class Scrubber {
     if (tile.x + FLOOR < 0 || tile.x > this.screen.layout.w) return;
 
     ctx.globalAlpha = site.live ? 1 : 0.45;
+    // Every accent mark of a switched-off action is dashed, as its row is.
+    ctx.setLineDash(dashOf(row));
     // `[F]` The target is framed **only** where the box over both squares will
     // not reach it — which is when the player is on a floor this working set
     // does not show. Drawn always, its rect ran down the middle of that box and
@@ -624,6 +627,7 @@ export class Scrubber {
       ctx.stroke();
       this.drawPlayer(at, accent, from !== null && to !== null ? to : null);
     }
+    ctx.setLineDash([]);
     drawActionCard(ctx, this.sheet, this.manifest, fonts, row, cardX, cardY, this.icons, accent);
     ctx.globalAlpha = 1;
   }
