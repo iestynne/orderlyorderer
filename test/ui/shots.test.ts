@@ -60,7 +60,7 @@ describe("SPEC-009 §5 — confinement and scenarios", () => {
     for (const required of [
       "clean",
       "added-action",
-      "break",
+      "break-gold-gate",
       "past-break",
       "hover-row",
       "hover-exclaim",
@@ -278,7 +278,7 @@ describe("SPEC-009 §5 — the browser", () => {
   browserIt("cases 5 and 6: the URL seeks, the layout is scale 1, and capture() is that size", async () => {
     const h = await launch();
     try {
-      const s = SCENARIOS.find((x) => x.name === "break")!;
+      const s = SCENARIOS.find((x) => x.name === "break-gold-gate")!;
       await h.page.goto(urlFor({ ...s, stop: 0 }, base), { waitUntil: "domcontentloaded" });
       await h.page.waitForFunction(() => {
         try {
@@ -383,7 +383,7 @@ describe("SPEC-009 §5 — the browser", () => {
     }
     const by = new Map(results.map((r) => [r.name, r.differing ?? 0]));
     // The break shows a deficit, so its shot must move.
-    expect(by.get("break")).toBeGreaterThan(0);
+    expect(by.get("break-gold-gate")).toBeGreaterThan(0);
     // `[D]` Draft 1 said "and only it". It is every shot of a *breaking* route
     // that carries deficit ink — the list window at stop 0 already holds the
     // row that breaks — so what the diagnostic can say is that no shot of a

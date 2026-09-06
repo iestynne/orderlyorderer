@@ -33,6 +33,45 @@ export const GOLDEN_DIR = "test/ui/golden";
 /** Where the dev server is. Loopback only — there is nowhere else to point it. */
 export const BASE_URL = process.env["SHOTS_URL"] ?? "http://localhost:5173";
 
+/** The ports Vite walks when 5173 is taken — one per worktree, in practice. */
+const PORTS = [5173, 5174, 5175, 5176, 5177, 5178, 5179, 5180];
+
+/**
+ * The dev server, found rather than assumed.
+ *
+ * `[I]` **Vite takes the next free port when 5173 is busy**, and a worktree
+ * each makes that the normal case — so the default was wrong more often than
+ * right, and being wrong cost a 30-second timeout under an error naming
+ * `waitForFunction`, which says nothing about ports at all.
+ *
+ * `[F]` **The test is `window.__orderly`, not the HTML.** Every worktree serves
+ * the same `index.html` out of the same repository, so matching on that found a
+ * *sibling worktree's* server — and would have taken nineteen shots of another
+ * branch's code without a word of complaint, which is far worse than a
+ * timeout. Only the dev hook proves it is this build, and proving it needs the
+ * browser, which is why this takes a page rather than using `fetch`.
+ */
+export async function resolveBaseUrl(page: Page): Promise<string> {
+  const env = process.env["SHOTS_URL"];
+  const candidates = env !== undefined ? [env] : PORTS.map((p) => `http://localhost:${p}`);
+  for (const url of candidates) {
+    try {
+      await page.goto(`${url}/`, { waitUntil: "domcontentloaded", timeout: 2000 });
+      await page.waitForFunction(() => window.__orderly !== undefined, undefined, { timeout: 2000 });
+      return url;
+    } catch {
+      // Not listening, not this app, or not a dev build. Try the next.
+    }
+  }
+  throw new Error(
+    env !== undefined
+      ? `${env} is not serving this worktree in dev mode: window.__orderly never appeared. ` +
+        "A production build does not expose it, and neither does another worktree's server."
+      : `no dev server exposing window.__orderly on ports ${PORTS[0]}-${PORTS[PORTS.length - 1]}. ` +
+        "Start one with `npm run dev` in THIS worktree, or set SHOTS_URL.",
+  );
+}
+
 export function urlFor(s: Scenario, base = BASE_URL): string {
   return `${base}/?fixture=${encodeURIComponent(s.fixture)}&record=${s.record}&stop=${s.stop}`;
 }
@@ -123,9 +162,11 @@ export interface Result {
   differing: number | null;
   first: { x: number; y: number } | null;
   goldenMissing: boolean;
+  /** The shot itself, so a caller can bless it without taking it again. */
+  png: Uint8Array;
 }
 
-export async function runAll(names: readonly string[], update: boolean, base = BASE_URL): Promise<Result[]> {
+export async function runAll(names: readonly string[], update: boolean, base?: string): Promise<Result[]> {
   const chosen = names.length === 0 ? SCENARIOS : SCENARIOS.filter((s) => names.includes(s.name));
   if (chosen.length === 0) throw new Error(`no scenario matches ${names.join(", ")}`);
   mkdirSync(SHOTS_DIR, { recursive: true });
@@ -134,6 +175,8 @@ export async function runAll(names: readonly string[], update: boolean, base = B
   const h = await launch();
   const results: Result[] = [];
   try {
+    // Found once, with the browser already up, and reused for every scenario.
+    base ??= await resolveBaseUrl(h.page);
     for (const s of chosen) {
       const png = await shoot(h, s, base);
       const shot = join(SHOTS_DIR, `${s.name}.png`);
@@ -151,11 +194,11 @@ export async function runAll(names: readonly string[], update: boolean, base = B
       const golden = join(GOLDEN_DIR, `${s.name}.png`);
       if (update) {
         writeFileSync(golden, png);
-        results.push({ name: s.name, differing: null, first: null, goldenMissing: false });
+        results.push({ name: s.name, differing: null, first: null, goldenMissing: false, png });
         continue;
       }
       if (!existsSync(golden)) {
-        results.push({ name: s.name, differing: -1, first: null, goldenMissing: true });
+        results.push({ name: s.name, differing: -1, first: null, goldenMissing: true, png });
         continue;
       }
       const goldenBytes = new Uint8Array(readFileSync(golden));
@@ -169,7 +212,7 @@ export async function runAll(names: readonly string[], update: boolean, base = B
         const sheet = reviewImage(goldenBytes, png, d.image);
         if (sheet !== null) writeFileSync(join(SHOTS_DIR, `${s.name}.review.png`), sheet);
       }
-      results.push({ name: s.name, differing: d.count, first: d.first, goldenMissing: false });
+      results.push({ name: s.name, differing: d.count, first: d.first, goldenMissing: false, png });
     }
   } finally {
     await h.close();
@@ -189,7 +232,7 @@ async function main(argv: string[]): Promise<void> {
     .flatMap((a) => a.slice("--only=".length).split(","))
     .map((n) => n.trim())
     .filter((n) => n !== "");
-  const results = await runAll(only, update, BASE_URL);
+  const results = await runAll(only, update);
   for (const r of results) {
     const verdict = r.goldenMissing
       ? "NO GOLDEN — run with --update once the shot has been looked at"

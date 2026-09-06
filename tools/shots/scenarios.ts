@@ -230,7 +230,7 @@ export const SCENARIOS: readonly Scenario[] = [
     shows: "an action the player added: blue row, blue frame, the `+` badge",
   },
   {
-    name: "break",
+    name: "break-gold-gate",
     fixture: "2-1.INSUFFICIENT-GOLD",
     record: 10,
     stop: 2,

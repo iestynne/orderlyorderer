@@ -227,26 +227,6 @@ export function drawActionList(
     }
   }
 
-  // `[I]` A pending insertion sits up and to the right of the current action,
-  // which is where it would land, rather than in a gap the list has to hold
-  // open for it. Its own colour, and a soft shadow so it reads as floating.
-  if (pending !== null) {
-    const x = g.x + 8;
-    const y = rowTop(pinY, 0) - ROW_H / 2;
-    ctx.globalAlpha = 0.5;
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x + 1, y + 1, g.w - 8, ROW_H);
-    ctx.globalAlpha = 1;
-    drawRow(
-      ctx, sheet, manifest, fonts, { ...g, x },
-      { offset: 0, number: 0, summary: pending, enabled: true, inserted: false, current: false, failed: false, breaks: false },
-      y, icons, false, { pending: true },
-    );
-    ctx.strokeStyle = C.ADDED;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x + 0.5, y + 0.5, g.w - 9, ROW_H - 1);
-  }
   ctx.restore();
 
   // `[D]` **Badges last, over every outline in the list, and in a clip of
@@ -264,12 +244,30 @@ export function drawActionList(
   for (const row of rows) {
     drawRowBadges(ctx, sheet, fonts, g, row, rowTop(pinY, row.offset), icons);
   }
+  // `[I]` **The pending row goes last, body and badges together.** It floats
+  // *over* the list rather than in it, and it was drawn with the rows — so
+  // every row it overlapped went on to draw its value badges on top of it, and
+  // a stray number from the row underneath sat in the middle of the preview
+  // looking like one of its own columns. A thing that floats is drawn last.
+  //
+  // `[I]` Up and to the right of the current action, which is where it would
+  // land, rather than in a gap the list has to hold open for it. Its own
+  // colour, and a soft shadow so it reads as floating.
   if (pending !== null) {
-    drawRowBadges(
-      ctx, sheet, fonts, { ...g, x: g.x + 8 },
-      { offset: 0, number: 0, summary: pending, enabled: true, inserted: false, current: false, failed: false, breaks: false },
-      rowTop(pinY, 0) - ROW_H / 2, icons, { pending: true },
-    );
+    const px = g.x + 8;
+    const py = rowTop(pinY, 0) - ROW_H / 2;
+    const pg = { ...g, x: px };
+    const pr = { offset: 0, number: 0, summary: pending, enabled: true, inserted: false, current: false, failed: false, breaks: false };
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(px + 1, py + 1, g.w - 8, ROW_H);
+    ctx.globalAlpha = 1;
+    drawRow(ctx, sheet, manifest, fonts, pg, pr, py, icons, false, { pending: true });
+    drawRowBadges(ctx, sheet, fonts, pg, pr, py, icons, { pending: true });
+    ctx.strokeStyle = C.ADDED;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px + 0.5, py + 0.5, g.w - 9, ROW_H - 1);
   }
   ctx.restore();
 }
@@ -287,7 +285,15 @@ export function drawRow(
   opts: { pending?: boolean; number?: boolean } = {},
 ): void {
   const pending = opts.pending === true;
-  const numbered = !pending && opts.number !== false;
+  // `[F]` **Dropping the number and moving the columns are two different
+  // things.** They were one flag, so the hover preview — which has no number
+  // because it has no index yet — slid its whole contents 22 px left and sat
+  // with its icons under the *numbers* of the rows above and below it. The
+  // card is the only thing that wants the shift: it is `CARD_W` wide precisely
+  // because it drops the number column. A preview is a row, and should line up
+  // with the rows it is previewing an insertion into.
+  const shifted = opts.number === false;
+  const numbered = !pending && !shifted;
   ctx.fillStyle = hovered ? C.BAND_HOVER : (row.failed ? C.BAND_FAILED : C.BAND)[row.number % 2]!;
   ctx.fillRect(g.x, y, g.w, ROW_H);
   // `[I]` A switched-off row is dimmer than it was: half strength still read as
@@ -296,7 +302,7 @@ export function drawRow(
 
   // The columns are at fixed offsets, so a missing icon leaves a hole rather
   // than shuffling everything after it along.
-  const col = (x: number): number => g.x + (numbered ? x : x - NUM_W - 2);
+  const col = (x: number): number => g.x + (shifted ? x - NUM_W - 2 : x);
   if (numbered) {
     const n = String(row.number);
     drawText(ctx, sheet, fonts.digits, n, g.x + NUM_W - textWidth(fonts.digits, n), y + 5);
@@ -372,8 +378,16 @@ export function drawRowBadges(
   opts: { pending?: boolean; number?: boolean } = {},
 ): void {
   const pending = opts.pending === true;
-  const numbered = !pending && opts.number !== false;
-  const col = (x: number): number => g.x + (numbered ? x : x - NUM_W - 2);
+  // `[F]` **Dropping the number and moving the columns are two different
+  // things.** They were one flag, so the hover preview — which has no number
+  // because it has no index yet — slid its whole contents 22 px left and sat
+  // with its icons under the *numbers* of the rows above and below it. The
+  // card is the only thing that wants the shift: it is `CARD_W` wide precisely
+  // because it drops the number column. A preview is a row, and should line up
+  // with the rows it is previewing an insertion into.
+  const shifted = opts.number === false;
+  const numbered = !pending && !shifted;
+  const col = (x: number): number => g.x + (shifted ? x - NUM_W - 2 : x);
   if (row.summary.kind === "noop") return;
 
   // `[I]` **The deficit is a red number, not a number on red.** A block of

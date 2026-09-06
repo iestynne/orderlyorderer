@@ -11,6 +11,7 @@ import { Cursor } from "../sim/cursor";
 import { coords, isEntity } from "../sim/grid";
 import { activeSegment } from "../sim/route/document";
 import { describeAction, type ActionSummary } from "../sim/route/describe";
+import { pathfind } from "../sim/pathfind";
 import { battleGatesOf, simulate } from "../sim/simulate";
 import type { Cell, Timeline, Waypoint } from "../sim/types";
 import type { AtlasManifest } from "../../tools/atlas/build";
@@ -764,6 +765,20 @@ export class Scrubber {
     for (let i = from; i < to; i++) {
       const s = this.timeline.steps[i];
       if (s !== undefined) walked.push(coords(s.to));
+    }
+
+    // `[I]` **`NO_PATH` gets the walk it *would* have taken.** It takes no
+    // steps at all — the failure happens before the first one — so it drew an
+    // empty frame that said only "something is wrong here". The pathfinder can
+    // say how close it came, and how far the player gets before running out is
+    // exactly what makes the refusal legible: the ghosts stop at the last
+    // reachable square and the thing in the way is the gap beyond them.
+    if (error?.code === "NO_PATH") {
+      const p = this.cursor.player;
+      const best = pathfind(this.session.tower, this.cursor.cells, p, error.at, true, true);
+      if (best !== null && best.length > 0) {
+        walked.push({ z: p.z, x: p.x, y: p.y }, ...best.map((s) => coords(s.to)));
+      }
     }
     return { walked, blocked: error === undefined ? null : error.at };
   }

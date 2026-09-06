@@ -130,6 +130,16 @@ export function pathfind(
    * player must be able to stand on without acting: see simulate step 1a.
    */
   exemptTarget = true,
+  /**
+   * On failure, hand back the walk **as far as it got** rather than nothing.
+   *
+   * `[I]` For drawing only, and never for simulating: a route that cannot
+   * reach its waypoint fails, and this changes none of that. But `NO_PATH`
+   * drawn as an empty frame says only that something went wrong somewhere,
+   * where what a player needs to see is how far they get and where they run
+   * out — so the UI asks for the closest the search came and draws that.
+   */
+  bestEffort = false,
 ): PathStep[] | null {
   const n = tower.floors.length * W * W;
   const start = addr(tower, player.z, player.x, player.y);
@@ -166,6 +176,8 @@ export function pathfind(
   const from = { x: 0, y: 0 };
   const held = player.held;
 
+  let bestNode = -1;
+  let bestDist = Infinity;
   queue[0] = start;
   let head = 0;
   let tail = 1;
@@ -214,7 +226,30 @@ export function pathfind(
       prev[landing] = cur;
       entered[landing] = stepCell;
       queue[tail++] = landing;
+      if (bestEffort) {
+        // Manhattan distance on the goal`s own floor, with a whole floor`s
+        // width charged per floor apart, so a node on the right floor always
+        // beats one on the wrong floor however close it looks in x and y.
+        const lz = Math.floor(landing / (W * W)) + 1;
+        const lx = (landing % W) + 1;
+        const ly = (Math.floor(landing / W) % W) + 1;
+        const d = Math.abs(lx - target.x) + Math.abs(ly - target.y) + Math.abs(lz - target.z) * W * 2;
+        if (d < bestDist) {
+          bestDist = d;
+          bestNode = landing;
+        }
+      }
     }
+  }
+  if (bestEffort && bestNode >= 0) {
+    const out: PathStep[] = [];
+    let at = bestNode;
+    while (at !== start) {
+      out.push({ to: entered[at]! });
+      at = prev[at]!;
+    }
+    out.reverse();
+    return out;
   }
   return null;
 }
