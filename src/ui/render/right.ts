@@ -102,9 +102,11 @@ export interface StatusRow {
    * beside the held item, which has no number at all — so the row was mostly
    * air and the score had nowhere to go. Reserving the digits each item can
    * actually reach keeps it tight and still stops the row shuffling when a
-   * number gains a digit. Gold reaches four over the corpus; nothing else
-   * passes two except gems, which reach four — measured over the corpus by the
-   * test that checks no value outgrows the room its row reserves.
+   * number gains a digit. Measured over the corpus, not guessed: gold peaks at
+   * 3 343 and gems at 230, and pickaxes never pass two. Light keys need three:
+   * under `negative_keys` they go **negative** — EX-3 reaches -10 — and the
+   * minus sign is a character like any other. A test walks every record and
+   * fails if any of these reservations is too small; it is what found that.
    */
   digits: number;
 }
@@ -130,11 +132,11 @@ export function statusRows(tower: TowerJSON, p: Player): StatusRow[] {
   // goes constantly, which made the whole row twitch as a route was scrubbed.
   // At the front it is the only thing that moves.
   if (p.held !== null) rows.push({ sprite: p.held, value: "", title: `held: ${p.held}`, digits: 0 });
-  rows.push({ sprite: "key", value: String(p.lightKeys), title: "light keys", digits: 2 });
+  rows.push({ sprite: "key", value: String(p.lightKeys), title: "light keys", digits: 3 });
   if (flags.negative_keys !== true) rows.push({ sprite: "dark_key", value: String(p.darkKeys), title: "dark keys", digits: 2 });
   rows.push({ sprite: "pickaxe", value: String(p.pickaxes), title: "pickaxes", digits: 2 });
   if (flags.money_system === true) rows.push({ sprite: "money", value: String(p.gold), title: "gold", digits: 4 });
-  rows.push({ sprite: "gem", value: String(p.gemsSpent), title: "gems spent", digits: 4 });
+  rows.push({ sprite: "gem", value: String(p.gemsSpent), title: "gems spent", digits: 3 });
   return rows;
 }
 

@@ -152,6 +152,9 @@ already be over the tile you mean to click.
   in the **blue** that means *the player added this*, green being taken by *the
   route passes*. A cell that implies no action shows nothing at all; one the
   rules would refuse shows the **no-entry sign**.
+- **A battle gate is labelled with the kills it is still waiting for**, not
+  with its threshold, and the number is drawn over every other mark so neither
+  the route outline nor the box around a blocked player can bury it.
 - **A failing action draws the walk it attempted.** The player stands on the
   last square they reached, ghosted players mark the ones behind them, and one
   thin red outline runs round the whole route — the union's outer edge, never a

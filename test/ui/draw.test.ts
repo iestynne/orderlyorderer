@@ -315,18 +315,37 @@ d("stage 3 — the draw path runs over real records", () => {
   // that needs width; the line under it is sized for the rest, and this is what
   // says so. Every item gets the same slot, so none of them shifts as another
   // appears or disappears.
-  it("no status item outgrows its slot on the line", () => {
-    const tower = loadAllSaves()[0]!.tower;
+  it("no status item outgrows the digits it reserves, over every record", () => {
+    // `[F]` **Measured over the corpus, never from a made-up player.** This
+    // used to feed a synthetic 9999 into every counter, which is not a fact
+    // about anything: it says only that the fixture is bigger than the slot.
+    // It reported that gems needed four digits when they never pass 230, and
+    // the reservation was widened on that evidence. What the layout has to
+    // survive is the real maxima, so those are what it is checked against.
     const digits = fontFrom(manifest, "FONT_DIGITS");
-    const player = {
-      z: 1, x: 1, y: 1, power: 999999999999, gold: 9999, lightKeys: 99, darkKeys: 99, pickaxes: 99,
-      gemsSpent: 9999, held: "shield" as const, pendingPopup: null, win: 0 as const, submittedScore: 0,
-    };
-    for (const row of statusRows(tower, player)) {
-      // Every value must fit the digits its row reserves, or the row after it
-      // is drawn over: that reservation is the whole layout.
-      expect(textWidth(digits, row.value), row.title)
-        .toBeLessThanOrEqual(textWidth(digits, "0".repeat(row.digits)));
+    const worst = new Map<string, { value: string; digits: number; where: string }>();
+    for (const { towerId, file, tower } of loadAllSaves()) {
+      for (const record of file.records) {
+        let tl;
+        try {
+          tl = simulate({ tower, gemsOwned: Number.MAX_SAFE_INTEGER, route: routeFromRecord(record) });
+        } catch {
+          continue;
+        }
+        for (const step of tl.steps) {
+          for (const row of statusRows(tower, step.player)) {
+            const prev = worst.get(row.title);
+            if (prev === undefined || row.value.length > prev.value.length) {
+              worst.set(row.title, { value: row.value, digits: row.digits, where: towerId + "/" + record.name });
+            }
+          }
+        }
+      }
+    }
+    expect(worst.size, "the sweep must have seen some rows").toBeGreaterThan(3);
+    for (const [title, seen] of worst) {
+      expect(textWidth(digits, seen.value), title + " = " + seen.value + " in " + seen.where)
+        .toBeLessThanOrEqual(textWidth(digits, "0".repeat(seen.digits)));
     }
   });
 });

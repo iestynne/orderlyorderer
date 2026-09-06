@@ -11,7 +11,7 @@ import { Cursor } from "../sim/cursor";
 import { coords, isEntity } from "../sim/grid";
 import { activeSegment } from "../sim/route/document";
 import { describeAction, type ActionSummary } from "../sim/route/describe";
-import { simulate } from "../sim/simulate";
+import { battleGatesOf, simulate } from "../sim/simulate";
 import type { Cell, Timeline, Waypoint } from "../sim/types";
 import type { AtlasManifest } from "../../tools/atlas/build";
 import type { RouteSession } from "./session";
@@ -495,6 +495,7 @@ export class Scrubber {
     if (!behind) drawTrail(ctx, this.points, this.visits, set, this.stop, grid, layout);
     this.drawHover(set, grid);
     this.drawCurrentAction(set, grid, fonts);
+    this.drawGateCounts(set, grid);
     drawHelpButton(ctx, this.sheet, fonts.standard, layout, PANEL_W, this.settingsOpen);
 
     const player = this.cursor.player;
@@ -598,6 +599,39 @@ export class Scrubber {
     return this.timeline.steps.at(-1)?.player.submittedScore ?? 0;
   }
 
+  /**
+   * Every battle gate still standing on a shown floor, labelled with the kills
+   * it is **still waiting for**.
+   *
+   * `[I]` **The count, not the threshold, and at all times.** The number baked
+   * into the floor bitmap is the gate's threshold, which stops being the useful
+   * figure the moment the route starts killing things: what a player wants
+   * while scrubbing is how many more are needed. Drawn here, after the floors,
+   * the trail and every mark of the current action, so the route outline and
+   * the box cannot bury it — which is also what makes it readable in the one
+   * case that matters most, a path blocked by the gate itself.
+   */
+  private drawGateCounts(set: WorkingSet, grid: Grid): void {
+    const { ctx } = this.screen;
+    const font = fontFrom(this.manifest, "FONT_DIGITS");
+    for (const z of set.floors) {
+      for (const gate of battleGatesOf(this.session.tower)[z - 1] ?? []) {
+        // A gate that has opened is gone from the grid and needs no label.
+        if (this.cursor.cells[gate.addr] === 1) continue;
+        const left = Math.max(0, gate.value - (this.cursor.kills[z - 1] ?? 0));
+        const at = this.cellOrigin(set, grid, coords(gate.addr));
+        if (at === null) continue;
+        const label = String(left);
+        const w = textWidth(font, label);
+        // Bedded on black, as every other value badge is: the gate's own art is
+        // busy and a bare glyph on it is unreadable.
+        ctx.fillStyle = "#000";
+        ctx.fillRect(at.x + CELL - 1 - w, at.y + CELL - 8, w + 1, 8);
+        drawText(ctx, this.sheet, font, label, at.x + CELL - 1 - w, at.y + CELL - 7);
+      }
+    }
+  }
+
   /** The dash every mark of the current action wears: dashed when it is off. */
   private currentDash(): number[] {
     return dashOf(this.rows.find((r) => r.current) ?? { enabled: true });
@@ -699,21 +733,6 @@ export class Scrubber {
     drawActionCard(ctx, this.sheet, this.manifest, fonts, row, cardX, cardY, this.icons, accent);
     ctx.setLineDash([]);
 
-    // `[I]` **The blocker's own number, last of all, and counting down.** A
-    // battle gate's badge is baked into the floor bitmap, so the route outline
-    // and the box both draw over it — and the number it carries is the gate's
-    // *threshold*, which is not the useful figure once the route is underway.
-    // What a player wants is how many kills they are still short, so that is
-    // what is drawn: `need - have`, over every mark.
-    const err = row.summary.error;
-    if (stoppedAt !== null && err?.code === "BLOCKED_BATTLE_GATE" && err.have !== undefined && err.need !== undefined) {
-      const short = String(Math.max(0, err.need - err.have));
-      const digits = fontFrom(this.manifest, "FONT_DIGITS");
-      const w = textWidth(digits, short);
-      ctx.fillStyle = "#000";
-      ctx.fillRect(stoppedAt.x + CELL - 1 - w, stoppedAt.y + 9, w + 1, 8);
-      drawText(ctx, this.sheet, digits, short, stoppedAt.x + CELL - 1 - w, stoppedAt.y + 10);
-    }
     ctx.globalAlpha = 1;
   }
 

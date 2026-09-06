@@ -213,14 +213,15 @@ export function simulate(input: SimInput, start?: SimStart): Timeline {
  * neighbour count over the same route. Most floors hold no gate at all, so
  * most of those kills now do nothing.
  */
-interface Gate {
+export interface Gate {
   addr: Addr;
+  /** Kills the floor needs before it opens. */
   value: number;
 }
 
 const battleGates = new WeakMap<TowerJSON, Gate[][]>();
 
-function battleGatesOf(tower: TowerJSON): Gate[][] {
+export function battleGatesOf(tower: TowerJSON): Gate[][] {
   const cached = battleGates.get(tower);
   if (cached !== undefined) return cached;
   const byFloor: Gate[][] = [];
