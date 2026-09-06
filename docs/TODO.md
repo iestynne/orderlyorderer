@@ -267,12 +267,35 @@ per-commit.
   savestate's move list through the real engine, and the `entitydef` interact
   logs fire during that replay — `g_sfx.lock` silences the audio, not the
   logger. So one keypress per save emits that whole run's pickup-and-floor
-  trace, and `data/saves/` already holds 326 of them.
+  trace. `data/saves/` already holds 326 routes to draw a set from.
 
   **`[I]` Agreed shape, 2026-09-06: iestyn loads saves in the game by hand and
   the log gets scanned afterwards.** An occasional sanity check, not a build
   step — so what this needs is a log parser and a comparison against the
   simulator's predicted ordering, not a way to drive the game.
+
+  **`[I]` The corpus is purpose-built, one route per tower.** A dedicated set of
+  savestates, each tower's file holding a **single** entry named `TEST`, so the
+  loop is: enter tower, `f5`, load the only save there, back out, next tower in
+  menu order. One route per tower keeps the manual pass short and the log
+  unambiguous.
+
+  `[F]` **Hazard: this overwrites real savestates.** They live at
+  `<savedir>/savestates/<tag>.sav`, one file per tower keyed by save name — the
+  same files iestyn's own saves and autosaves are in. Either back up
+  `savestates/` before dropping the test set in and restore after, or run the
+  whole pass under a changed `t.identity` in `conf.lua`, which isolates the
+  `score` and `crown` files too and so cannot contaminate progression.
+
+  `[F]` **The log is delimited, so the parser does not have to be clever.** Each
+  replay is bracketed by `loading savestate: TEST` (`save_manager.lua:586`) and
+  `switching the gamestate` (`:670`); everything between is that route's trace.
+  A rejected replay says `found illegal move, returning...` (`:657`) instead of
+  reaching the terminator, which is the load-failure signal for free. The tower
+  is named by `checking for the level script for tag <tag>` (`game.lua:524`) —
+  but note it is emitted **twice** per load, once on entering the tower and
+  again when `SaveManager:load` builds a fresh `GsGame`, so key the segmentation
+  off the savestate line, not the tag line.
 
 - **The in-run stats screen** (`i`) — `ingame_stats.lua` `STATS_ORDER`, 24
   counters: kills split positive/negative, per-item gains and losses, gold in
