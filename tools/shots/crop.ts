@@ -9,10 +9,13 @@
 // Nearest-neighbour, always: the whole job is to show which pixel is which, so
 // anything that resamples destroys the evidence it was asked to present.
 
-import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decodePng, encodePng, type Png } from "../../src/mapdiff/png";
+
+/** Where crops live, relative to the shot they came from. */
+export const CROPS_DIR = "crops";
 
 /** A PNG's pixels without its provenance: what a crop reads and what it makes. */
 type Raster = Pick<Png, "width" | "height" | "pixels">;
@@ -51,7 +54,12 @@ function main(argv: string[]): void {
   }
   const src = decodePng(new Uint8Array(readFileSync(file)));
   const out = crop(src, Number(x), Number(y), Number(w), Number(h), scale);
-  const to = file.replace(/\.png$/, "") + `.crop-${x}-${y}-${w}x${h}@${scale}.png`;
+  // `[I]` **Crops go in a subfolder of their own.** They are working evidence,
+  // made and thrown away constantly, and sitting beside the shots they buried
+  // the nineteen files anyone actually reviews.
+  const dir = join(dirname(file), CROPS_DIR);
+  mkdirSync(dir, { recursive: true });
+  const to = join(dir, `${basename(file, ".png")}.crop-${x}-${y}-${w}x${h}@${scale}.png`);
   writeFileSync(to, encodePng(out.width, out.height, out.pixels));
   console.log(`${to}  ${out.width}x${out.height}`);
 }

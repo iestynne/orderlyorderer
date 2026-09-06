@@ -2,7 +2,7 @@
 //
 //   npm run shots              take every shot and diff it against its golden
 //   npm run shots -- --update  re-baseline: write the goldens instead
-//   npm run shots -- --only=hover-row
+//   npm run shots -- --only=hover-row,break-gold   (or repeat the flag)
 //
 // `[D]` **Re-baselining is a command, not a fallback.** A task runs `--update`
 // only when the change to the picture was the point of the task, and the
@@ -25,6 +25,7 @@ import type { OrderlyState } from "../../src/ui/dev";
 import { launch, type Harness } from "./browser";
 import { SCENARIOS, pointOf, type Scenario, type Step } from "./scenarios";
 import { diffPng, reviewImage } from "./diff";
+import { CROPS_DIR } from "./crop";
 
 export const SHOTS_DIR = "build/shots";
 export const GOLDEN_DIR = "test/ui/golden";
@@ -143,8 +144,9 @@ export async function runAll(names: readonly string[], update: boolean, base = B
       // read as current a day after its shot had moved on, and the mismatch it
       // seemed to show — a scenario on the wrong action — was the crop's age
       // and nothing else. Stale evidence is worse than none.
-      for (const f of readdirSync(SHOTS_DIR)) {
-        if (f.startsWith(`${s.name}.crop-`)) rmSync(join(SHOTS_DIR, f), { force: true });
+      const crops = join(SHOTS_DIR, CROPS_DIR);
+      for (const f of existsSync(crops) ? readdirSync(crops) : []) {
+        if (f.startsWith(`${s.name}.crop-`)) rmSync(join(crops, f), { force: true });
       }
       const golden = join(GOLDEN_DIR, `${s.name}.png`);
       if (update) {
@@ -180,7 +182,13 @@ export async function runAll(names: readonly string[], update: boolean, base = B
 
 async function main(argv: string[]): Promise<void> {
   const update = argv.includes("--update");
-  const only = argv.filter((a) => a.startsWith("--only=")).map((a) => a.slice("--only=".length));
+  // Repeated flags, or one comma-separated list: a twelve-name re-baseline is
+  // far easier to paste as `--only=clean,break,hover-row` than as twelve flags.
+  const only = argv
+    .filter((a) => a.startsWith("--only="))
+    .flatMap((a) => a.slice("--only=".length).split(","))
+    .map((n) => n.trim())
+    .filter((n) => n !== "");
   const results = await runAll(only, update, BASE_URL);
   for (const r of results) {
     const verdict = r.goldenMissing
