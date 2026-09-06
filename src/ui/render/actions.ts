@@ -448,7 +448,9 @@ function drawSpent(
     return;
   }
   if (error.code === "NO_PATH" || error.code === "NOT_ADJACENT" || error.code === "OFF_MAP") {
-    if (icons.arrow) ctx.drawImage(icons.arrow, x, y + ((ROW_H - icons.arrow.height) >> 1));
+    // Two pixels right of the column, clear of the outline that would otherwise
+    // cut its tail off.
+    if (icons.arrow) ctx.drawImage(icons.arrow, x + 2, y + ((ROW_H - icons.arrow.height) >> 1));
     return;
   }
   const stem = MISSING[error.code];

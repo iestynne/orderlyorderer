@@ -163,8 +163,13 @@ already be over the tile you mean to click.
   reached on the way to the enemy behind it. Without the approach there is no
   saying why a square blocks, and without the ghosts there is no saying where
   the player came from. `NO_PATH` draws no walk at all, because none was
-  taken — which is itself the difference between "blocked on the way" and "no
-  way in the first place". **Show paths** in the help panel draws the same
+  taken. Instead it draws how far the player *does* get: they stand beside the
+  thing in the way, that square shares their box, and the square they were
+  trying to reach gets a box of its own with an arrow flying into it. Which
+  obstacle gets named is a guess, and the best guess by far is a square some
+  **disabled** action would have cleared — a `NO_PATH` on an edited route is
+  caused by a disable. Failing that: an item or gate before a Weak Wall before
+  a Reinforced Wall, and never an iron or one-way wall, which nothing removes. **Show paths** in the help panel draws the same
   outline and ghosts for every action, not only a failing one; it is on trial.
 - `Z` and `Y` undo and redo insertions, as the game's own undo and redo do.
   They reach back over the current run of them and no further: insert four

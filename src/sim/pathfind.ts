@@ -140,6 +140,8 @@ export function pathfind(
    * out — so the UI asks for the closest the search came and draws that.
    */
   bestEffort = false,
+  /** Filled with every square the search could reach, when given. */
+  visited?: Addr[],
 ): PathStep[] | null {
   const n = tower.floors.length * W * W;
   const start = addr(tower, player.z, player.x, player.y);
@@ -226,6 +228,7 @@ export function pathfind(
       prev[landing] = cur;
       entered[landing] = stepCell;
       queue[tail++] = landing;
+      if (visited !== undefined) visited.push(landing);
       if (bestEffort) {
         // Manhattan distance on the goal`s own floor, with a whole floor`s
         // width charged per floor apart, so a node on the right floor always
@@ -263,39 +266,96 @@ export function pathfind(
  * beyond it they cannot enter. Without the second, a `NO_PATH` is a mark on an
  * empty corridor saying only that something, somewhere, is wrong.
  *
- * `[F]` The blocker is chosen from the **neighbours of the closest square
- * reached**: whichever of them cannot be entered and lies nearest the target.
- * That is a heuristic and not a proof — a region can be walled off in several
- * places at once — so it names one obstacle rather than claiming it is the
- * only one.
+ * `[I]` **A `NO_PATH` on an edited route is caused by a disabled action**, so
+ * a candidate that a disabled action *would have removed* is almost certainly
+ * the one that matters — and that beats any amount of geometry. Failing that,
+ * the ranking is by how likely a thing is to have been the change: an item or a
+ * gate (removed by walking into it) over a Weak Wall (a pickaxe, rarer) over a
+ * Reinforced Wall (a Hyper Pickaxe, rarer still). Iron walls and one-way walls
+ * are **never** chosen: nothing removes them, so they were there all along and
+ * something else must have changed. Distance to the target only breaks ties.
+ *
+ * `[F]` Candidates are the neighbours of the closest square reached. It is a
+ * heuristic and not a proof — a region can be walled off in several places at
+ * once — so it names one obstacle rather than claiming it is the only one.
  */
 export function blockedApproach(
   tower: TowerJSON,
   cells: Uint8Array,
   player: Player,
   target: { z: number; x: number; y: number },
+  /** Cells a **disabled** action would have removed. The strongest hint there is. */
+  removed: ReadonlySet<Addr> = new Set(),
 ): { path: PathStep[]; blocker: Addr | null } | null {
-  const path = pathfind(tower, cells, player, target, true, true);
-  if (path === null) return null;
+  const reached: Addr[] = [];
+  const fallback = pathfind(tower, cells, player, target, true, true, reached);
+  if (fallback === null) return null;
+  reached.push(addr(tower, player.z, player.x, player.y));
 
-  const last = path.at(-1);
-  const at = last === undefined ? { z: player.z, x: player.x, y: player.y } : coordsOf(tower, last.to);
+  // `[F]` **Where to stand and what blocked you are one decision.** Ranking the
+  // neighbours of the *closest* square reached only ever sees the obstacles
+  // beside that one square, so the key a disabled action left lying in a
+  // corridor went unnoticed whenever some wall happened to sit nearer the
+  // target. Every reachable square is considered, paired with each obstacle
+  // beside it, and the best pair wins.
+  let stand: Addr | null = null;
   let blocker: Addr | null = null;
-  let best = Infinity;
-  for (const [dx, dy] of DIRS) {
-    const nx = at.x + dx;
-    const ny = at.y + dy;
-    if (!inBounds(tower, at.z, nx, ny)) continue;
-    if (traversable(tower, cells, player.held, at, at.z, nx, ny)) continue;
-    const d = Math.abs(nx - target.x) + Math.abs(ny - target.y) + Math.abs(at.z - target.z) * W * 2;
-    if (d < best) {
-      best = d;
-      blocker = addr(tower, at.z, nx, ny);
+  let best: [number, number] = [Infinity, Infinity];
+  for (const a of reached) {
+    const at = coordsOf(tower, a);
+    for (const [dx, dy] of DIRS) {
+      const nx = at.x + dx;
+      const ny = at.y + dy;
+      if (!inBounds(tower, at.z, nx, ny)) continue;
+      if (traversable(tower, cells, player.held, at, at.z, nx, ny)) continue;
+      const na = addr(tower, at.z, nx, ny);
+      const rank = blockerRank(tower, cells, na, at.z, nx, ny, removed);
+      if (rank === null) continue;
+      const d = Math.abs(nx - target.x) + Math.abs(ny - target.y) + Math.abs(at.z - target.z) * W * 2;
+      if (rank < best[0] || (rank === best[0] && d < best[1])) {
+        best = [rank, d];
+        stand = a;
+        blocker = na;
+      }
     }
   }
+
+  // Walk to the square beside the obstacle, not merely as near the target as
+  // the search could get: standing beside the thing in the way is the picture.
+  const path = stand === null ? fallback : pathfind(tower, cells, player, coordsOf(tower, stand)) ?? fallback;
   return { path, blocker };
 }
 
 function coordsOf(tower: TowerJSON, a: Addr): { z: number; x: number; y: number } {
   return { z: Math.floor(a / (W * W)) + 1, x: (a % W) + 1, y: (Math.floor(a / W) % W) + 1 };
+}
+
+/**
+ * Lower is a likelier culprit; null is never the culprit at all.
+ *
+ * `[I]` **A `NO_PATH` on an edited route is caused by a disable**, so a cell a
+ * disabled action would have removed beats any amount of geometry. Failing
+ * that, rank by how likely a thing is to have been the change: an item or a
+ * gate — removed by walking into it — over a Weak Wall, which costs a pickaxe,
+ * over a Reinforced Wall, which costs a Hyper Pickaxe and is rarer still. Iron
+ * walls and one-way walls are **never** chosen: nothing removes them, so they
+ * were there all along and something else must have changed.
+ */
+function blockerRank(
+  tower: TowerJSON,
+  cells: Uint8Array,
+  a: Addr,
+  z: number,
+  x: number,
+  y: number,
+  removed: ReadonlySet<Addr>,
+): number | null {
+  if (removed.has(a)) return 0;
+  const c = effectiveCell(tower, cells, z, x, y);
+  if (!isEntity(c)) {
+    if (c === 1) return 2;
+    if (c === 2) return 3;
+    return null;
+  }
+  return c.type.startsWith("barrier_") ? null : 1;
 }

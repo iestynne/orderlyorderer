@@ -8,7 +8,7 @@
 // back once, at the speed of a click.
 
 import { Cursor } from "../sim/cursor";
-import { coords, isEntity } from "../sim/grid";
+import { addr, coords, isEntity } from "../sim/grid";
 import { activeSegment } from "../sim/route/document";
 import { describeAction, type ActionSummary } from "../sim/route/describe";
 import { blockedApproach } from "../sim/pathfind";
@@ -667,8 +667,28 @@ export class Scrubber {
     ctx.save();
     ctx.translate(at.x + CELL / 2, at.y + CELL / 2);
     ctx.rotate(angle);
-    ctx.drawImage(arrow, -(arrow.width >> 1), -(arrow.height >> 1));
+    // `[I]` Backed off along its own direction, so it flies *into* the square
+    // rather than sitting on top of the thing in it.
+    ctx.drawImage(arrow, -(arrow.width >> 1) - 16, -(arrow.height >> 1));
     ctx.restore();
+  }
+
+  /**
+   * The cells a **switched-off** action would have cleared.
+   *
+   * `[I]` A `NO_PATH` on an edited route is caused by a disable, so one of
+   * these is almost always what is now in the way — a far better answer than
+   * whichever obstacle happens to lie nearest. Built per frame from the sites,
+   * which is a few dozen entries at most.
+   */
+  private disabledTargets(): ReadonlySet<number> {
+    const out = new Set<number>();
+    for (const site of this.session.sites) {
+      if (site.action.disabled !== true) continue;
+      const { z, x, y } = site.action.to;
+      out.add(addr(this.session.tower, z, x, y));
+    }
+    return out;
   }
 
   /** The dash every mark of the current action wears: dashed when it is off. */
@@ -819,7 +839,7 @@ export class Scrubber {
     // reachable square and the thing in the way is the gap beyond them.
     if (error?.code === "NO_PATH") {
       const p = this.cursor.player;
-      const tried = blockedApproach(this.session.tower, this.cursor.cells, p, error.at);
+      const tried = blockedApproach(this.session.tower, this.cursor.cells, p, error.at, this.disabledTargets());
       if (tried !== null) {
         walked.push({ z: p.z, x: p.x, y: p.y }, ...tried.path.map((s) => coords(s.to)));
         // `[F]` The **blocker**, not the target: the box goes round the player
