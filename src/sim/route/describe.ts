@@ -16,6 +16,7 @@
 // Pure module: no UI imports (D7).
 
 import { effectiveCell, isEntity, towerCell } from "../grid";
+import { killGold } from "../rules";
 import type { Cell, HeldItem, Player, SimError, TowerJSON, Waypoint } from "../types";
 
 export type ActionKind =
@@ -70,7 +71,7 @@ export function describeAction(
   before: Player,
   after: Player,
   target: Waypoint,
-  opts: { error?: SimError; noop?: boolean } = {},
+  opts: { error?: SimError; noop?: boolean; projected?: boolean } = {},
 ): ActionSummary {
   const now = effectiveCell(tower, cells, target.z, target.x, target.y);
   // `[F]` A recorded action always changed state (SAVE_FORMAT §3), so one whose
@@ -85,11 +86,32 @@ export function describeAction(
     cell,
     spent: spentBy(cell, before, after),
     held: before.held !== null && after.held === before.held ? before.held : null,
-    goldGained: after.gold - before.gold,
+    goldGained: opts.projected === true ? projectedGold(cell, before.held) : after.gold - before.gold,
     powerDelta: after.power - before.power,
   };
   if (opts.error !== undefined) summary.error = opts.error;
   return summary;
+}
+
+/**
+ * What this action *would* pay, for an action past the route's break.
+ *
+ * `[I]` iestyn: past a failure the simulation has not run, so the measured
+ * delta is zero and the gold column goes blank down the whole grey tail — at
+ * exactly the moment a player is asking whether they can afford what comes
+ * next. The purse items held at the break are known, and they change only when
+ * one is picked up, so evaluating the gain from the cell and that held item is
+ * right unless the tail itself picks a new one up. `[D]` **Wrong sometimes is
+ * the right trade here, and the row already makes it**: the "what was expended"
+ * slot is filled past the break on the same reasoning, and a column that is
+ * blank is not more honest than one that is usually right — it is just less
+ * use. The grey tail is what says none of this has happened.
+ */
+function projectedGold(cell: Cell, held: HeldItem | null): number {
+  if (!isEntity(cell)) return 0;
+  if (cell.type === "enemy" || cell.type === "enemy_neg") return killGold(cell.value, held);
+  if (cell.type === "money") return cell.value;
+  return 0;
 }
 
 /**

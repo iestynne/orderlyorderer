@@ -66,6 +66,21 @@ export function tier(v: number): number {
 }
 
 /** The ONLY place an enemy value acquires a sign (SPEC-004 §6). */
+/**
+ * The gold a kill pays: the enemy's tier, then whichever purse item is held.
+ *
+ * `[D]` Split out of the enemy rule so that the *projection* past a route's
+ * break can use it (`describeAction`) instead of restating it. A paraphrase of
+ * a game rule reads as independent confirmation and is not one (D33), and this
+ * is the one rule the UI has to evaluate for an action the simulator never ran.
+ */
+export function killGold(value: number, held: HeldItem | null): number {
+  const gain = tier(value);
+  if (held === "golden_dagger") return gain + 2;
+  if (held === "golden_claymore") return gain * 2;
+  return gain;
+}
+
 export function signedBase(ent: CellEntity): number {
   return ent.type === "enemy_neg" ? -ent.value : ent.value;
 }
@@ -145,10 +160,7 @@ export function resolveEntry(rs: RunState, p: Player, z: number, x: number, y: n
         } else {
           pl.power += base;
         }
-        let gain = tier(e.value);
-        if (pl.held === "golden_dagger") gain += 2;
-        else if (pl.held === "golden_claymore") gain *= 2;
-        pl.gold += gain;
+        pl.gold += killGold(e.value, pl.held);
         edit(a, CellState.Gone);
         killed(z);
       });

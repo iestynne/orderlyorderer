@@ -185,6 +185,9 @@ export class RouteSession {
       {
         error: this.failedFrom === stop ? this.evaluation.mainline.error : undefined,
         noop: site.realised !== null && this.evaluation.noopActions[site.realised] === true,
+        // Past the break nothing ran, so the gold delta is zero and has to be
+        // projected instead. The break itself is measured: it ran far enough to fail.
+        projected: this.failedFrom !== null && stop > this.failedFrom,
       },
     );
     cursor.seekTo(was);
