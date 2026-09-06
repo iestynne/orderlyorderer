@@ -261,3 +261,17 @@ code {
   border-color: var(--accent);
   outline: none;
 }
+
+/* A plain text button that reads as a link: the way back out of a list. */
+.link {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.link:hover {
+  text-decoration: underline;
+}

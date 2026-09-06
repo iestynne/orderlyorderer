@@ -425,6 +425,23 @@ export default function App(): React.ReactElement {
           </div>
         )}
 
+        {/* `[I]` The record list needs a way back out, the way the route view
+            has one back to the list: picking the wrong file otherwise left the
+            only exit as a page reload. */}
+        {records !== null && (
+          <p>
+            <button
+              className="link"
+              onClick={() => {
+                setRecords(null);
+                setError(null);
+              }}
+            >
+              ← file
+            </button>
+          </p>
+        )}
+
         {records !== null && tower !== null && (
           <table className="records">
             <thead>

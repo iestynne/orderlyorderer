@@ -108,15 +108,25 @@ export function computeWorkingSets(visits: Visit[], capacity: number): WorkingSe
   let floors: number[] = [];
   let from = 0;
 
+  // `[I]` **Laid out by floor number, not by order of first visit.** Which
+  // floors a set holds is decided by the route; where they sit is not, and
+  // entry order put 7F left of 3F whenever the route happened to reach it
+  // first. Reading a panel whose tiles are in no order at all is much harder
+  // than reading one that climbs, and the set's membership — the thing the
+  // capacity rule decides — is unaffected by how it is sorted.
+  const push = (to: number): void => {
+    sets.push({ from, to, floors: [...floors].sort((a, b) => a - b) });
+  };
+
   visits.forEach((v, i) => {
     if (!floors.includes(v.z) && floors.length === cap) {
-      sets.push({ from, to: i, floors });
+      push(i);
       floors = [];
       from = i;
     }
     if (!floors.includes(v.z)) floors.push(v.z);
   });
-  sets.push({ from, to: visits.length, floors });
+  push(visits.length);
   return sets;
 }
 

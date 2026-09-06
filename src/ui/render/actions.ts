@@ -273,7 +273,17 @@ export function drawRow(
       const label = String(row.summary.goldGained);
       drawText(ctx, sheet, fonts.digits, label, col(GOLD_X) + ((16 - textWidth(fonts.digits, label)) >> 1), y + 8);
     }
-    if (row.summary.held !== null) blit(ctx, sheet, manifest, row.summary.held, col(HELD_X), y + 1);
+    // `[I]` **The held slot is a reminder, not a statement about this action.**
+    // It says what is being carried, which is true of every action in the run
+    // and tells you nothing about this one — so it is dimmed to sit under the
+    // columns that do. The exception is the action that expends it: there the
+    // held item is exactly the point, and it draws at full strength.
+    if (row.summary.held !== null) {
+      const alpha = ctx.globalAlpha;
+      if (row.summary.held !== row.summary.spent) ctx.globalAlpha = alpha * 0.45;
+      blit(ctx, sheet, manifest, row.summary.held, col(HELD_X), y + 1);
+      ctx.globalAlpha = alpha;
+    }
   }
 
   ctx.globalAlpha = 1;
