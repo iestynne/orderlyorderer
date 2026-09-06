@@ -124,6 +124,12 @@ export function pathfind(
   cells: Uint8Array,
   player: Player,
   target: { z: number; x: number; y: number },
+  /**
+   * Whether the target is exempt from traversability, as the game`s own
+   * check_neighbour makes it. False for a **position** waypoint, which the
+   * player must be able to stand on without acting: see simulate step 1a.
+   */
+  exemptTarget = true,
 ): PathStep[] | null {
   const n = tower.floors.length * W * W;
   const start = addr(tower, player.z, player.x, player.y);
@@ -180,10 +186,11 @@ export function pathfind(
       // traversability, so this check comes first -- except for a staircase
       // target, where entering it would teleport the player straight back off
       // and leave the waypoint unsatisfied.
-      if (stepCell === goal && !goalIsStairs) return reconstruct(cur, goal);
+      if (exemptTarget && stepCell === goal && !goalIsStairs) return reconstruct(cur, goal);
 
       // A non-target cell must be passively enterable...
       if (!traversable(tower, cells, held, from, z, nx, ny)) continue;
+      if (!exemptTarget && stepCell === goal && !goalIsStairs) return reconstruct(cur, goal);
       const az = arrivalFloor(tower, cells, z, nx, ny);
       const landing = az === z ? stepCell : addr(tower, az, nx, ny);
 

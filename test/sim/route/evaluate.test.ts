@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { LuaArray, parseTop } from "../../../src/sav/buffer";
+import { addr } from "../../../src/sim/grid";
 import { routeFromRecord } from "../../../src/sav/route";
 import { stopStepIndices } from "../../../src/sim/cursor";
 import { activeSegment, flatten, importRoute, type Route } from "../../../src/sim/route/document";
@@ -336,3 +337,44 @@ function decode(payload: Uint8Array): number[][] {
   if (!(outer instanceof LuaArray)) throw new Error("payload is not an array");
   return outer.map((e) => (e as LuaArray).map((n) => n as number));
 }
+
+/**
+ * `[I]` iestyn, 2026-09-05, and the case he asked be tested by name.
+ *
+ * Disabling a key pickup used to leave a *later* action collecting that key on
+ * its way past, so the route never failed for the missing key at all. The cause
+ * was the position half of a save entry being simulated: a waypoint is exempt
+ * from traversability, so walking to a now-stale `from` entered it under the
+ * full entry rules. See `simulate` step 1a.
+ *
+ * Diagnostic (D18): make a position waypoint exempt again — `exemptTarget` in
+ * the `pathfind` call — and the second expectation fails, because action 81
+ * goes back to doing two things.
+ */
+d("one action does one thing, even after a disable", () => {
+  it("1-6 '747M C2 win': disabling action 73 fails later for the missing key", () => {
+    const r = corpus().find((c) => c.id === "1-6/747M C2 win");
+    expect(r, "the corpus must hold 1-6/747M C2 win").toBeDefined();
+    if (!r) return;
+
+    const clean = evaluate(r.route, r.tower);
+    expect(clean.mainline.error, "the record is clean before the edit").toBeUndefined();
+
+    // Action index 72 is row 73 in the list: the key at (3,9,6).
+    const seg = activeSegment(r.route.epochs[0]!);
+    expect(seg.actions[72]!.to).toEqual({ z: 3, x: 9, y: 6 });
+    const edited = apply(r.route, { op: "setDisabled", epoch: 0, segment: 0, index: 72, value: true });
+    const after = evaluate(edited, r.tower);
+
+    // It must fail, and for the key — not silently succeed, and not NO_PATH.
+    expect(after.mainline.error?.code).toBe("NEED_LIGHT_KEY");
+
+    // And the disabled key is still lying there: nothing picked it up on the
+    // way past. `[F]` Not "no step edits two cells" — a kill legitimately edits
+    // the battle gates it opens, and the pop-up chain reinforces behind the
+    // player, so multi-edit steps are normal. The claim is about *this* cell.
+    const key = addr(r.tower, 3, 9, 6);
+    const took = after.mainline.steps.filter((s) => s.edits.some((e) => e.addr === key));
+    expect(took, "nothing may collect the key whose pickup was switched off").toEqual([]);
+  });
+});
