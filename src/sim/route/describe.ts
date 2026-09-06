@@ -71,16 +71,31 @@ export function describeAction(
   before: Player,
   after: Player,
   target: Waypoint,
-  opts: { error?: SimError; noop?: boolean; projected?: boolean } = {},
+  opts: {
+    error?: SimError;
+    noop?: boolean;
+    projected?: boolean;
+    /** This action has not happened: it is a hover preview, not a journal entry. */
+    hypothetical?: boolean;
+  } = {},
 ): ActionSummary {
   const now = effectiveCell(tower, cells, target.z, target.x, target.y);
-  // `[F]` A recorded action always changed state (SAVE_FORMAT §3), so one whose
-  // cell reads as **empty floor** changed it somewhere else — and the pop-up
+  // `[F]` A **recorded** action always changed state (SAVE_FORMAT §3), so one
+  // whose cell reads as empty floor changed it somewhere else — and the pop-up
   // chain is the only rule that does, reinforcing the pop-up behind the player
   // as they step onto the next one. The square the row should name is the
   // pop-up the tower has there, not the floor the chain has left behind.
+  //
+  // `[F]` **Only for a recorded action**, and getting that wrong was a bug that
+  // took a very lucky hover to find. A hover preview is an action that has not
+  // happened, so "it must have changed something" does not hold for it — and on
+  // a genuinely empty square this line then reported whatever the *tower*
+  // originally had there. On 1-6 at action 193, hovering an empty (13,8) on 5F
+  // offered a pickaxe and (9,8) a 2k scorpion: both long dead, both still in
+  // `towerCell`. It surfaced only where walking to that square happens to
+  // change player state, which is what makes `classify` build a preview at all.
   const own = towerCell(tower, target.z, target.x, target.y);
-  const cell = now === 0 && isEntity(own) ? own : now;
+  const cell = now === 0 && opts.hypothetical !== true && isEntity(own) ? own : now;
   const summary: ActionSummary = {
     kind: opts.noop === true ? "noop" : kindOf(cell),
     cell,

@@ -99,3 +99,32 @@ describe("SPEC-008 §4.2 — what an action spent", () => {
     expect(s.error?.code).toBe("ENEMY_TOO_STRONG");
   });
 });
+
+
+/**
+ * The 1-6 hover bug: a preview on a genuinely empty square must not revive
+ * whatever the tower originally had there. Diagnostic for `hypothetical`
+ * (D18) — take the flag out and the last expectation fails, because
+ * `towerCell` still holds the pickaxe long after the route took it.
+ */
+describe("a hypothetical action never revives the initial tower cell", () => {
+  const tower = towerWith(named("pickaxe"));
+  const gone = new Uint8Array(15 * 15);
+  // CellState.Gone is 1: the cell has been taken. addr() of (1,1,1) is 0.
+  gone[0] = 1;
+  const fresh = new Uint8Array(15 * 15);
+  const at = { z: 1, x: 1, y: 1 };
+
+  it("names the entity while it is still there, either way", () => {
+    expect(describeAction(tower, fresh, BASE, BASE, at).cell).toMatchObject({ type: "pickaxe" });
+    expect(describeAction(tower, fresh, BASE, BASE, at, { hypothetical: true }).cell)
+      .toMatchObject({ type: "pickaxe" });
+  });
+
+  it("once taken, a recorded action still names it and a preview says empty floor", () => {
+    // The pop-up rule: a recorded action on an empty square acted somewhere else.
+    expect(describeAction(tower, gone, BASE, BASE, at).cell).toMatchObject({ type: "pickaxe" });
+    // A hover preview has not happened, so that reasoning does not apply to it.
+    expect(describeAction(tower, gone, BASE, BASE, at, { hypothetical: true }).cell).toBe(0);
+  });
+});

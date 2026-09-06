@@ -278,7 +278,7 @@ export class Scrubber {
     );
     const last = t.steps.at(-1);
     if (last === undefined) return null;
-    return describeAction(this.session.tower, this.cursor.cells, t.initial, last.player, target);
+    return describeAction(this.session.tower, this.cursor.cells, t.initial, last.player, target, { hypothetical: true });
   }
 
   // --- editing ------------------------------------------------------------
