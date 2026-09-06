@@ -41,8 +41,11 @@ panel shows one at a time and **nothing scrolls** — it jumps to the next set
 when scrubbing leaves this one, so a three-floor tower never changes at all.
 Working sets are a **view** device, not the route segments of §6. D34.
 
-Tiles fill the panel in reading order, left to right and then down, as many as
-the window and the zoom allow, the block centred in whatever room is left. Every
+Tiles fill the panel in reading order, left to right and then down, **sorted by
+floor number** — which floors a set holds is the route's business, the order
+they sit in is not, and entry order put 7F left of 3F whenever the route reached
+it first. As many as the window and the zoom allow, the block centred in
+whatever room is left. Every
 one has a border, a gap, and a name strip under it — which is also where the
 current action is summarised (§6).
 
@@ -91,7 +94,7 @@ item, each a sprite and a number of at most four digits. Gems are an amount
 and the held item are absent where the game omits them too.
 
 **Help.** Behind a **?** at the top-right of the left panel: the keys, and the
-two options. It draws over everything, and a click anywhere off it closes it and
+two options — **perf test** and **show paths**. It draws over everything, and a click anywhere off it closes it and
 does nothing else.
 
 ## 5. Presentation
@@ -117,7 +120,11 @@ down: its number, what it **spent**, what it **acted on** with its own value
 badge, the gold it moved stamped on a bag — negative at a Money Gate, the only
 thing that takes gold away — and last what it was **carrying** that changed the
 outcome without being used up. Spent comes first because that is what a failure
-is usually about. An added action wears a `+` beside its checkbox, at full
+is usually about. The carried item is **dimmed** unless this action is the one
+that expends it: it is true of the whole run and says nothing about this row.
+Past the break the gold column is **projected** rather than measured — nothing
+has run, so the figure is what the cell would pay to whatever was held at the
+break, on the same reasoning that already fills the spent slot there. An added action wears a `+` beside its checkbox, at full
 strength even when switched off. Hovering a row highlights it on the timeline;
 the wheel moves the selection from anywhere on screen, so the pointer can
 already be over the tile you mean to click.
@@ -127,12 +134,28 @@ already be over the tile you mean to click.
 - A row's checkbox switches its action off. Unticked it fills dim red, so a
   disabled action can be found by scanning the column; the row greys out but
   keeps its number and its place on the slider, and scrubs through unchanged.
+  Its outline goes **grey and dashed**, in the list and on the floor alike:
+  dimming alone said "less important" where the thing to say is "not
+  happening". A contiguous run of switched-off actions is outlined **once**, as
+  a run of insertions and the failing stretch already are — each run is one
+  decision, and a box per row makes it look like several.
 - **Inserting is a click on a floor cell**, and it lands directly after the
   current action. Hovering a cell shows the `+` badge on it and a preview row
   offset up and to the right of the current one — where it would land — outlined
   in the **blue** that means *the player added this*, green being taken by *the
   route passes*. A cell that implies no action shows nothing at all; one the
   rules would refuse shows the **no-entry sign**.
+- **A failing action draws the walk it attempted.** The player stands on the
+  last square they reached, ghosted players mark the ones behind them, and one
+  thin red outline runs round the whole route — the union's outer edge, never a
+  box per cell. The thick box covers the player *and the cell that stopped
+  them*, which is not the cell the action was aimed at: a battle gate is
+  reached on the way to the enemy behind it. Without the approach there is no
+  saying why a square blocks, and without the ghosts there is no saying where
+  the player came from. `NO_PATH` draws no walk at all, because none was
+  taken — which is itself the difference between "blocked on the way" and "no
+  way in the first place". **Show paths** in the help panel draws the same
+  outline and ghosts for every action, not only a failing one; it is on trial.
 - `Z` and `Y` undo and redo insertions, as the game's own undo and redo do.
   They reach back over the current run of them and no further: insert four
   here, scrub away, insert four there, and `Z` takes back four.
@@ -181,5 +204,4 @@ Answered ones move out — to `DECISIONS.md` if the reasoning matters, else abov
   a 32- or 75-floor tower.
 - **Freezing past and future floors** as you scrub: the past at its final state,
   the future at its initial one.
-- **How a disabled action should be ghosted**, in the list and on the floor.
 - **How wide the action list wants to be**, and how many rows it shows.

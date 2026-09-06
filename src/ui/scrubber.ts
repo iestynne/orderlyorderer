@@ -59,6 +59,7 @@ import {
   type Icons,
 } from "./render/marks";
 import { drawRightPanel, failureMarkBox, panelX, sliderGeometry, statusRowAt, stopToY, yToStop } from "./render/right";
+import { drawGhosts, strokeOutline } from "./render/path";
 import { drawTrail, playerScreenPos, trailPoints, type TrailPoint } from "./render/trail";
 import { Screen, CELL, FLOOR, PANEL_PAD, PANEL_W, type Layout, type ScreenSettings } from "./render/screen";
 import { drawText, fontFrom, keyOf, spriteFor, type AtlasFontRef } from "./render/atlas";
@@ -68,6 +69,8 @@ import { PerfHarness, type PerfReport } from "./perf";
 
 export interface ScrubberSettings extends ScreenSettings {
   perf: boolean;
+  /** `[I]` Draw every action’s walk, not only a failing one’s. Under trial. */
+  path: boolean;
 }
 
 /** What clicking the hovered cell would do. */
@@ -534,7 +537,10 @@ export class Scrubber {
   }
 
   private toggles(): Array<{ label: string; on: boolean }> {
-    return [{ label: "perf test", on: this.settings.perf }];
+    return [
+      { label: "perf test", on: this.settings.perf },
+      { label: "show paths", on: this.settings.path },
+    ];
   }
 
   /**
@@ -605,6 +611,21 @@ export class Scrubber {
     ctx.globalAlpha = site.live ? 1 : 0.45;
     // Every accent mark of a switched-off action is dashed, as its row is.
     ctx.setLineDash(dashOf(row));
+
+    // `[I]` **The walk, drawn whenever it explains something.** Always for a
+    // failure — the reason a cell blocks is the approach to it, and a mark on
+    // the blocked cell alone says where the player stopped and never where
+    // they came from. Otherwise only under the `path` setting, which is there
+    // to find out whether it reads as useful or as clutter.
+    const { walked, blocked } = this.pathOf(this.stop);
+    const locate = (w: Waypoint): { x: number; y: number } | null => this.cellOrigin(set, grid, w);
+    if (walked.length > 0 && (row.breaks || this.settings.path)) {
+      strokeOutline(ctx, walked, locate, row.breaks ? C.FAIL : accent);
+      drawGhosts(ctx, this.playerSprite(), walked, locate);
+    }
+    // The blocking cell is the thing that stopped the walk, so it wears the
+    // box with the player rather than the target the player never reached.
+    const stoppedAt = blocked === null ? null : this.cellOrigin(set, grid, blocked);
     // `[F]` The target is framed **only** where the box over both squares will
     // not reach it — which is when the player is on a floor this working set
     // does not show. Drawn always, its rect ran down the middle of that box and
@@ -613,7 +634,12 @@ export class Scrubber {
 
     const cardX = tile.x + FLOOR - CARD_W;
     const cardY = tile.y + FLOOR + 1;
-    const at = from ?? playerScreenPos(this.points, this.visits, set, this.stop, grid, this.screen.layout);
+    // `[F]` Past a block the player is where the walk stopped, which is not
+    // what `positions` says: the document holds the target they were heading
+    // for, and drawing them there would put them beyond the thing that stopped
+    // them. The journal knows the truth — it is the last step they managed.
+    const stood = row.breaks && walked.length > 0 ? locate(walked[walked.length - 1]!) : null;
+    const at = stood ?? from ?? playerScreenPos(this.points, this.visits, set, this.stop, grid, this.screen.layout);
     if (at) {
       // The line first, so the card and the player both sit on top of it.
       ctx.strokeStyle = "#000";
@@ -625,11 +651,37 @@ export class Scrubber {
       ctx.strokeStyle = accent;
       ctx.lineWidth = 2;
       ctx.stroke();
-      this.drawPlayer(at, accent, from !== null && to !== null ? to : null);
+      this.drawPlayer(at, accent, stoppedAt ?? (from !== null && to !== null ? to : null));
     }
     ctx.setLineDash([]);
     drawActionCard(ctx, this.sheet, this.manifest, fonts, row, cardX, cardY, this.icons, accent);
     ctx.globalAlpha = 1;
+  }
+
+  /**
+   * The cells this action's walk covered, and the cell that stopped it.
+   *
+   * `[F]` The walk is already in the journal: the simulator pushes a step per
+   * cell entered, so the steps between the previous stop and this one *are* the
+   * auto-pather's route, and a failing action keeps the steps it managed before
+   * the block. Nothing has to be re-pathed to draw this.
+   *
+   * `[F]` **`NO_PATH` walks nowhere.** Its `stepIndex` is null because the
+   * failure happens before a single step is taken, and its `at` is the
+   * destination that could not be reached rather than a cell that blocked the
+   * way. So it yields an empty walk and a `blocked` that is the target — which
+   * is honest, and is what makes it read differently from a block on the way.
+   */
+  private pathOf(stop: number): { walked: Waypoint[]; blocked: Waypoint | null } {
+    const from = stop === 0 ? 0 : this.stops[stop - 1] ?? 0;
+    const error = this.session.failedFrom === stop ? this.timeline.error : undefined;
+    const to = error?.stepIndex ?? this.stops[stop] ?? from;
+    const walked: Waypoint[] = [];
+    for (let i = from; i < to; i++) {
+      const s = this.timeline.steps[i];
+      if (s !== undefined) walked.push(coords(s.to));
+    }
+    return { walked, blocked: error === undefined ? null : error.at };
   }
 
   /**
@@ -822,6 +874,7 @@ export class Scrubber {
         for (const [i, b] of settingsHitboxes(layout, PANEL_W, toggles.length, w).entries()) {
           if (!inBox(p, b)) continue;
           if (i === 0) this.onSettings({ ...this.settings, perf: !this.settings.perf });
+          else if (i === 1) this.onSettings({ ...this.settings, path: !this.settings.path });
           return;
         }
         if (!inBox(p, settingsPanel(layout, PANEL_W, toggles.length, this.keys.length, w))) {

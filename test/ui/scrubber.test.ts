@@ -45,6 +45,7 @@ const SETTINGS: ScrubberSettings = {
   pixelPerfect: true,
   linearFilter: false,
   perf: false,
+  path: false,
   zoom: "auto",
 };
 
