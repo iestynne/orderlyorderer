@@ -15,7 +15,7 @@
 // safe to assume — it checks the buffer against what the browser actually
 // shows, and if those ever part company every golden is suspect.
 
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "playwright-core";
@@ -137,6 +137,15 @@ export async function runAll(names: readonly string[], update: boolean, base = B
       const png = await shoot(h, s, base);
       const shot = join(SHOTS_DIR, `${s.name}.png`);
       writeFileSync(shot, png);
+      // `[F]` **Every crop of this shot is deleted, because it is now stale.**
+      // A crop is evidence about one frame; left behind when that frame is
+      // retaken it is evidence about a frame nobody can see any more. One was
+      // read as current a day after its shot had moved on, and the mismatch it
+      // seemed to show — a scenario on the wrong action — was the crop's age
+      // and nothing else. Stale evidence is worse than none.
+      for (const f of readdirSync(SHOTS_DIR)) {
+        if (f.startsWith(`${s.name}.crop-`)) rmSync(join(SHOTS_DIR, f), { force: true });
+      }
       const golden = join(GOLDEN_DIR, `${s.name}.png`);
       if (update) {
         writeFileSync(golden, png);

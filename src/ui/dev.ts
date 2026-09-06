@@ -37,8 +37,14 @@ export interface OrderlyState {
   stopCount: number;
   /** The stop whose action breaks the route, or null. */
   failedFrom: number | null;
-  /** Floors in the working set on screen, for `gridFor`. */
-  floorsShown: number;
+  /**
+   * The floors of the working set on screen, in the order their tiles are laid
+   * out. `[F]` The **list**, not a count: a cell target names its floor, and
+   * the slot that floor occupies is whatever this array says. It used to be a
+   * count and a scenario named a tile index, which silently meant a different
+   * floor the moment the panel was sorted by floor number.
+   */
+  floors: number[];
 }
 
 export interface Orderly {

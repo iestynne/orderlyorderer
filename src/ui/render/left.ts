@@ -216,6 +216,8 @@ export function drawTimeline(
   panelW: number,
   /** The current tile's frame: lavender, or red inside a failed stretch. */
   accent = "#cfc4ff",
+  /** Dashed when the current action is switched off, as its row is. */
+  dash: number[] = [],
 ): void {
   const standard = fontFrom(manifest, "FONT_STANDARD");
   ctx.save();
@@ -230,8 +232,20 @@ export function drawTimeline(
     // one gets a 3 px frame rather than a 1 px one: at 1 px it was invisible
     // against fifteen other bordered tiles.
     const b = i === currentSlot ? 3 : BORDER;
-    ctx.fillStyle = i === currentSlot ? accent : "#3a3a44";
+    // `[F]` A dashed frame has to be **stroked**, and this was a filled block.
+    // So the block is laid down in the ordinary border colour and the accent
+    // stroked over it: solid, that is pixel-for-pixel what the fill gave, and
+    // dashed it lets the border show through the gaps rather than the floor.
+    const dashed = i === currentSlot && dash.length > 0;
+    ctx.fillStyle = i === currentSlot && !dashed ? accent : "#3a3a44";
     ctx.fillRect(x - b, y - b, FLOOR + b * 2, tileHeight() + b * 2);
+    if (dashed) {
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = b;
+      ctx.setLineDash(dash);
+      ctx.strokeRect(x - b / 2, y - b / 2, FLOOR + b, tileHeight() + b);
+      ctx.setLineDash([]);
+    }
     ctx.drawImage(floors.image(z), x, y);
 
     // The name strip. The current action's summary is drawn into its right-hand

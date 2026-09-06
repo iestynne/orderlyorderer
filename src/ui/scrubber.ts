@@ -406,12 +406,12 @@ export class Scrubber {
     return this.screen.layout;
   }
 
-  get harnessState(): { pinY: number; stopCount: number; failedFrom: number | null; floorsShown: number } {
+  get harnessState(): { pinY: number; stopCount: number; failedFrom: number | null; floors: number[] } {
     return {
       pinY: this.pinY,
       stopCount: this.stops.length,
       failedFrom: this.session.failedFrom,
-      floorsShown: this.currentSet().floors.length,
+      floors: [...this.currentSet().floors],
     };
   }
 
@@ -485,7 +485,7 @@ export class Scrubber {
     const fonts: Fonts = { standard: fontFrom(this.manifest, "FONT_STANDARD"), digits: fontFrom(this.manifest, "FONT_DIGITS") };
     const failedFrom = this.session.failedFrom;
 
-    drawTimeline(ctx, this.floors, this.manifest, this.sheet, tower, set, currentSlot, grid, layout, PANEL_W, this.accent());
+    drawTimeline(ctx, this.floors, this.manifest, this.sheet, tower, set, currentSlot, grid, layout, PANEL_W, this.accent(), this.currentDash());
     drawTrail(ctx, this.points, this.visits, set, this.stop, grid, layout);
     this.drawHover(set, grid);
     this.drawCurrentAction(set, grid, fonts);
@@ -579,6 +579,11 @@ export class Scrubber {
   /** The break mark's box; `failureMarkBox` holds the reasoning and the numbers. */
   private failureHitbox(layout: Layout, at: number): { x: number; y: number; w: number; h: number } {
     return failureMarkBox(layout, at, this.stops.length);
+  }
+
+  /** The dash every mark of the current action wears: dashed when it is off. */
+  private currentDash(): number[] {
+    return dashOf(this.rows.find((r) => r.current) ?? { enabled: true });
   }
 
   /** The one colour every mark of the current action wears: `accentOf`. */
@@ -676,6 +681,22 @@ export class Scrubber {
     // The card is one of the marks, so it is dashed with the rest of them.
     drawActionCard(ctx, this.sheet, this.manifest, fonts, row, cardX, cardY, this.icons, accent);
     ctx.setLineDash([]);
+
+    // `[I]` **The blocker's own number, last of all, and counting down.** A
+    // battle gate's badge is baked into the floor bitmap, so the route outline
+    // and the box both draw over it — and the number it carries is the gate's
+    // *threshold*, which is not the useful figure once the route is underway.
+    // What a player wants is how many kills they are still short, so that is
+    // what is drawn: `need - have`, over every mark.
+    const err = row.summary.error;
+    if (stoppedAt !== null && err?.code === "BLOCKED_BATTLE_GATE" && err.have !== undefined && err.need !== undefined) {
+      const short = String(Math.max(0, err.need - err.have));
+      const digits = fontFrom(this.manifest, "FONT_DIGITS");
+      const w = textWidth(digits, short);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(stoppedAt.x + CELL - 1 - w, stoppedAt.y + 9, w + 1, 8);
+      drawText(ctx, this.sheet, digits, short, stoppedAt.x + CELL - 1 - w, stoppedAt.y + 10);
+    }
     ctx.globalAlpha = 1;
   }
 

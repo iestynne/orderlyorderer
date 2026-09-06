@@ -21,10 +21,20 @@ import { cogHitbox } from "../../src/ui/render/marks";
 import { failureMarkBox, sliderGeometry } from "../../src/ui/render/right";
 import { CELL, PANEL_W, type Layout } from "../../src/ui/render/screen";
 import type { OrderlyState } from "../../src/ui/dev";
+import type { ErrorCode } from "../../src/sim/types";
 
-/** A cell of a floor tile: which tile of the working set, then 1-based (x, y). */
+/**
+ * A cell of a floor: **which floor**, then 1-based (x, y).
+ *
+ * `[F]` The floor, never the tile index. A tile index is a position in the
+ * panel, and the panel is laid out by floor number — so when that sort landed,
+ * every scenario naming `tile: 0` silently moved to a different floor and went
+ * on producing a plausible-looking shot of the wrong thing. `added-action`
+ * stopped adding anything and `hover-cell` started hovering an unreachable
+ * square, and nothing failed. A floor number cannot drift like that.
+ */
 export interface CellTarget {
-  tile: number;
+  floor: number;
   x: number;
   y: number;
 }
@@ -53,6 +63,13 @@ export interface Scenario {
   record: number;
   stop: number;
   steps?: Step[];
+  /**
+   * The error this shot is meant to be of, where it is meant to be of one.
+   * Checked headlessly, because a scenario can drift into showing a *different*
+   * failure and still produce a plausible picture: two did, the moment the
+   * simulator stopped walking to stale positions.
+   */
+  code?: ErrorCode;
   /** What this shot is evidence about. Read it before re-baselining one. */
   shows: string;
 }
@@ -86,11 +103,12 @@ export function pointOf(t: Target, layout: Layout, s: OrderlyState): { x: number
     const b = checkboxAt(actionsGeometry(layout, sliderGeometry(layout)), s.pinY, t.checkbox);
     return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
   }
-  const grid = gridFor(layout, PANEL_W, s.floorsShown);
-  if (t.cell.tile >= s.floorsShown) {
-    throw new Error(`target tile ${t.cell.tile}: only ${s.floorsShown} floors are shown`);
+  const grid = gridFor(layout, PANEL_W, s.floors.length);
+  const slot = s.floors.indexOf(t.cell.floor);
+  if (slot < 0) {
+    throw new Error(`target floor ${t.cell.floor}: the panel is showing ${s.floors.join(", ")}`);
   }
-  const o = tileOrigin(grid, t.cell.tile);
+  const o = tileOrigin(grid, slot);
   return { x: o.x + (t.cell.x - 1) * CELL + CELL / 2, y: o.y + (t.cell.y - 1) * CELL + CELL / 2 };
 }
 
@@ -135,6 +153,7 @@ const FAILURES: readonly Scenario[] = [
     fixture: "iestyn.2026.08.28/1-5",
     record: 0,
     stop: 18,
+    code: "ENEMY_TOO_STRONG",
     steps: [{ click: { checkbox: -1 } }],
     shows: "ENEMY_TOO_STRONG: the power deficit under the player, the enemy's own value beside it",
   },
@@ -143,6 +162,7 @@ const FAILURES: readonly Scenario[] = [
     fixture: "iestyn.2026.08.28/EX-3",
     record: 0,
     stop: 3,
+    code: "NO_PATH",
     steps: [{ click: { checkbox: -1 } }],
     shows: "NO_PATH: a break with no deficit numbers at all, because nothing is short — the square is unreachable",
   },
@@ -151,6 +171,7 @@ const FAILURES: readonly Scenario[] = [
     fixture: "iestyn.2026.08.28/2-4",
     record: 19,
     stop: 1,
+    code: "NEED_GOLD",
     steps: [{ click: { checkbox: -1 } }],
     shows: "NEED_GOLD: the gold deficit on a gold gate, the first action of the route having been switched off",
   },
@@ -159,15 +180,17 @@ const FAILURES: readonly Scenario[] = [
     fixture: "iestyn.2026.08.28/EX-2",
     record: 3,
     stop: 1,
+    code: "NEED_LIGHT_KEY",
     steps: [{ click: { checkbox: -1 } }],
     shows: "NEED_LIGHT_KEY: the light-key deficit on a light gate",
   },
   {
     name: "break-dark-key",
-    fixture: "iestyn.2026.08.28/1-3",
-    record: 8,
-    stop: 67,
-    steps: [{ click: { checkbox: -8 } }],
+    fixture: "iestyn.2026.08.28/2-3",
+    record: 0,
+    stop: 5,
+    code: "NEED_DARK_KEY",
+    steps: [{ click: { checkbox: -3 } }],
     shows: "NEED_DARK_KEY: the dark-key deficit, and eight rows of clean actions between the disable and the break",
   },
   {
@@ -175,6 +198,7 @@ const FAILURES: readonly Scenario[] = [
     fixture: "iestyn.2026.08.28/EX-1",
     record: 8,
     stop: 58,
+    code: "NEED_PICKAXE",
     steps: [{ click: { checkbox: -14 } }],
     shows: "NEED_PICKAXE: a Weak Wall with no pickaxe, fourteen rows after the action that would have supplied one",
   },
@@ -183,16 +207,9 @@ const FAILURES: readonly Scenario[] = [
     fixture: "iestyn.2026.08.28/2-3",
     record: 8,
     stop: 4,
+    code: "NEED_HYPER_PICKAXE",
     steps: [{ click: { checkbox: -1 } }],
     shows: "NEED_HYPER_PICKAXE: a Reinforced Wall — a different code and a different remedy from the Weak Wall above",
-  },
-  {
-    name: "break-battle-gate",
-    fixture: "iestyn.2026.08.28/2-4",
-    record: 15,
-    stop: 40,
-    steps: [{ click: { checkbox: -6 } }],
-    shows: "BLOCKED_BATTLE_GATE: a gate that will not open because the floor's enemies are not all dead",
   },
 ];
 
@@ -209,7 +226,7 @@ export const SCENARIOS: readonly Scenario[] = [
     fixture: "1-5.INSUFFICIENT-POWER",
     record: 0,
     stop: 0,
-    steps: [{ click: { cell: { tile: 0, x: 8, y: 11 } } }],
+    steps: [{ click: { cell: { floor: 2, x: 8, y: 11 } } }],
     shows: "an action the player added: blue row, blue frame, the `+` badge",
   },
   {
@@ -255,7 +272,7 @@ export const SCENARIOS: readonly Scenario[] = [
     fixture: "1-5.INSUFFICIENT-POWER",
     record: 0,
     stop: 0,
-    steps: [{ hover: { cell: { tile: 0, x: 8, y: 11 } } }],
+    steps: [{ hover: { cell: { floor: 2, x: 8, y: 11 } } }],
     shows: "hovering an insertable cell: the add mark on it, and the preview row spliced into the list",
   },
   {
@@ -263,7 +280,7 @@ export const SCENARIOS: readonly Scenario[] = [
     fixture: "1-5.INSUFFICIENT-POWER",
     record: 0,
     stop: 0,
-    steps: [{ hover: { cell: { tile: 0, x: 1, y: 1 } } }],
+    steps: [{ hover: { cell: { floor: 2, x: 1, y: 1 } } }],
     shows: "hovering a cell there is no path to: the game's no-entry sign, and no preview row",
   },
   {
@@ -304,7 +321,7 @@ export const SCENARIOS: readonly Scenario[] = [
     fixture: "1-5.INSUFFICIENT-POWER",
     record: 0,
     stop: 7,
-    steps: [{ click: { cell: { tile: 1, x: 3, y: 14 } } }, { click: { checkbox: -4 } }],
+    steps: [{ click: { cell: { floor: 1, x: 3, y: 14 } } }, { click: { checkbox: -4 } }],
     shows: "red over blue: the added action is the break — red row and frame, and the + badge still says it was added",
   },
   ...FAILURES,

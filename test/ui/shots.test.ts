@@ -19,6 +19,13 @@ import { devParams, towerOfFixture } from "../../src/ui/dev";
 import { ROW_H } from "../../src/ui/render/actions";
 import { layoutFor } from "../../src/ui/render/screen";
 import { decodePng, encodePng } from "../../src/mapdiff/png";
+import { parseSaveFile } from "../../src/sav/savefile";
+import { routeFromRecord } from "../../src/sav/route";
+import { importRoute, UNLIMITED_GEMS } from "../../src/sim/route/document";
+import { ordFile } from "../../src/sim/route/ordfile";
+import { RouteSession } from "../../src/ui/session";
+import type { TowerJSON } from "../../src/sim/types";
+import { haveSaves } from "../sav/helpers";
 
 const HAVE_BROWSER = browsersInstalled();
 const browserIt = HAVE_BROWSER ? it : it.skip;
@@ -113,7 +120,7 @@ describe("SPEC-009 §5 — confinement and scenarios", () => {
 
   it("§4: a target resolves to a pixel inside the thing it names", () => {
     const layout = layoutFor(VIEWPORT.width, VIEWPORT.height, { pixelPerfect: true, linearFilter: false, zoom: "auto" }, 1);
-    const state = { pinY: 300, stopCount: 4, failedFrom: 2, floorsShown: 1 };
+    const state = { pinY: 300, stopCount: 4, failedFrom: 2, floors: [3] };
     for (const t of [{ row: 0 } as const, { row: 2 } as const, "exclaim" as const, "help" as const]) {
       const p = pointOf(t, layout, state);
       expect(p.x).toBeGreaterThan(0);
@@ -127,7 +134,7 @@ describe("SPEC-009 §5 — confinement and scenarios", () => {
     expect(pointOf({ row: 0 }, layout, state).y - pointOf({ row: 1 }, layout, state).y).toBe(ROW_H);
     // `exclaim` on a clean route is an error, not a plausible-looking pixel.
     expect(() => pointOf("exclaim", layout, { ...state, failedFrom: null })).toThrow();
-    expect(() => pointOf({ cell: { tile: 3, x: 1, y: 1 } }, layout, state)).toThrow();
+    expect(() => pointOf({ cell: { floor: 9, x: 1, y: 1 } }, layout, state)).toThrow();
   });
 });
 
@@ -387,3 +394,59 @@ describe("SPEC-009 §5 — the browser", () => {
     }
   }, 900_000);
 });
+
+/**
+ * `[F]` **A failure scenario is checked against the simulator, not only against
+ * its golden.** A shot of the wrong failure is still a perfectly good-looking
+ * shot, and a golden blessed once will keep it forever. Two scenarios drifted
+ * to `NO_PATH` the moment the simulator stopped walking to stale positions —
+ * `break-dark-key` and a `break-battle-gate` that turned out to be reachable
+ * only *because* of that bug — and nothing failed. This runs headlessly, so it
+ * catches the drift before a shot is ever taken.
+ */
+describe("SPEC-009 §4 — every failure scenario still shows the failure it names", () => {
+  const withCode = SCENARIOS.filter((s) => s.code !== undefined);
+
+  it("names at least six error codes, each exactly once", () => {
+    expect(withCode.length).toBeGreaterThanOrEqual(6);
+    const codes = withCode.map((s) => s.code);
+    expect(new Set(codes).size).toBe(codes.length);
+  });
+
+  for (const s of withCode) {
+    it(`${s.name}: disabling its action breaks the route with ${s.code}`, () => {
+      if (!haveSaves) return;
+      const step = s.steps?.find((x) => "click" in x && typeof x.click === "object" && "checkbox" in x.click);
+      expect(step, `${s.name} must disable an action`).toBeDefined();
+      if (!step || !("click" in step) || typeof step.click !== "object" || !("checkbox" in step.click)) return;
+
+      const session = sessionFor(s);
+      expect(session.failedFrom, `${s.name}: the record must be clean before the edit`).toBeNull();
+
+      const site = session.sites[s.stop + step.click.checkbox];
+      expect(site, `${s.name}: no action at the checkbox offset`).toBeDefined();
+      if (!site) return;
+      session.edit({ op: "setDisabled", epoch: site.epoch, segment: site.segment, index: site.index, value: true });
+
+      expect(session.evaluation.mainline.error?.code).toBe(s.code);
+      // And the break must land on the very stop the scenario navigates to,
+      // or the shot is of a clean action with a failure somewhere off-screen.
+      expect(session.failedFrom).toBe(s.stop);
+    });
+  }
+});
+
+/** A `RouteSession` for a scenario's fixture and record, as the app builds it. */
+function sessionFor(s: (typeof SCENARIOS)[number]): RouteSession {
+  const towerId = towerOfFixture(s.fixture);
+  const tower = JSON.parse(readFileSync(`data/towers/v0.7-455/${towerId}.json`, "utf8")) as TowerJSON;
+  const path = s.fixture.includes("/") ? s.fixture : `tests/${s.fixture}`;
+  const record = parseSaveFile(new Uint8Array(readFileSync(`data/saves/${path}.sav`))).records[s.record]!;
+  const route = importRoute({
+    name: record.name,
+    tower: tower.tower_id,
+    gemsOwned: UNLIMITED_GEMS,
+    waypoints: routeFromRecord(record),
+  });
+  return new RouteSession(ordFile([route]), 0, tower, { route: 0, stop: 0, captions: true, zoom: "auto" });
+}

@@ -439,10 +439,13 @@ function drawSpent(
   }
   const stem = MISSING[error.code];
   if (stem !== undefined) blit(ctx, sheet, manifest, stem, x, y + 1);
-  // A pixel taller at the top than the row's own outline, so the two read apart.
+  // `[I]` A pixel proud of the row's own outline **top and bottom**, so the two
+  // read apart. It used to overhang only at the top, which left the bottom edge
+  // sitting exactly under the thick current-action outline and disappearing
+  // into it on the one row where it matters most.
   ctx.strokeStyle = C.FAIL_BRIGHT;
   ctx.lineWidth = 1;
-  ctx.strokeRect(x - 0.5, y - 1.5, 17, ROW_H + 1);
+  ctx.strokeRect(x - 0.5, y - 1.5, 17, ROW_H + 2);
 }
 
 const MISSING: Record<string, string> = {
