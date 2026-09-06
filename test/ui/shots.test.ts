@@ -384,13 +384,18 @@ describe("SPEC-009 §5 — the browser", () => {
     const by = new Map(results.map((r) => [r.name, r.differing ?? 0]));
     // The break shows a deficit, so its shot must move.
     expect(by.get("break-gold-gate")).toBeGreaterThan(0);
-    // `[D]` Draft 1 said "and only it". It is every shot of a *breaking* route
-    // that carries deficit ink — the list window at stop 0 already holds the
-    // row that breaks — so what the diagnostic can say is that no shot of a
-    // clean route moves. That is still diagnostic: a SHORTFALL used somewhere
-    // it does not belong would show up here as a clean shot that changed.
-    for (const s of SCENARIOS.filter((x) => x.fixture === "1-5.INSUFFICIENT-POWER")) {
-      expect(by.get(s.name), `${s.name} is a clean route and must not move`).toBe(0);
+    // `[D]` Draft 1 said "and only it". Every shot of a *breaking* route
+    // carries deficit ink — the list window holds the breaking row even from a
+    // stop or two away — so what the diagnostic can say is that no shot
+    // **without a break in it** moves. That is still diagnostic: a SHORTFALL
+    // used somewhere it does not belong shows up here as a clean shot moving.
+    //
+    // `[F]` **Which shots break is a property of the scenario, not of its
+    // fixture.** Filtering on `1-5.INSUFFICIENT-POWER` called
+    // `added-then-broken` clean — its fixture is, but the scenario disables an
+    // action to break it on purpose, which is the whole point of the shot.
+    for (const s of SCENARIOS.filter((x) => x.code === undefined && x.breaks !== true)) {
+      expect(by.get(s.name), `${s.name} shows no break and must not move`).toBe(0);
     }
   }, 900_000);
 });

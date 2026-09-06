@@ -70,6 +70,14 @@ export interface Scenario {
    * simulator stopped walking to stale positions.
    */
   code?: ErrorCode;
+  /**
+   * This shot has a broken route in it, however it got that way.
+   *
+   * `[F]` Not derivable from the fixture: `added-then-broken` starts from a
+   * clean record and breaks it with two edits. Every scenario carrying a
+   * `code` breaks by definition, so this is only for the ones that do not.
+   */
+  breaks?: boolean;
   /** What this shot is evidence about. Read it before re-baselining one. */
   shows: string;
 }
@@ -235,6 +243,7 @@ export const SCENARIOS: readonly Scenario[] = [
   },
   {
     name: "break-gold-gate",
+    breaks: true,
     fixture: "2-1.INSUFFICIENT-GOLD",
     record: 10,
     stop: 2,
@@ -249,6 +258,7 @@ export const SCENARIOS: readonly Scenario[] = [
     // break" and is not grey. A route needs actions **after** its break to show
     // this, so it is built by disabling one early in a longer route.
     name: "past-break",
+    breaks: true,
     fixture: "iestyn.2026.08.28/1-5",
     record: 0,
     stop: 20,
@@ -265,6 +275,7 @@ export const SCENARIOS: readonly Scenario[] = [
   },
   {
     name: "hover-exclaim",
+    breaks: true,
     fixture: "2-1.INSUFFICIENT-GOLD",
     record: 10,
     stop: 0,
@@ -322,6 +333,7 @@ export const SCENARIOS: readonly Scenario[] = [
     // lands the new action at stop 8, and disabling the action four rows below
     // it leaves that attack short of power. `ENEMY_TOO_STRONG`.
     name: "added-then-broken",
+    breaks: true,
     fixture: "1-5.INSUFFICIENT-POWER",
     record: 0,
     stop: 7,
