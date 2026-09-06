@@ -202,7 +202,42 @@ export class RouteSession {
    * edit — but not an `Edit`, because it is not undoable and does not belong in
    * a run of insertions.
    */
+  /**
+   * The gems this route spends.
+   *
+   * `[I]` iestyn: **exceeding your gem count is the point, not a mistake.** A
+   * player plans routes that become viable at a future gem total — a "gem
+   * schedule" of which tweaks unlock next — so the app must never refuse the
+   * spend. What it must do is say so plainly, because a save the game then
+   * declines to load looks exactly like an export bug.
+   */
+  get gemsRequired(): number {
+    return this.evaluation.mainline.steps.at(-1)?.player.gemsSpent ?? 0;
+  }
+
+  /** What the route spent when it was opened, before any edit made here. */
+  importedGems = 0;
+
+  /** Set the moment the player types a name of their own. */
+  nameEdited = false;
+
+  /**
+   * The name to show, save and export under.
+   *
+   * `[D]` A route whose **gem cost this app changed** announces that cost in
+   * its name, so the requirement is visible in the game's own save list, where
+   * a player meets it again long after leaving here. An untouched import keeps
+   * the name it was given, and typing anything keeps that instead.
+   */
+  get displayName(): string {
+    if (this.nameEdited || this.gemsRequired === this.importedGems || this.gemsRequired === 0) {
+      return this.route.name;
+    }
+    return `${this.gemsRequired} gems`;
+  }
+
   rename(name: string): void {
+    this.nameEdited = true;
     const routes = this.document.routes.slice();
     routes[this.routeIndex] = { ...this.route, name };
     this.document = { ...this.document, routes };

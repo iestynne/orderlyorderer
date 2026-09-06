@@ -143,10 +143,12 @@ the code (D33). Looking at the app then found nine more: D24a earns its keep.
 
 None; the reverse-engineering phase is finished. Two limitations block nothing:
 
-- The app has **no real `gemsOwned`**: the total is grade gems plus the sum of
-  per-tower crown tiers, and only the `crown` file supplies it (`TODO.md` §B2).
-  Until then a route carries a sentinel meaning "enough for every gate", so gem
-  gates never refuse. Every other rule is checked exactly.
+- **Gem gates never refuse, on purpose** (D46). A route carries a sentinel
+  meaning "enough for every gate", because planning a route that becomes viable
+  at a future gem total is a thing the player wants to do. The game will decline
+  to load such a save until then, so the export notice names the gem cost and a
+  route whose cost was changed here is named for it. Every other rule is checked
+  exactly.
 - Save **writing** from TypeScript is not byte-exact: Node's zlib and Love2D's
   make different choices (SPEC-006 §6). The payload underneath is exact both
   ways; only the compressed stream differs. The browser cannot use `node:zlib`

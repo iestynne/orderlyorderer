@@ -340,5 +340,16 @@ export const SCENARIOS: readonly Scenario[] = [
     steps: [{ click: { cell: { floor: 1, x: 3, y: 14 } } }, { click: { checkbox: -4 } }],
     shows: "red over blue: the added action is the break — red row and frame, and the + badge still says it was added",
   },
+  {
+    // `[I]` iestyn: almost every floor of 2-5 opens and closes with a pop-up —
+    // it is the structuring element the tower is named for, since each floor
+    // can be entered once and the visit order is the whole puzzle. Record 0
+    // raises one at stop 1, which is as early as a shot can catch it.
+    name: "popup-wall",
+    fixture: "iestyn.2026.08.28/2-5",
+    record: 0,
+    stop: 1,
+    shows: "a pop-up wall knocked into place behind the player: the action that walks off it is the one that raises it",
+  },
   ...FAILURES,
 ];

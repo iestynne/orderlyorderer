@@ -55,6 +55,14 @@ would give a margin at every step — the power-graph work (DESIGN §7) arriving
 early. `[D]` Not started: it changes SPEC-004's semantics, and Half Gates,
 elixirs and the Keysmasher each need an answer first.
 
+`[O]` **Show the grade beside the score.** `[I]` iestyn, low priority: the
+header now carries the score a winning route submits, and the grade it earns
+would sit naturally next to it.
+
+`[O]` **Show the grade beside the score.** `[I]` iestyn, low priority: the
+header carries the score a winning route submits, and the grade it earns would
+sit naturally next to it.
+
 `[O]` **A colour-blind-safe variant.** Red against green is the one pair that
 fails for about 8% of men, and it is what says pass and fail. The colours are
 gathered in `src/ui/render/palette.ts` so a variant is a swap — blue against

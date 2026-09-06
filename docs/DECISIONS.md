@@ -778,3 +778,20 @@ because they drift; they are now the point. What is forbidden instead is
 restating what the referenced code does. Rules 1, 3, 5 and 6 stand, and rule 3
 — a change that makes a sentence false deletes it in the same edit — is the
 discipline both framings depend on.
+
+**D46. Gem gates never refuse, and the app says so instead.**
+`[I]` iestyn, 2026-09-06: **exceeding your gem count is the point.** He keeps a
+game-wide *gem schedule* — which route tweaks become actionable at which gem
+total, in increasing order — and plans routes long before he can run them. An
+app that refused the spend would refuse the most useful thing it does.
+
+`[D]` So `UNLIMITED_GEMS` is not a placeholder waiting for the `crown` file
+(TODO §B2); it is the behaviour. What the file would buy is a warning we can
+give more cheaply, and a limit we do not want.
+
+`[D]` The obligation this creates is **messaging**, because the game *will*
+refuse to load a save whose gems the player has not got, and an unexplained
+refusal looks exactly like an export bug in this app. Two places say it: the
+export notice names the number, and a route whose gem cost was changed here
+takes `"<N> gems"` as its name, so the requirement is legible in the game's own
+save list. `RouteSession.gemsRequired` and `displayName`.

@@ -29,6 +29,13 @@ name — editable there — save `.ord`, export `.sav`, and a **screenshot** but
 writing the exact 1× frame to a PNG. Going back returns to the record list
 rather than the file picker.
 
+**Exporting names its price.** A route may spend gems the player has not got —
+that is deliberate (D46) — so the game will refuse to load it until they have.
+The export notice says how many and that the refusal is the gem gate rather than
+a fault here, and a route whose gem cost was changed in this app takes `N gems`
+as its name unless the player has typed one, so the requirement is legible in
+the game's own save list.
+
 ## 2. Timeline panel
 
 The left panel shows the floors the route visits, each tile captioned with its

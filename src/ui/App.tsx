@@ -116,6 +116,9 @@ export default function App(): React.ReactElement {
   const start = useCallback(
     (document: OrdFile, t: TowerJSON, view: ViewState, inserted: string[] = [], savedHash: string | null = null) => {
       const s = new RouteSession(document, view.route, t, view);
+      // What the route cost before this app touched it: the baseline the name
+      // and the export warning are measured against.
+      s.importedGems = s.gemsRequired;
       s.savedHash = savedHash;
       s.restoreInserted(inserted);
       setTower(t);
@@ -280,7 +283,7 @@ export default function App(): React.ReactElement {
 
   const saveOrd = useCallback(() => {
     if (!session) return;
-    download(`${session.route.tower}-${session.route.name}.ord`.replace(/[/\\:*?"<>|]/g, "_"), session.toOrd(), "application/json");
+    download(`${session.route.tower}-${session.displayName}.ord`.replace(/[/\\:*?"<>|]/g, "_"), session.toOrd(), "application/json");
     session.markSaved();
     setRevision((r) => r + 1);
   }, [session]);
@@ -294,14 +297,25 @@ export default function App(): React.ReactElement {
       // an export is not the place to hand it something it stopped producing.
       const bytes = emitSaveFile({
         records: [{
-          name: session.route.name,
+          name: session.displayName,
           time: new Date().toISOString().slice(0, 16).replace("T", " "),
           keyOrder: ["time", "data"],
           entries: decodeEntries(payload),
         }],
       });
       download(`${session.route.tower}.orderlyorderer.${stamp()}.sav`, bytes, "application/octet-stream");
-      setNotice("Exported. It is a new file, never an overwrite: move it into place yourself.");
+      // `[I]` **The gem requirement is said out loud, on every export that has
+      // one.** The app deliberately lets a route spend gems the player has not
+      // got — planning a route that becomes viable at a future total is the
+      // whole point — so the game will refuse to load it until then. Unsaid,
+      // that refusal looks exactly like an export bug, and the export is fine.
+      const gems = session.gemsRequired;
+      setNotice(
+        (gems > 0
+          ? `This route spends ${gems} gems. If you have fewer, the game will refuse to load it — ` +
+            "that is the gem gate, not a fault in the export. "
+          : "") + "Exported. It is a new file, never an overwrite: move it into place yourself.",
+      );
     } catch (e) {
       setError(String(e));
     }
@@ -316,7 +330,7 @@ export default function App(): React.ReactElement {
           <button onClick={() => setSession(null)}>← routes</button>
           <input
             className="name"
-            value={session.route.name}
+            value={session.displayName}
             onChange={(e) => {
               session.rename(e.target.value);
               setRevision((r) => r + 1);
