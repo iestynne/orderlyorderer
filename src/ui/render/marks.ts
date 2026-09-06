@@ -79,12 +79,33 @@ export function bakeIcons(manifest: AtlasManifest, sheet: CanvasImageSource): Ic
     noEntry: tint(manifest, sheet, "no_entry", C.REFUSED),
     exclaim: tint(manifest, sheet, "exclaim", C.FAIL_BRIGHT),
     exclaimHot: tint(manifest, sheet, "exclaim", C.FAIL_HOT),
-    arrow: tint(manifest, sheet, "icon_arrow", C.FAIL_BRIGHT),
+    arrow: flipX(tint(manifest, sheet, "icon_arrow", C.FAIL_BRIGHT)),
     player: tint(manifest, sheet, "player", C.PLAYER_TINT),
     deficit: inkFont(manifest, sheet, "FONT_DIGITS", C.SHORTFALL),
     boxSize: manifest.sprites["icon_box"]?.w ?? 9,
     badge: manifest.sprites["icon_plus"]?.w ?? 9,
   };
+}
+
+/**
+ * `[I]` **The reachability arrow points right.** The game`s own icon points
+ * left, and in the row it sat to the left of the thing the player was trying to
+ * get to — pointing away from it, which reads as leaving rather than as being
+ * turned back. Flipped once here, so the row and the mark on the floor agree,
+ * and so the floor mark`s rotation is measured from a sensible zero.
+ */
+function flipX(src: HTMLCanvasElement | null): HTMLCanvasElement | null {
+  if (src === null) return null;
+  const c = document.createElement("canvas");
+  c.width = src.width;
+  c.height = src.height;
+  const g = c.getContext("2d");
+  if (!g) return null;
+  g.imageSmoothingEnabled = false;
+  g.translate(src.width, 0);
+  g.scale(-1, 1);
+  g.drawImage(src, 0, 0);
+  return c;
 }
 
 function tint(manifest: AtlasManifest, sheet: CanvasImageSource, name: string, colour: string): HTMLCanvasElement | null {

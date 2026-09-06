@@ -11,7 +11,7 @@ import { Cursor } from "../sim/cursor";
 import { coords, isEntity } from "../sim/grid";
 import { activeSegment } from "../sim/route/document";
 import { describeAction, type ActionSummary } from "../sim/route/describe";
-import { pathfind } from "../sim/pathfind";
+import { blockedApproach } from "../sim/pathfind";
 import { battleGatesOf, simulate } from "../sim/simulate";
 import type { Cell, Timeline, Waypoint } from "../sim/types";
 import type { AtlasManifest } from "../../tools/atlas/build";
@@ -633,6 +633,44 @@ export class Scrubber {
     }
   }
 
+  /**
+   * The square a `NO_PATH` action never reached: boxed, and pointed at.
+   *
+   * `[F]` The arrow is `icons.arrow`, the same mark the row's spent column
+   * shows for a reachability failure, so the two say the same thing in the two
+   * places a player looks. It points **left** as drawn, so it is turned by the
+   * angle from the blocker to the target — crow-flies, because there is no
+   * route to follow; that is the whole problem.
+   */
+  private drawUnreached(
+    set: WorkingSet,
+    grid: Grid,
+    target: Waypoint,
+    blocker: Waypoint | null,
+    accent: string,
+  ): void {
+    const { ctx } = this.screen;
+    const at = this.cellOrigin(set, grid, target);
+    if (at === null) return;
+
+    // The same bedded-on-black ring the player wears, so the two boxes read as
+    // a pair: here is where you stopped, there is where you were going.
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(at.x - 2, at.y - 2, CELL + 4, CELL + 4);
+    ctx.strokeStyle = accent;
+    ctx.strokeRect(at.x - 1, at.y - 1, CELL + 2, CELL + 2);
+
+    const arrow = this.icons.arrow;
+    if (arrow === null || blocker === null || blocker.z !== target.z) return;
+    const angle = Math.atan2(target.y - blocker.y, target.x - blocker.x);
+    ctx.save();
+    ctx.translate(at.x + CELL / 2, at.y + CELL / 2);
+    ctx.rotate(angle);
+    ctx.drawImage(arrow, -(arrow.width >> 1), -(arrow.height >> 1));
+    ctx.restore();
+  }
+
   /** The dash every mark of the current action wears: dashed when it is off. */
   private currentDash(): number[] {
     return dashOf(this.rows.find((r) => r.current) ?? { enabled: true });
@@ -686,7 +724,7 @@ export class Scrubber {
     // the blocked cell alone says where the player stopped and never where
     // they came from. Otherwise only under the `path` setting, which is there
     // to find out whether it reads as useful or as clutter.
-    const { walked, blocked } = this.pathOf(this.stop);
+    const { walked, blocked, unreached } = this.pathOf(this.stop);
     const locate = (w: Waypoint): { x: number; y: number } | null => this.cellOrigin(set, grid, w);
     if (walked.length > 0 && (row.breaks || this.settings.path)) {
       // `[F]` **Ghosts first, outline over them.** The other way round, each
@@ -730,6 +768,12 @@ export class Scrubber {
       ctx.stroke();
       this.drawPlayer(at, accent, stoppedAt ?? (from !== null && to !== null ? to : null));
     }
+    // `[I]` **The square they were trying to reach gets a box of its own**, and
+    // an arrow flying into it from the blocker. Player and blocker say where
+    // the walk stopped; without this there is nothing on screen saying where it
+    // was *going*, and a `NO_PATH` is half a sentence.
+    if (unreached !== null) this.drawUnreached(set, grid, unreached, blocked, accent);
+
     // The card is one of the marks, so it is dashed with the rest of them.
     drawActionCard(ctx, this.sheet, this.manifest, fonts, row, cardX, cardY, this.icons, accent);
     ctx.setLineDash([]);
@@ -751,7 +795,7 @@ export class Scrubber {
    * way. So it yields an empty walk and a `blocked` that is the target — which
    * is honest, and is what makes it read differently from a block on the way.
    */
-  private pathOf(stop: number): { walked: Waypoint[]; blocked: Waypoint | null } {
+  private pathOf(stop: number): { walked: Waypoint[]; blocked: Waypoint | null; unreached: Waypoint | null } {
     const from = stop === 0 ? 0 : this.stops[stop - 1] ?? 0;
     const error = this.session.failedFrom === stop ? this.timeline.error : undefined;
     const to = error?.stepIndex ?? this.stops[stop] ?? from;
@@ -775,12 +819,21 @@ export class Scrubber {
     // reachable square and the thing in the way is the gap beyond them.
     if (error?.code === "NO_PATH") {
       const p = this.cursor.player;
-      const best = pathfind(this.session.tower, this.cursor.cells, p, error.at, true, true);
-      if (best !== null && best.length > 0) {
-        walked.push({ z: p.z, x: p.x, y: p.y }, ...best.map((s) => coords(s.to)));
+      const tried = blockedApproach(this.session.tower, this.cursor.cells, p, error.at);
+      if (tried !== null) {
+        walked.push({ z: p.z, x: p.x, y: p.y }, ...tried.path.map((s) => coords(s.to)));
+        // `[F]` The **blocker**, not the target: the box goes round the player
+        // and the square that stopped them, which are adjacent. Round the
+        // player and the far-off target it was a rectangle covering half the
+        // floor and said nothing about either.
+        return {
+          walked,
+          blocked: tried.blocker === null ? null : coords(tried.blocker),
+          unreached: error.at,
+        };
       }
     }
-    return { walked, blocked: error === undefined ? null : error.at };
+    return { walked, blocked: error === undefined ? null : error.at, unreached: null };
   }
 
   /**

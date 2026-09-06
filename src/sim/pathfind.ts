@@ -253,3 +253,49 @@ export function pathfind(
   }
   return null;
 }
+
+/**
+ * How far the player gets toward an unreachable square, and what stopped them.
+ *
+ * `[I]` For drawing a `NO_PATH` failure, and nothing else. The refusal is the
+ * whole of the simulator's answer; what a player needs on screen is the two
+ * squares that make it legible — the last one they can stand on, and the one
+ * beyond it they cannot enter. Without the second, a `NO_PATH` is a mark on an
+ * empty corridor saying only that something, somewhere, is wrong.
+ *
+ * `[F]` The blocker is chosen from the **neighbours of the closest square
+ * reached**: whichever of them cannot be entered and lies nearest the target.
+ * That is a heuristic and not a proof — a region can be walled off in several
+ * places at once — so it names one obstacle rather than claiming it is the
+ * only one.
+ */
+export function blockedApproach(
+  tower: TowerJSON,
+  cells: Uint8Array,
+  player: Player,
+  target: { z: number; x: number; y: number },
+): { path: PathStep[]; blocker: Addr | null } | null {
+  const path = pathfind(tower, cells, player, target, true, true);
+  if (path === null) return null;
+
+  const last = path.at(-1);
+  const at = last === undefined ? { z: player.z, x: player.x, y: player.y } : coordsOf(tower, last.to);
+  let blocker: Addr | null = null;
+  let best = Infinity;
+  for (const [dx, dy] of DIRS) {
+    const nx = at.x + dx;
+    const ny = at.y + dy;
+    if (!inBounds(tower, at.z, nx, ny)) continue;
+    if (traversable(tower, cells, player.held, at, at.z, nx, ny)) continue;
+    const d = Math.abs(nx - target.x) + Math.abs(ny - target.y) + Math.abs(at.z - target.z) * W * 2;
+    if (d < best) {
+      best = d;
+      blocker = addr(tower, at.z, nx, ny);
+    }
+  }
+  return { path, blocker };
+}
+
+function coordsOf(tower: TowerJSON, a: Addr): { z: number; x: number; y: number } {
+  return { z: Math.floor(a / (W * W)) + 1, x: (a % W) + 1, y: (Math.floor(a / W) % W) + 1 };
+}
