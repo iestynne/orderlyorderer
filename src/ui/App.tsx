@@ -69,7 +69,7 @@ export default function App(): React.ReactElement {
     pixelPerfect: true,
     linearFilter: false,
     perf: false,
-    path: false,
+    path: true,
     zoom: "auto",
   });
 

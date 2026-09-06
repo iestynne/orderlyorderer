@@ -110,12 +110,18 @@ export interface StatusRow {
  */
 export function statusRows(tower: TowerJSON, p: Player): StatusRow[] {
   const flags = tower.metadata.computed_flags;
-  const rows: StatusRow[] = [{ sprite: "key", value: String(p.lightKeys), title: "light keys" }];
+  const rows: StatusRow[] = [];
+  // `[I]` **The held item leads, and everything else keeps its place.** The row
+  // is ranged right, so an item at the *end* moves every other one a slot left
+  // the moment it appears — and the held item is the one entry that comes and
+  // goes constantly, which made the whole row twitch as a route was scrubbed.
+  // At the front it is the only thing that moves.
+  if (p.held !== null) rows.push({ sprite: p.held, value: "", title: `held: ${p.held}` });
+  rows.push({ sprite: "key", value: String(p.lightKeys), title: "light keys" });
   if (flags.negative_keys !== true) rows.push({ sprite: "dark_key", value: String(p.darkKeys), title: "dark keys" });
   rows.push({ sprite: "pickaxe", value: String(p.pickaxes), title: "pickaxes" });
   if (flags.money_system === true) rows.push({ sprite: "money", value: String(p.gold), title: "gold" });
   rows.push({ sprite: "gem", value: String(p.gemsSpent), title: "gems spent" });
-  if (p.held !== null) rows.push({ sprite: p.held, value: "", title: `held: ${p.held}` });
   return rows;
 }
 

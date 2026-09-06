@@ -8,11 +8,11 @@
 // back once, at the speed of a click.
 
 import { Cursor } from "../sim/cursor";
-import { coords } from "../sim/grid";
+import { coords, isEntity } from "../sim/grid";
 import { activeSegment } from "../sim/route/document";
 import { describeAction, type ActionSummary } from "../sim/route/describe";
 import { simulate } from "../sim/simulate";
-import type { Timeline, Waypoint } from "../sim/types";
+import type { Cell, Timeline, Waypoint } from "../sim/types";
 import type { AtlasManifest } from "../../tools/atlas/build";
 import type { RouteSession } from "./session";
 import { FloorCache } from "./render/floor";
@@ -72,6 +72,18 @@ export interface ScrubberSettings extends ScreenSettings {
   /** `[I]` Draw every action’s walk, not only a failing one’s. Under trial. */
   path: boolean;
 }
+
+/**
+ * Cells an action passes over without removing: the floor bitmap keeps showing
+ * them, so the current action must not draw its own copy on top. Exactly the
+ * game's feather_pathfind set plus the one-way walls, which are walked
+ * through rather than consumed.
+ */
+function survivesEntry(cell: Cell): boolean {
+  return isEntity(cell) && SURVIVING.has(cell.type);
+}
+
+const SURVIVING = new Set(["spikes", "barrier_u", "barrier_d", "barrier_l", "barrier_r"]);
 
 /** What clicking the hovered cell would do. */
 type HoverKind = "action" | "invalid" | "none";
@@ -620,8 +632,16 @@ export class Scrubber {
     const { walked, blocked } = this.pathOf(this.stop);
     const locate = (w: Waypoint): { x: number; y: number } | null => this.cellOrigin(set, grid, w);
     if (walked.length > 0 && (row.breaks || this.settings.path)) {
-      strokeOutline(ctx, walked, locate, row.breaks ? C.FAIL : accent);
+      // `[F]` **Ghosts first, outline over them.** The other way round, each
+      // ghost drew across the outline it sat under and the whole route read as
+      // dashed — a dash that meant nothing, beside a dash that means disabled.
       drawGhosts(ctx, this.playerSprite(), walked, locate);
+      // `[I]` The action's own target joins the outline even though the walk
+      // never reached it: without it there is nothing to say where the player
+      // was *trying* to get to, which is half of what a block is about. It is
+      // not contiguous with the walk, and that is the point — the gap between
+      // them is exactly the cell that stopped it.
+      strokeOutline(ctx, [...walked, site.action.to], locate, row.breaks ? C.FAIL : accent);
     }
     // The blocking cell is the thing that stopped the walk, so it wears the
     // box with the player rather than the target the player never reached.
@@ -653,8 +673,9 @@ export class Scrubber {
       ctx.stroke();
       this.drawPlayer(at, accent, stoppedAt ?? (from !== null && to !== null ? to : null));
     }
-    ctx.setLineDash([]);
+    // The card is one of the marks, so it is dashed with the rest of them.
     drawActionCard(ctx, this.sheet, this.manifest, fonts, row, cardX, cardY, this.icons, accent);
+    ctx.setLineDash([]);
     ctx.globalAlpha = 1;
   }
 
@@ -677,6 +698,12 @@ export class Scrubber {
     const error = this.session.failedFrom === stop ? this.timeline.error : undefined;
     const to = error?.stepIndex ?? this.stops[stop] ?? from;
     const walked: Waypoint[] = [];
+    // `[F]` **The square the walk starts from is part of the walk.** A step
+    // records the cell it *enters*, so collecting `to` alone drops the one the
+    // player was standing on when the previous action finished — the route then
+    // began a cell along from the player, with a gap where they had been.
+    const first = this.timeline.steps[from];
+    if (first !== undefined) walked.push(coords(first.from));
     for (let i = from; i < to; i++) {
       const s = this.timeline.steps[i];
       if (s !== undefined) walked.push(coords(s.to));
@@ -738,6 +765,15 @@ export class Scrubber {
       ctx.drawImage(this.sheet, r.x, r.y, r.w, r.h, at.x, at.y, CELL, CELL);
       return;
     }
+    // `[F]` **Nothing is knocked askew that the action did not remove.** The
+    // transform below exists because the floor bitmap already shows the square
+    // *after* the action, so without it there is nothing left there to see. A
+    // spike tile and a one-way wall survive being walked on, so the bitmap
+    // still holds them — and drawing a rotated, shrunken copy on top gave two
+    // of the same sprite, misaligned, with the value badge caught between them.
+    // 1-5 "4.6G win" at action 167. They need no redraw at all: the floor's own
+    // copy is correct and its badge is already in the label pass.
+    if (survivesEntry(row.summary.cell)) return;
     ctx.save();
     ctx.translate(at.x + CELL / 2, at.y + CELL / 2);
     ctx.rotate(0.22);
