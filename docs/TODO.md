@@ -239,6 +239,11 @@ their answers are in `GAME_MECHANICS.md` where game rules live (D33).
   safe default and is what we do regardless.
 - Minor: `entitydef.orb_change.compendium_header` reads "Warp orb", duplicating
   `orb_warp`. Looks like a copy-paste slip.
+- Minor: `main.lua:46` declares `local Steam`, then `main.lua:49` declares a
+  *second* `local Steam = require 'luasteam'` inside the `if not DEBUG` block,
+  which shadows it. The outer name stays `nil`, so `love.quit`'s
+  `if Steam then Steam.Shutdown() end` never runs. iestyn is raising it; it may
+  be deliberate.
 
 ## E. Still unread in the source
 
@@ -249,6 +254,34 @@ Deliberately deferred, not forgotten. All are out of scope for v1 (SPEC-004 §1)
 - **Rapier of the Rulers** — the combat formula is read
   (`GAME_MECHANICS.md` §5.3); what remains is how `royal_boon2` injects it.
 - One unidentified sprite on 1-5 floor 1, at `(1,4)` and `(15,4)`.
+
+## G. Two sim oracles the game already ships
+
+Neither needs a dev build, a flag or a code change on their side, and neither is
+built. Recorded as a possibility, not queued: worth running occasionally, not
+per-commit.
+
+- **`logs/log1.txt`** — `logger.lua`, always on, no flag, rotated 10 deep at
+  each *launch*, so one session appends to one file however many saves are
+  loaded into it. It records every floor transition, every item obtained or
+  consumed, every unlock flag set, and each level script that ran. Not
+  move-by-move, so it cannot replace the replay oracle — but it is a free
+  *ordering* check against what the simulator predicts.
+
+  **And it does not need a hand-played run.** `save_manager:load` replays a
+  savestate's move list through the real engine, and the `entitydef` interact
+  logs fire during that replay — `g_sfx.lock` silences the audio, not the
+  logger. So one keypress per save emits that whole run's pickup-and-floor
+  trace, and `data/saves/` already holds 326 of them. That half is automatable
+  apart from the keypress.
+
+- **The in-run stats screen** (`i`) — `ingame_stats.lua` `STATS_ORDER`, 24
+  counters: kills split positive/negative, per-item gains and losses, gold in
+  and out, keys spent, power the Adamantine Shield saved *and* lost. The
+  simulator tracks none of them. A mismatch there names a mechanic; a mismatch
+  in final power only says "something". This half stays manual — the counters
+  are drawn and never written to a file, and SPEC-009's harness screenshots our
+  app, not the game.
 
 ## F. Standing habits
 
