@@ -57,7 +57,9 @@ stairs read as one continuous line; those crossings are dashed as travel. Both
 halves are lavender, separated only by hue: the past shifted towards blue, the
 future towards red. Both carry a black outline, and both fade to nothing two
 stops either side of the scrub position — a narrow reminder, not a whole-route
-overlay. **It says tense, not verdict**; the slider says verdict.
+overlay. **It says tense, not verdict**; the slider says verdict. `[O]` **trail behind**
+draws it under the floors instead, at one strength rather than fading — visible
+only where the floor is, so it can never cover a cell. On trial.
 
 ## 4. Control panel
 
@@ -87,14 +89,19 @@ scrub.
 **Player status.** Two lines of header, over a **divider**. The tower's name
 leads the first, with **Power** at its right: in full, with the game's dot
 separators — `1.284.900`, never `1.28M` — being the only figure that needs the
-width. The second has the action counter at the left and, ranged right,
-everything the player carries: light keys, dark keys, pickaxes, gold, gems, held
-item, each a sprite and a number of at most four digits. Gems are an amount
+width. The second carries the **score** at the left — what the run is worth if it is
+played out, shown the whole way through rather than appearing at the crown, and
+blank for a route that never reaches one. It replaced an action counter that
+said what the slider already says. Ranged right is everything the player
+carries: the held item first, then light keys, dark keys, pickaxes, gold, gems.
+Each is a sprite and a number, and each reserves only the digits it can reach —
+four for gold and gems, two for the rest — so the row is tight and still never
+shuffles when a number grows. Gems are an amount
 **spent**, which the row says on hover rather than in a word. Dark keys, gold
 and the held item are absent where the game omits them too.
 
 **Help.** Behind a **?** at the top-right of the left panel: the keys, and the
-two options — **perf test** and **show paths**. It draws over everything, and a click anywhere off it closes it and
+three options — **perf test**, **show paths** and **trail behind**. It draws over everything, and a click anywhere off it closes it and
 does nothing else.
 
 ## 5. Presentation
