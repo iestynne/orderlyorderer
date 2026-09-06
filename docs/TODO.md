@@ -239,11 +239,6 @@ their answers are in `GAME_MECHANICS.md` where game rules live (D33).
   safe default and is what we do regardless.
 - Minor: `entitydef.orb_change.compendium_header` reads "Warp orb", duplicating
   `orb_warp`. Looks like a copy-paste slip.
-- Minor: `main.lua:46` declares `local Steam`, then `main.lua:49` declares a
-  *second* `local Steam = require 'luasteam'` inside the `if not DEBUG` block,
-  which shadows it. The outer name stays `nil`, so `love.quit`'s
-  `if Steam then Steam.Shutdown() end` never runs. iestyn is raising it; it may
-  be deliberate.
 
 ## E. Still unread in the source
 
@@ -272,8 +267,12 @@ per-commit.
   savestate's move list through the real engine, and the `entitydef` interact
   logs fire during that replay — `g_sfx.lock` silences the audio, not the
   logger. So one keypress per save emits that whole run's pickup-and-floor
-  trace, and `data/saves/` already holds 326 of them. That half is automatable
-  apart from the keypress.
+  trace, and `data/saves/` already holds 326 of them.
+
+  **`[I]` Agreed shape, 2026-09-06: iestyn loads saves in the game by hand and
+  the log gets scanned afterwards.** An occasional sanity check, not a build
+  step — so what this needs is a log parser and a comparison against the
+  simulator's predicted ordering, not a way to drive the game.
 
 - **The in-run stats screen** (`i`) — `ingame_stats.lua` `STATS_ORDER`, 24
   counters: kills split positive/negative, per-item gains and losses, gold in
