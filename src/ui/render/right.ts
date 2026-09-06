@@ -94,6 +94,19 @@ export interface StatusRow {
   value: string;
   /** What the row means, for the hover tooltip: the words the column has no room for. */
   title: string;
+  /**
+   * Digits to reserve room for.
+   *
+   * `[I]` **Reserved per item, not one width for all.** A flat 44 px column
+   * gave a four-digit slot to counters that never pass two, and left a gap
+   * beside the held item, which has no number at all — so the row was mostly
+   * air and the score had nowhere to go. Reserving the digits each item can
+   * actually reach keeps it tight and still stops the row shuffling when a
+   * number gains a digit. Gold reaches four over the corpus; nothing else
+   * passes two except gems, which reach four — measured over the corpus by the
+   * test that checks no value outgrows the room its row reserves.
+   */
+  digits: number;
 }
 
 /**
@@ -116,12 +129,12 @@ export function statusRows(tower: TowerJSON, p: Player): StatusRow[] {
   // the moment it appears — and the held item is the one entry that comes and
   // goes constantly, which made the whole row twitch as a route was scrubbed.
   // At the front it is the only thing that moves.
-  if (p.held !== null) rows.push({ sprite: p.held, value: "", title: `held: ${p.held}` });
-  rows.push({ sprite: "key", value: String(p.lightKeys), title: "light keys" });
-  if (flags.negative_keys !== true) rows.push({ sprite: "dark_key", value: String(p.darkKeys), title: "dark keys" });
-  rows.push({ sprite: "pickaxe", value: String(p.pickaxes), title: "pickaxes" });
-  if (flags.money_system === true) rows.push({ sprite: "money", value: String(p.gold), title: "gold" });
-  rows.push({ sprite: "gem", value: String(p.gemsSpent), title: "gems spent" });
+  if (p.held !== null) rows.push({ sprite: p.held, value: "", title: `held: ${p.held}`, digits: 0 });
+  rows.push({ sprite: "key", value: String(p.lightKeys), title: "light keys", digits: 2 });
+  if (flags.negative_keys !== true) rows.push({ sprite: "dark_key", value: String(p.darkKeys), title: "dark keys", digits: 2 });
+  rows.push({ sprite: "pickaxe", value: String(p.pickaxes), title: "pickaxes", digits: 2 });
+  if (flags.money_system === true) rows.push({ sprite: "money", value: String(p.gold), title: "gold", digits: 4 });
+  rows.push({ sprite: "gem", value: String(p.gemsSpent), title: "gems spent", digits: 4 });
   return rows;
 }
 
@@ -138,6 +151,14 @@ export interface RightPanelState {
   failedFrom: number | null;
   perf: boolean;
   perfLine: string;
+  /**
+   * The score the route submits, or 0 where it never reaches a crown.
+   *
+   * `[I]` **The route`s score, not the current stop`s.** It is what the run is
+   * worth if it is played out, so it belongs on screen the whole way through
+   * rather than appearing on the last action.
+   */
+  score: number;
 }
 
 /**
@@ -205,7 +226,11 @@ export function drawRightPanel(
   // `[F]` **Drawn once.** The slider drew it a second time three pixels lower,
   // from before it moved up here, and two copies of a changing number three
   // pixels apart read as one number that will not hold still.
-  drawText(ctx, sheet, standard, `${s.stop + 1}/${s.stopCount}`, x0, 17);
+  // `[I]` **The score, where the action counter used to be.** The counter said
+  // what the slider already says, in the one place with room for the figure a
+  // player is actually chasing. A route that never reaches a crown has no score
+  // and the line stays empty rather than showing a nought.
+  if (s.score > 0) drawText(ctx, sheet, standard, `Score ${powerToString(s.score)}`, x0, 17);
   drawStatus(ctx, sheet, manifest, digits, s, layout);
 
   // `[I]` A line under the header, with air either side, so the two lines read
@@ -226,17 +251,46 @@ export function drawRightPanel(
  */
 export const STATUS_Y = 14;
 
-/** Widest an item gets: a 16 px sprite, a gap, and four digits. */
-export const STATUS_ITEM_W = 44;
+/** Air between one status item and the next. */
+const STATUS_GAP = 5;
+
+/**
+ * Where each status item sits, right-aligned as a block.
+ *
+ * `[D]` One function, used by the drawing and by the hit-test. They were two
+ * different calculations — the hit-test divided the block by the item count
+ * and called that near enough — and near enough stops being true the moment
+ * the items stop being the same width.
+ */
+export function statusLayout(
+  rows: readonly StatusRow[],
+  font: AtlasFontRef,
+  layout: Layout,
+): Array<{ row: StatusRow; x: number; w: number }> {
+  const widths = rows.map((r) => 16 + (r.digits > 0 ? 2 + textWidth(font, "0".repeat(r.digits)) : 0));
+  const total = widths.reduce((n, w) => n + w, 0) + STATUS_GAP * (rows.length - 1);
+  let x = panelX(layout) + PANEL_W - total;
+  return rows.map((row, i) => {
+    const out = { row, x, w: widths[i]! };
+    x += widths[i]! + STATUS_GAP;
+    return out;
+  });
+}
 
 /** Which status item a point is over, for the hover tooltip, or null. */
-export function statusRowAt(tower: TowerJSON, player: Player, layout: Layout, x: number, y: number): StatusRow | null {
+export function statusRowAt(
+  tower: TowerJSON,
+  player: Player,
+  font: AtlasFontRef,
+  layout: Layout,
+  x: number,
+  y: number,
+): StatusRow | null {
   if (y < STATUS_Y || y > STATUS_Y + 16) return null;
-  const rows = statusRows(tower, player);
-  // Hit-testing has no font to measure with, and the items are near enough
-  // evenly spaced that the block divided by their count is the right answer.
-  const i = rows.length - 1 - Math.floor((panelX(layout) + PANEL_W - x) / STATUS_ITEM_W);
-  return i >= 0 && i < rows.length ? rows[i]! : null;
+  for (const item of statusLayout(statusRows(tower, player), font, layout)) {
+    if (x >= item.x && x < item.x + item.w) return item.row;
+  }
+  return null;
 }
 /**
  * `[D]` **Time runs upward: stop 0 is at the bottom.** The route is climbing a
@@ -433,13 +487,10 @@ function drawStatus(
   s: RightPanelState,
   layout: Layout,
 ): void {
-  const rows = statusRows(s.tower, s.player);
-  let x = panelX(layout) + PANEL_W - rows.length * STATUS_ITEM_W;
-  for (const row of rows) {
+  for (const { row, x } of statusLayout(statusRows(s.tower, s.player), digits, layout)) {
     const r = spriteRect(manifest, row.sprite);
     if (r) ctx.drawImage(sheet, r.x, r.y, r.w, r.h, x, STATUS_Y, 16, 16);
     if (row.value !== "") drawText(ctx, sheet, digits, row.value, x + 18, STATUS_Y + 5);
-    x += STATUS_ITEM_W;
   }
 }
 

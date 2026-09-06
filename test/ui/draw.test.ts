@@ -18,7 +18,7 @@ import { Cursor, stopStepIndices } from "../../src/sim/cursor";
 import { simulate } from "../../src/sim/simulate";
 import type { TowerJSON } from "../../src/sim/types";
 import { computeVisits, computeWorkingSets, drawTimeline, gridCapacity, gridFor, slotOfVisit, visitOfStop, workingSetOfVisit } from "../../src/ui/render/left";
-import { drawRightPanel, sliderGeometry, spriteRect, stackHeight, stackPitch, statusRows, STACK_FLOOR_H, STACK_FLOOR_W, STACK_SHEAR, STATUS_ITEM_W } from "../../src/ui/render/right";
+import { drawRightPanel, sliderGeometry, spriteRect, stackHeight, stackPitch, statusRows, STACK_FLOOR_H, STACK_FLOOR_W, STACK_SHEAR, } from "../../src/ui/render/right";
 import { drawTrail, trailPoints } from "../../src/ui/render/trail";
 import { layoutFor, PANEL_W, STACK_W } from "../../src/ui/render/screen";
 import { bake } from "../../src/ui/render/atlas";
@@ -135,7 +135,7 @@ d("stage 3 — the draw path runs over real records", () => {
         failedFrom: null,
         currentFloor: cursor.player.z,
           perf: false,
-        perfLine: "",
+        perfLine: "", score: 0,
       }, layout);
     }
     expect(calls["drawImage"]).toBeGreaterThan(0);
@@ -231,7 +231,7 @@ d("stage 3 — the draw path runs over real records", () => {
       currentFloor: 1,
       failedFrom: null,
       perf: false,
-      perfLine: "",
+      perfLine: "", score: 0,
     }, layout);
     expect(depth).toBe(32);
     expect(calls["drawImage"]!).toBeGreaterThanOrEqual(depth);
@@ -323,8 +323,10 @@ d("stage 3 — the draw path runs over real records", () => {
       gemsSpent: 9999, held: "shield" as const, pendingPopup: null, win: 0 as const, submittedScore: 0,
     };
     for (const row of statusRows(tower, player)) {
-      // a 16 px sprite, a 2 px gap, and the number.
-      expect(16 + 2 + textWidth(digits, row.value), row.title).toBeLessThanOrEqual(STATUS_ITEM_W);
+      // Every value must fit the digits its row reserves, or the row after it
+      // is drawn over: that reservation is the whole layout.
+      expect(textWidth(digits, row.value), row.title)
+        .toBeLessThanOrEqual(textWidth(digits, "0".repeat(row.digits)));
     }
   });
 });

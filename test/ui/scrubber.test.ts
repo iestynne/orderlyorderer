@@ -46,6 +46,7 @@ const SETTINGS: ScrubberSettings = {
   linearFilter: false,
   perf: false,
   path: false,
+  trailBehind: false,
   zoom: "auto",
 };
 

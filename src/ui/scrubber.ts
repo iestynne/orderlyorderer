@@ -71,6 +71,8 @@ export interface ScrubberSettings extends ScreenSettings {
   perf: boolean;
   /** `[I]` Draw every action’s walk, not only a failing one’s. Under trial. */
   path: boolean;
+  /** `[I]` Trail behind the floors, at one strength. Under trial. */
+  trailBehind: boolean;
 }
 
 /**
@@ -485,8 +487,12 @@ export class Scrubber {
     const fonts: Fonts = { standard: fontFrom(this.manifest, "FONT_STANDARD"), digits: fontFrom(this.manifest, "FONT_DIGITS") };
     const failedFrom = this.session.failedFrom;
 
+    // `[I]` Behind the floors under the trial setting, so it shows only where
+    // the floor bitmap is transparent and can never cover a cell.
+    const behind = this.settings.trailBehind;
+    if (behind) drawTrail(ctx, this.points, this.visits, set, this.stop, grid, layout, true);
     drawTimeline(ctx, this.floors, this.manifest, this.sheet, tower, set, currentSlot, grid, layout, PANEL_W, this.accent(), this.currentDash());
-    drawTrail(ctx, this.points, this.visits, set, this.stop, grid, layout);
+    if (!behind) drawTrail(ctx, this.points, this.visits, set, this.stop, grid, layout);
     this.drawHover(set, grid);
     this.drawCurrentAction(set, grid, fonts);
     drawHelpButton(ctx, this.sheet, fonts.standard, layout, PANEL_W, this.settingsOpen);
@@ -498,6 +504,7 @@ export class Scrubber {
       floorName: tower.floors[player.z - 1]?.name ?? `Floor ${player.z}`,
       stop: this.stop,
       stopCount: this.stops.length,
+      score: this.routeScore(),
       ticks: this.ticks,
       currentFloor: player.z,
       failedFrom,
@@ -552,6 +559,7 @@ export class Scrubber {
     return [
       { label: "perf test", on: this.settings.perf },
       { label: "show paths", on: this.settings.path },
+      { label: "trail behind", on: this.settings.trailBehind },
     ];
   }
 
@@ -579,6 +587,15 @@ export class Scrubber {
   /** The break mark's box; `failureMarkBox` holds the reasoning and the numbers. */
   private failureHitbox(layout: Layout, at: number): { x: number; y: number; w: number; h: number } {
     return failureMarkBox(layout, at, this.stops.length);
+  }
+
+  /**
+   * What this route scores if it is played out: the crown submits the run, so
+   * the figure belongs to the route rather than to the stop being looked at.
+   * Zero where the route never reaches one.
+   */
+  private routeScore(): number {
+    return this.timeline.steps.at(-1)?.player.submittedScore ?? 0;
   }
 
   /** The dash every mark of the current action wears: dashed when it is off. */
@@ -932,6 +949,7 @@ export class Scrubber {
           if (!inBox(p, b)) continue;
           if (i === 0) this.onSettings({ ...this.settings, perf: !this.settings.perf });
           else if (i === 1) this.onSettings({ ...this.settings, path: !this.settings.path });
+          else if (i === 2) this.onSettings({ ...this.settings, trailBehind: !this.settings.trailBehind });
           return;
         }
         if (!inBox(p, settingsPanel(layout, PANEL_W, toggles.length, this.keys.length, w))) {
@@ -1001,7 +1019,7 @@ export class Scrubber {
       }
       const offset = this.hoverRow;
       // `[I]` The status line has no room for words, so they are on hover.
-      const status = statusRowAt(this.session.tower, this.cursor.player, this.screen.layout, p.x, p.y);
+      const status = statusRowAt(this.session.tower, this.cursor.player, fontFrom(this.manifest, "FONT_DIGITS"), this.screen.layout, p.x, p.y);
       this.canvas.title = status?.title ?? "";
       this.setHover(offset === null ? this.cellAt(p.x, p.y) : null);
     };

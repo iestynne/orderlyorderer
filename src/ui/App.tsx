@@ -70,6 +70,7 @@ export default function App(): React.ReactElement {
     linearFilter: false,
     perf: false,
     path: true,
+    trailBehind: false,
     zoom: "auto",
   });
 

@@ -97,6 +97,8 @@ export function drawTrail(
   current: number,
   grid: Grid,
   layout: Layout,
+  /** Every stop at one strength, rather than fading out either side. */
+  constant = false,
 ): void {
   const link = (i: number, past: boolean): void => {
     const a = points[i];
@@ -111,7 +113,13 @@ export function drawTrail(
     const q = centre(sb, b, grid);
     if (Math.max(p.x, q.x) < 0 || Math.min(p.x, q.x) > layout.w) return;
 
-    const fade = 1 - Math.abs(i - current) / FADE_STOPS;
+    // `[I]` **Under trial: a constant, dimmer trail drawn behind the floors.**
+    // The fade keeps the trail to a narrow reminder, at the cost of saying
+    // nothing about the rest of the route; behind the tiles it can be shown
+    // whole without covering anything, because it is only visible where the
+    // floor is. Which reads better is a question for the eye, so both are here
+    // and the help panel picks.
+    const fade = constant ? 0.55 : 1 - Math.abs(i - current) / FADE_STOPS;
     if (fade <= 0) return;
     // Crossing between tiles is a floor change: dash it, so stairs read as one
     // continuous line rather than two fragments.
