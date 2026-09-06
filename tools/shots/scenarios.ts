@@ -131,6 +131,10 @@ export function pointOf(t: Target, layout: Layout, s: OrderlyState): { x: number
  * switch that one off. An addition has to be a cell that is insertable *and*
  * spends the right resource, which is a search. `[I]` iestyn.
  *
+ * `[D]` **Each is named for the code it shows**, so `break-need-gold` cannot be
+ * mistaken for `break-gold-gate` — which is the canonical picture of a break
+ * rather than a case of one code. A test holds the two in step.
+ *
  * `[F]` **Found by sweep, not by reading the map**: every clean record of all
  * 14 towers, disabling each of its first 150 actions, keeping one example per
  * code. The numbers below are that sweep's output.
@@ -149,7 +153,7 @@ export function pointOf(t: Target, layout: Layout, s: OrderlyState): { x: number
  */
 const FAILURES: readonly Scenario[] = [
   {
-    name: "break-enemy",
+    name: "break-enemy-too-strong",
     fixture: "iestyn.2026.08.28/1-5",
     record: 0,
     stop: 18,
@@ -167,7 +171,7 @@ const FAILURES: readonly Scenario[] = [
     shows: "NO_PATH: a break with no deficit numbers at all, because nothing is short — the square is unreachable",
   },
   {
-    name: "break-gold",
+    name: "break-need-gold",
     fixture: "iestyn.2026.08.28/2-4",
     record: 19,
     stop: 1,
@@ -176,7 +180,7 @@ const FAILURES: readonly Scenario[] = [
     shows: "NEED_GOLD: the gold deficit on a gold gate, the first action of the route having been switched off",
   },
   {
-    name: "break-light-key",
+    name: "break-need-light-key",
     fixture: "iestyn.2026.08.28/EX-2",
     record: 3,
     stop: 1,
@@ -185,7 +189,7 @@ const FAILURES: readonly Scenario[] = [
     shows: "NEED_LIGHT_KEY: the light-key deficit on a light gate",
   },
   {
-    name: "break-dark-key",
+    name: "break-need-dark-key",
     fixture: "iestyn.2026.08.28/2-3",
     record: 0,
     stop: 5,
@@ -194,7 +198,7 @@ const FAILURES: readonly Scenario[] = [
     shows: "NEED_DARK_KEY: the dark-key deficit, and eight rows of clean actions between the disable and the break",
   },
   {
-    name: "break-pickaxe",
+    name: "break-need-pickaxe",
     fixture: "iestyn.2026.08.28/EX-1",
     record: 8,
     stop: 58,
@@ -203,7 +207,7 @@ const FAILURES: readonly Scenario[] = [
     shows: "NEED_PICKAXE: a Weak Wall with no pickaxe, fourteen rows after the action that would have supplied one",
   },
   {
-    name: "break-hyper-pickaxe",
+    name: "break-need-hyper-pickaxe",
     fixture: "iestyn.2026.08.28/2-3",
     record: 8,
     stop: 4,

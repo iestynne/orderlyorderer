@@ -407,6 +407,16 @@ describe("SPEC-009 §5 — the browser", () => {
 describe("SPEC-009 §4 — every failure scenario still shows the failure it names", () => {
   const withCode = SCENARIOS.filter((s) => s.code !== undefined);
 
+  it("is named for the code it shows, so two shots cannot be confused", () => {
+    // `[I]` `break-gold` and `break-gold-gate` were a scenario about NEED_GOLD
+    // and the canonical picture of a break, and nothing but memory told them
+    // apart. A failure shot now carries its code in its name, and this keeps
+    // the two from drifting.
+    for (const s of withCode) {
+      expect(s.name).toBe(`break-${s.code!.toLowerCase().replace(/_/g, "-")}`);
+    }
+  });
+
   it("names at least six error codes, each exactly once", () => {
     expect(withCode.length).toBeGreaterThanOrEqual(6);
     const codes = withCode.map((s) => s.code);

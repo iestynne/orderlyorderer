@@ -257,7 +257,10 @@ export function drawActionList(
     const px = g.x + 8;
     const py = rowTop(pinY, 0) - ROW_H / 2;
     const pg = { ...g, x: px };
-    const pr = { offset: 0, number: 0, summary: pending, enabled: true, inserted: false, current: false, failed: false, breaks: false };
+    // `[I]` `inserted` so the preview wears the `+` badge: it is the mark that
+    // means "the player added this", and the thing being previewed is exactly
+    // that. Without it the preview said only "some action would go here".
+    const pr = { offset: 0, number: 0, summary: pending, enabled: true, inserted: true, current: false, failed: false, breaks: false };
     ctx.globalAlpha = 0.5;
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 2;
