@@ -186,7 +186,10 @@ export function drawCellMark(
     if (icons.noEntry) ctx.drawImage(icons.noEntry, x, y);
     return;
   }
-  drawPlus(ctx, icons, x + CELL - icons.badge, y - 1);
+  // `[I]` **Centred on the tile's upper-right corner**, so three quarters of it
+  // hangs outside the cell and it covers as little of the sprite inside as it
+  // can while still plainly belonging to that square.
+  drawPlus(ctx, icons, x + CELL - (icons.badge >> 1), y - (icons.badge >> 1));
 }
 
 // --- the settings cog, where the mode buttons used to be ------------------

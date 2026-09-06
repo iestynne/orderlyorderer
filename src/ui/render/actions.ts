@@ -267,10 +267,14 @@ export function drawActionList(
     ctx.strokeRect(px + 1, py + 1, g.w - 8, ROW_H);
     ctx.globalAlpha = 1;
     drawRow(ctx, sheet, manifest, fonts, pg, pr, py, icons, false, { pending: true });
-    drawRowBadges(ctx, sheet, fonts, pg, pr, py, icons, { pending: true });
+    // `[F]` **The outline before the badges, as everywhere else.** Drawn after,
+    // it ran straight down the middle of the `+` — which reads exactly like the
+    // badge being transparent, the fault A7 item 1 was about, in a new place.
+    // Badges go last (see the badge pass above), and a preview is no exception.
     ctx.strokeStyle = C.ADDED;
     ctx.lineWidth = 1;
     ctx.strokeRect(px + 0.5, py + 0.5, g.w - 9, ROW_H - 1);
+    drawRowBadges(ctx, sheet, fonts, pg, pr, py, icons, { pending: true });
   }
   ctx.restore();
 }
