@@ -13,7 +13,7 @@ import { activeSegment } from "../sim/route/document";
 import { describeAction, type ActionSummary } from "../sim/route/describe";
 import { blockedApproach } from "../sim/pathfind";
 import { battleGatesOf, simulate } from "../sim/simulate";
-import type { Cell, Timeline, Waypoint } from "../sim/types";
+import { CellState, type Cell, type Timeline, type Waypoint } from "../sim/types";
 import type { AtlasManifest } from "../../tools/atlas/build";
 import type { RouteSession } from "./session";
 import { FloorCache } from "./render/floor";
@@ -496,6 +496,7 @@ export class Scrubber {
     if (!behind) drawTrail(ctx, this.points, this.visits, set, this.stop, grid, layout);
     this.drawHover(set, grid);
     this.drawCurrentAction(set, grid, fonts);
+    this.drawPopups(set, grid);
     this.drawGateCounts(set, grid);
     drawHelpButton(ctx, this.sheet, fonts.standard, layout, PANEL_W, this.settingsOpen);
 
@@ -919,12 +920,51 @@ export class Scrubber {
     // 1-5 "4.6G win" at action 167. They need no redraw at all: the floor's own
     // copy is correct and its badge is already in the label pass.
     if (survivesEntry(row.summary.cell)) return;
+    this.knockedAway(at, r);
+  }
+
+  /**
+   * A tile drawn shrunk and turned, as if it had just been knocked out of
+   * place — or, for a pop-up, knocked *into* place.
+   *
+   * `[I]` The floor bitmap shows the square as it stands *after* the action, so
+   * a cell the action removed has nothing left to see and this is what shows
+   * what happened to it. A pop-up is the same event in reverse: it is the one
+   * thing that **appears**, and it appears on the action that walks the player
+   * off it. Giving it the same transform there says "this arrived" in exactly
+   * the vocabulary the rest of the panel already uses for "this left".
+   */
+  private knockedAway(at: { x: number; y: number }, r: { x: number; y: number; w: number; h: number }): void {
+    const { ctx } = this.screen;
     ctx.save();
     ctx.translate(at.x + CELL / 2, at.y + CELL / 2);
     ctx.rotate(0.22);
     ctx.scale(0.78, 0.78);
     ctx.drawImage(this.sheet, r.x, r.y, r.w, r.h, -CELL / 2, -CELL / 2, CELL, CELL);
     ctx.restore();
+  }
+
+  /**
+   * Pop-up walls this action raised behind the player.
+   *
+   * `[F]` A pop-up commits when the player steps **off** it (SPEC-004 §4.1
+   * phase 7), so the wall belongs to the walking-away action and not to the
+   * one that stepped on. The journal says which: an edit whose `after` is
+   * `Reinforced` is a pop-up and nothing else, because that is the only state
+   * any rule ever writes besides `Gone`.
+   */
+  private drawPopups(set: WorkingSet, grid: Grid): void {
+    const from = this.stop === 0 ? 0 : this.stops[this.stop - 1] ?? 0;
+    const to = this.stops[this.stop] ?? from;
+    const wall = this.manifest.sprites[spriteFor(keyOf(2), this.manifest) ?? ""];
+    if (wall === undefined) return;
+    for (let i = from; i < to; i++) {
+      for (const e of this.timeline.steps[i]?.edits ?? []) {
+        if (e.after !== CellState.Reinforced) continue;
+        const at = this.cellOrigin(set, grid, coords(e.addr));
+        if (at !== null) this.knockedAway(at, wall);
+      }
+    }
   }
 
   private drawHover(set: WorkingSet, grid: Grid): void {
