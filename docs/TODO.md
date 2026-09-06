@@ -230,16 +230,21 @@ alone blocks nothing that this harness runs.
    `npm run dev`, then `npm run shots -- --update` against that server. Looking
    first is the whole point — a golden nobody has seen freezes whatever was on
    the screen, including a fault. Case 9 needs them too; it has never run.
-2. **Grey over blue is not covered.** `accentOf` treats `inserted` and the
+2. `[O]` **"Show paths" is on trial.** `[I]` iestyn asked for the whole-route
+   outline on *every* action, not only a failing one, to find out whether it
+   reads as useful or as clutter. It is the second switch in the help panel,
+   off by default. Decide, then either keep it, make it the default, or take
+   the setting out.
+3. **Grey over blue is not covered.** `accentOf` treats `inserted` and the
    break state as independent, so there are three added-action pictures: blue
    (`added-action`), red (`added-then-broken`), and grey — an added action
    *past* a break, which no scenario reaches. It needs an insertion plus a
    disable that breaks the route **before** the inserted action; the search
    that found red-over-blue can be pointed at it.
-3. `[O]` **`SPIKE_TOO_STRONG` is unproved.** No single disable in the corpus
+4. `[O]` **`SPIKE_TOO_STRONG` is unproved.** No single disable in the corpus
    produces it. Probably a no-entry case like `BLOCKED_IRON` and
    `BLOCKED_ONE_WAY` (SPEC-009 §4), but that has not been shown.
-4. `[O]` **§2's third confinement is still trust.** A Windows Firewall rule
+5. `[O]` **§2's third confinement is still trust.** A Windows Firewall rule
    takes one absolute program path — no wildcards, no folder trees — so there
    is nothing to set once, and a Playwright version bump makes a new
    `.browsers/chromium-NNNN/` that any existing rule silently misses. The fix
@@ -248,7 +253,7 @@ alone blocks nothing that this harness runs.
    to launch unless a Block rule covers the executable it is about to run.
    Reading rules needs no elevation, so the check works from any shell; only
    creating them does. Not built.
-5. `[O]` **Option B is still open** — SPEC-009 §2's `@napi-rs/canvas`, no
+6. `[O]` **Option B is still open** — SPEC-009 §2's `@napi-rs/canvas`, no
    browser at all. Worth measuring only if the browser route proves painful;
    it exercises no input path, and the input path is where the faults were.
 
