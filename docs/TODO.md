@@ -274,11 +274,24 @@ per-commit.
   step — so what this needs is a log parser and a comparison against the
   simulator's predicted ordering, not a way to drive the game.
 
-  **`[I]` The corpus is purpose-built, one route per tower.** A dedicated set of
-  savestates, each tower's file holding a **single** entry named `TEST`, so the
-  loop is: enter tower, `f5`, load the only save there, back out, next tower in
-  menu order. One route per tower keeps the manual pass short and the log
-  unambiguous.
+  **`[I]` The corpus is purpose-built: one route per tower, pruned from the
+  originals.** iestyn's own `.sav` files hold dozens of routes each, and the
+  cost of this exercise is **UI navigation, not replay** — so each tower gets a
+  file holding a **single** entry named `TEST`, and the loop is: enter tower,
+  `f5`, load the only save there, back out, next tower in menu order. These are
+  not newly authored routes; they are one existing route per tower, kept.
+
+  `[F]` **Pruning is a container operation, and a cheap one.** The top level of
+  a `.sav` is `name -> value` (`SAVE_FORMAT.md` §2), so it is: `load()`, drop
+  every key but one, rename that key `TEST`, `emit()`. The blob is copied
+  **verbatim** — nothing is re-compressed — so **B1 does not apply here**, and
+  the round trip is already verified byte-exact. Keep the record's value in
+  whichever shape it already has (bare blob, or the `time`/`data` table); the
+  loader takes both.
+
+  `[O]` **Which route per tower.** The trace is an *ordering* check, so the
+  richest route tests the most — likely the hi-score run, since a Dark Crown
+  doubles the score and those routes visit the most.
 
   `[F]` **Hazard: this overwrites real savestates.** They live at
   `<savedir>/savestates/<tag>.sav`, one file per tower keyed by save name — the
