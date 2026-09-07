@@ -1,7 +1,7 @@
 # SPEC: Visual Harness
 
-Status: **draft 2**, 2026-09-04. Implemented, except the goldens: taking them
-needs the browser, and installing that is iestyn's (§2). Draft 2 is what
+Status: **implemented**, draft 2, 2026-09-06. 19 scenarios, every golden
+blessed by eye, the Verification Contract green in full. Draft 2 is what
 building it changed — each change is marked `[D] draft 2` where it lands.
 Depends on: SPEC-007 (the scrubber, `Screen`, `capture()`), SPEC-008 (fixtures
 under `data/saves/tests/`).

@@ -84,7 +84,7 @@ path (`TODO.md` §C).
 | SPEC-005 map diff | **implemented**, draft 2. Oracle 3 passes: 62 040 cells across all 14 towers, zero differences. |
 | SPEC-007 tower scrubber | **implemented**, all three stages. Stages 1-2 green against the contract; stage 3 awaits an eye (D24a). |
 | SPEC-008 route editing | **implemented**, draft 2. Three features, one machinery. Oracles 1-4 pass; the UI awaits an eye (D24a). |
-| SPEC-009 visual harness | **draft 2**, built except its goldens. Ten scenarios; taking the shots needs the Chromium only iestyn can install (`npm run shots:install`). |
+| SPEC-009 visual harness | **implemented**, draft 2. 19 scenarios, every golden blessed by eye, the whole contract green. `npm run shots` to check, `npm run bless` to review what moved. |
 | SPEC-003 headless Lua harness | stub. **Do not build:** its gate required manual verification to have become the bottleneck, and the replay sweep is that oracle instead. |
 | SPEC-001 overlay detector | **cancelled**, in `specs/obsolete/`. Overlays are declared in the level data, not inferred. |
 
@@ -105,7 +105,7 @@ Plus four hand-played experiments (C1-C4) predicted independently by the sim
 
 ## The app exists
 
-`SPEC-007` and `SPEC-008` are built. **320 tests pass.**
+`SPEC-007`, `SPEC-008` and `SPEC-009` are built. **351 tests pass.**
 
 - **Stage 1, `Cursor`** — `src/sim/cursor.ts`, pure, 122 lines. Every named
   value in the contract reproduced first time, corpus maxima 1 773 stops and

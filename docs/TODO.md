@@ -9,7 +9,7 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 
 ## A. Next action
 
-**SPEC-007 and SPEC-008 are both built** — 320 tests green (`STATUS.md`). The
+**SPEC-007, SPEC-008 and SPEC-009 are built** — 351 tests green (`STATUS.md`). The
 scrubber has had four rounds of visual review and its performance faults are
 fixed and confirmed by eye (§A5). The **editing UI has now had six rounds**,
 and everything all six found is fixed in code. **None of round six is
@@ -32,8 +32,8 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
    and is executable. What is left is `SPIKE_TOO_STRONG`: not reachable by any
    single disable in the corpus, and probably a no-entry case like the two
    other aimed-at-the-obstacle codes, but not yet proved either way.
-1c. **The visual harness** — SPEC-009. Built on `session-visual-harness`;
-   blocked on the browser install, which is iestyn's. See §A9.
+1c. **The visual harness** — SPEC-009. **Done and merged**, 2026-09-06: 19
+   goldens blessed, contract green. Its open items are §A9.
 2. **Floor entry thresholds — the *number*.** Skippable segments are the
    predicate; what is left is a search over it.
 3. **The two open pieces of editing UX** — §A6.
@@ -54,10 +54,6 @@ read at the break and nowhere later. Allowing negative gold, power and keys
 would give a margin at every step — the power-graph work (DESIGN §7) arriving
 early. `[D]` Not started: it changes SPEC-004's semantics, and Half Gates,
 elixirs and the Keysmasher each need an answer first.
-
-`[O]` **Show the grade beside the score.** `[I]` iestyn, low priority: the
-header now carries the score a winning route submits, and the grade it earns
-would sit naturally next to it.
 
 `[O]` **Show the grade beside the score.** `[I]` iestyn, low priority: the
 header carries the score a winning route submits, and the grade it earns would
@@ -220,29 +216,27 @@ leaves to design rather than answers. Neither blocks the editor as it stands.
   which is what DESIGN §2.2 asks for and may be more than is wanted on a long
   route. Also unanswered: whether to request `navigator.storage.persist()`.
 
-## A9. The visual harness — running; the goldens are not blessed
+## A9. SPEC-009 — open items
 
-`session-visual-harness`. Delete this section when the branch merges with its
-goldens in place.
-
-Chromium is installed and the harness runs end to end: 19 shots, no off-host
-request. Cases 1-7 and 10 and all three invariants pass; 8 and 9 fail only
-because no golden exists yet.
+Merged 2026-09-06 with all 19 goldens blessed. The workflow: `npm run shots`
+to check, `npm run bless` to walk what moved. A fresh session needs `.browsers/`
+(gitignored) — `npm run shots:install`, iestyn only.
 
 `[F]` **The binary is `chrome-headless-shell.exe`**, not `chrome.exe` —
 `headless: true` launches the shell. Any firewall rule naming `chrome.exe`
 alone blocks nothing that this harness runs.
 
-1. **The goldens do not exist.** `test/ui/golden/` is empty, so §5 case 8 fails
-   by design until the nineteen shots have been *looked at* and blessed:
-   `npm run dev`, then `npm run shots -- --update` against that server. Looking
-   first is the whole point — a golden nobody has seen freezes whatever was on
-   the screen, including a fault. Case 9 needs them too; it has never run.
-2. `[O]` **"Show paths" is on trial.** `[I]` iestyn asked for the whole-route
-   outline on *every* action, not only a failing one, to find out whether it
-   reads as useful or as clutter. It is the second switch in the help panel,
-   off by default. Decide, then either keep it, make it the default, or take
-   the setting out.
+1. `[O]` **Two settings on trial**, both in the help panel. **Show paths**
+   (on by default: iestyn liked it) draws every action's walk, not only a
+   failing one's. **Trail behind** (off) draws the route trail under the floors
+   at one strength instead of fading. Decide on each; make it the only
+   behaviour or take the switch out.
+2. `[O]` **Two things no golden exercises.** The battle-gate countdown
+   (`drawGateCounts`) — confirmed by eye on 2-5, steps 1587-1652, but no
+   scenario shows a floor with a gate. And the `"N gems"` name rule
+   (`RouteSession.displayName`, D46): it fires only when this app changed the
+   route's gem cost, which is provisional until the export workflow has been
+   used in earnest.
 3. **Grey over blue is not covered.** `accentOf` treats `inserted` and the
    break state as independent, so there are three added-action pictures: blue
    (`added-action`), red (`added-then-broken`), and grey — an added action
