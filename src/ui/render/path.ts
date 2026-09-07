@@ -54,17 +54,23 @@ export function strokeOutline(
   ctx.setLineDash([]);
 }
 
-/** The player's sprite at 30% on every cell of the walk but the last, where the player is. */
+/**
+ * The player's sprite at 30% on every cell of the walk but the last, where the
+ * player is — and none of `skip`, which are cells with their own mark.
+ */
 export function drawGhosts(
   ctx: CanvasRenderingContext2D,
   sprite: CanvasImageSource | null,
   cells: readonly Waypoint[],
   locate: Locate,
+  skip: readonly Waypoint[] = [],
 ): void {
   if (sprite === null || cells.length < 2) return;
+  const omit = new Set(skip.map((w) => `${w.z}/${w.x}/${w.y}`));
   const alpha = ctx.globalAlpha;
   ctx.globalAlpha = alpha * 0.3;
   for (const w of cells.slice(0, -1)) {
+    if (omit.has(`${w.z}/${w.x}/${w.y}`)) continue;
     const o = locate(w);
     if (o !== null) ctx.drawImage(sprite, o.x, o.y);
   }

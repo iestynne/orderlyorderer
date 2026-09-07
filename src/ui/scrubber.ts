@@ -486,7 +486,6 @@ export class Scrubber {
     if (!behind) drawTrail(ctx, this.points, this.visits, set, this.stop, grid, layout);
     this.drawHover(set, grid);
     this.drawCurrentAction(set, grid, fonts);
-    this.drawPopups(set, grid);
     this.drawGateCounts(set, grid);
     drawHelpButton(ctx, this.sheet, fonts.standard, layout, PANEL_W, this.settingsOpen);
 
@@ -713,8 +712,11 @@ export class Scrubber {
     // never reached it, so the gap between them is the cell that stopped it.
     const { walked, blocked, unreached } = this.pathOf(this.stop);
     const locate = (w: Waypoint): { x: number; y: number } | null => this.cellOrigin(set, grid, w);
+    // Pop-ups first, so the outline lands on top of their ground fill; and no
+    // ghost on a pop-up, so the askew wall stays clear.
+    const popups = this.drawPopups(set, grid);
     if (walked.length > 0 && (row.breaks || this.settings.path)) {
-      drawGhosts(ctx, this.playerSprite(), walked, locate);
+      drawGhosts(ctx, this.playerSprite(), walked, locate, popups);
       strokeOutline(ctx, [...walked, site.action.to], locate, row.breaks ? C.FAIL : accent);
     }
     const stoppedAt = blocked === null ? null : this.cellOrigin(set, grid, blocked);
@@ -863,24 +865,28 @@ export class Scrubber {
    * off it (SPEC-004 §4.1 phase 7), so it belongs to the walking-away action;
    * `Reinforced` is the only `after` a pop-up ever writes, so it identifies one.
    */
-  private drawPopups(set: WorkingSet, grid: Grid): void {
+  private drawPopups(set: WorkingSet, grid: Grid): Waypoint[] {
     const { ctx } = this.screen;
     const from = this.stop === 0 ? 0 : this.stops[this.stop - 1] ?? 0;
     const to = this.stops[this.stop] ?? from;
     const wall = this.manifest.sprites[spriteFor(keyOf(2), this.manifest) ?? ""];
-    if (wall === undefined) return;
+    const drawn: Waypoint[] = [];
+    if (wall === undefined) return drawn;
     for (let i = from; i < to; i++) {
       for (const e of this.timeline.steps[i]?.edits ?? []) {
         if (e.after !== CellState.Reinforced) continue;
-        const at = this.cellOrigin(set, grid, coords(e.addr));
+        const cell = coords(e.addr);
+        const at = this.cellOrigin(set, grid, cell);
         if (at === null) continue;
         // The bitmap already holds the wall; empty floor has no sprite, so the
         // square is cleared with the ground colour before the askew copy.
         ctx.fillStyle = C.GROUND;
         ctx.fillRect(at.x, at.y, CELL, CELL);
         this.knockedAway(at, wall);
+        drawn.push(cell);
       }
     }
+    return drawn;
   }
 
   private drawHover(set: WorkingSet, grid: Grid): void {
