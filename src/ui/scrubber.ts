@@ -954,15 +954,26 @@ export class Scrubber {
    * any rule ever writes besides `Gone`.
    */
   private drawPopups(set: WorkingSet, grid: Grid): void {
+    const { ctx } = this.screen;
     const from = this.stop === 0 ? 0 : this.stops[this.stop - 1] ?? 0;
     const to = this.stops[this.stop] ?? from;
     const wall = this.manifest.sprites[spriteFor(keyOf(2), this.manifest) ?? ""];
-    if (wall === undefined) return;
+    // `[F]` **The transform is always the only copy of the tile.** The floor
+    // bitmap shows the square *after* the action, so for a cell the action
+    // removed there is nothing left there and the askew sprite stands alone —
+    // which is the whole idiom. A pop-up is the one case where the bitmap has
+    // the tile too, so drawing the askew one over it gave two walls, one
+    // upright and one turned. The square is repainted as bare floor first, and
+    // the pop-up lands on it exactly as a knocked-away tile leaves one.
+    const empty = this.manifest.sprites[spriteFor(keyOf(0), this.manifest) ?? ""];
+    if (wall === undefined || empty === undefined) return;
     for (let i = from; i < to; i++) {
       for (const e of this.timeline.steps[i]?.edits ?? []) {
         if (e.after !== CellState.Reinforced) continue;
         const at = this.cellOrigin(set, grid, coords(e.addr));
-        if (at !== null) this.knockedAway(at, wall);
+        if (at === null) continue;
+        ctx.drawImage(this.sheet, empty.x, empty.y, empty.w, empty.h, at.x, at.y, CELL, CELL);
+        this.knockedAway(at, wall);
       }
     }
   }
