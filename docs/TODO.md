@@ -289,16 +289,26 @@ per-commit.
   whichever shape it already has (bare blob, or the `time`/`data` table); the
   loader takes both.
 
-  `[O]` **Which route per tower.** The trace is an *ordering* check, so the
-  richest route tests the most — likely the hi-score run, since a Dark Crown
-  doubles the score and those routes visit the most.
+  **`[I]` Which route per tower: the hi-score run.** The trace is an *ordering*
+  check, so the richest route tests the most — and a Dark Crown doubles the
+  score, so the hi-score route is generally the one that visits the most.
 
-  `[F]` **Hazard: this overwrites real savestates.** They live at
-  `<savedir>/savestates/<tag>.sav`, one file per tower keyed by save name — the
-  same files iestyn's own saves and autosaves are in. Either back up
-  `savestates/` before dropping the test set in and restore after, or run the
-  whole pass under a changed `t.identity` in `conf.lua`, which isolates the
-  `score` and `crown` files too and so cannot contaminate progression.
+  **`[I]` Deployment is a temp folder swap, and the name on disk is not ours.**
+  `SaveManager.new` builds `path = "savestates/"..tower_name..".sav"` from the
+  map filename (`save_manager.lua:26`), so the game opens `savestates/1-1.sav`
+  exactly and would never see a file we named differently. So: the repo holds
+  `1-1.TEST.sav` and the like, distinguishable from the originals, and the swap
+  step **strips `.TEST`** on the way in — move the real `savestates/` aside,
+  drop the test set in under bare `<tag>.sav`, run the pass, move it back.
+
+  `[F]` **Do not do this with a fresh `t.identity` instead.** A new save
+  directory means empty `score`, `crown` and `unlocks`. `Game.new` calls
+  `get_total_gems` and `get_total_crowns` at stage start (`game.lua:479-480`), and those read all
+  three (`util.lua:61-96`): both would come back 0, every gem door would be
+  unopenable, and the replay would die on `found illegal move`. The missing
+  `unlocks` would also drop the boon flags, so `level_scripts` would stop
+  injecting Rapiers. **The swap has to keep `score`, `crown` and `unlocks` in
+  place** — only `savestates/` moves.
 
   `[F]` **The log is delimited, so the parser does not have to be clever.** Each
   replay is bracketed by `loading savestate: TEST` (`save_manager.lua:586`) and
