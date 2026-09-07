@@ -108,12 +108,7 @@ export function computeWorkingSets(visits: Visit[], capacity: number): WorkingSe
   let floors: number[] = [];
   let from = 0;
 
-  // `[I]` **Laid out by floor number, not by order of first visit.** Which
-  // floors a set holds is decided by the route; where they sit is not, and
-  // entry order put 7F left of 3F whenever the route happened to reach it
-  // first. Reading a panel whose tiles are in no order at all is much harder
-  // than reading one that climbs, and the set's membership — the thing the
-  // capacity rule decides — is unaffected by how it is sorted.
+  // `[I]` Tiles are laid out by floor number; membership is still by visit order.
   const push = (to: number): void => {
     sets.push({ from, to, floors: [...floors].sort((a, b) => a - b) });
   };
@@ -232,10 +227,7 @@ export function drawTimeline(
     // one gets a 3 px frame rather than a 1 px one: at 1 px it was invisible
     // against fifteen other bordered tiles.
     const b = i === currentSlot ? 3 : BORDER;
-    // `[F]` A dashed frame has to be **stroked**, and this was a filled block.
-    // So the block is laid down in the ordinary border colour and the accent
-    // stroked over it: solid, that is pixel-for-pixel what the fill gave, and
-    // dashed it lets the border show through the gaps rather than the floor.
+    // A dashed frame is stroked over the plain border, so the gaps show border, not floor.
     const dashed = i === currentSlot && dash.length > 0;
     ctx.fillStyle = i === currentSlot && !dashed ? accent : "#3a3a44";
     ctx.fillRect(x - b, y - b, FLOOR + b * 2, tileHeight() + b * 2);

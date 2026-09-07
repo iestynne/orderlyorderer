@@ -96,31 +96,11 @@ export function simulate(input: SimInput, start?: SimStart): Timeline {
     //    pre-action position and then the action target, so this is routine.
     if (wp.z === player.z && wp.x === player.x && wp.y === player.y) continue;
 
-    // 1a. **The position half of an entry is not walked to, after the first.**
-    //     A route is `from, to, from, to, ..., final` (SAVE_FORMAT §3), so an
-    //     even index is where the player *was* when the action was recorded,
-    //     not something they did. On an unedited route that is where they
-    //     already are and the line above has just skipped it; on an edited one
-    //     it names a square they never reached, and pathing there was worse
-    //     than useless — a waypoint is exempt from traversability, so entering
-    //     a stale position applied the full entry rules to it and let one
-    //     action quietly do a second thing. On 1-6 "747M C2 win", disabling the
-    //     key pickup at action 73 left action 81 collecting that key on its way
-    //     to a bat, so the route never failed for the missing key.
-    //
-    // `[F]` **Index 0 is load-bearing and must still be walked.** A save can be
-    //     resumed, so a route may open somewhere other than the tower start
-    //     square, and that first waypoint is the only thing that says where.
-    //     Skipping it too left `POP-UP-FORMAT` failing `NO_PATH` at waypoint 1.
-    //
-    // `[F]` **Walked passively, or not at all.** Two clean-corpus records say
-    //     it cannot simply be dropped: `POP-UP-FORMAT` opens away from the
-    //     tower's start square, and `2-5/G 211g 31F 1W1B 1.9M` has a position
-    //     mid-route the player is genuinely not standing on. So it is pathed
-    //     with the target exemption **off** — the player has to be able to
-    //     stand there without acting, which is what "a position" means — and
-    //     when no such path exists the waypoint is skipped rather than failed.
-    //     A stale position then costs nothing, and can no longer act.
+    // 1a. A route is `from, to, from, to, …, final` (SAVE_FORMAT §3): an even
+    //     index is where the player *was*, not something they did. A position
+    //     is walked to only passively — target exemption off, so a stale one
+    //     can never apply entry rules — and skipped if unreachable. Index 0 is
+    //     exempt: a resumed save may open away from the tower's start square.
     const isPosition = wi > 0 && (base + wi) % 2 === 0;
     const path = pathfind(tower, rs.cells, player, wp, !isPosition);
     if (path === null) {

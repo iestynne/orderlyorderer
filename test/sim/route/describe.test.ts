@@ -102,10 +102,9 @@ describe("SPEC-008 §4.2 — what an action spent", () => {
 
 
 /**
- * The 1-6 hover bug: a preview on a genuinely empty square must not revive
- * whatever the tower originally had there. Diagnostic for `hypothetical`
- * (D18) — take the flag out and the last expectation fails, because
- * `towerCell` still holds the pickaxe long after the route took it.
+ * A hover preview on an empty square must not revive the tower's original
+ * cell. Diagnostic for `hypothetical` (D18): drop the flag and the last
+ * expectation fails.
  */
 describe("a hypothetical action never revives the initial tower cell", () => {
   const tower = towerWith(named("pickaxe"));

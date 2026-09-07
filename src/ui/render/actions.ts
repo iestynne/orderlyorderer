@@ -88,12 +88,7 @@ export interface ActionRow {
  */
 export function accentOf(row: Pick<ActionRow, "breaks" | "failed" | "inserted" | "enabled">): string {
   if (row.breaks) return C.FAIL_BRIGHT;
-  // `[I]` **Switched off is grey and dashed** (`dashOf`). Dimming alone said
-  // "less important" when what it has to say is "not happening": a dashed
-  // outline reads as inactive at a glance and is far easier to spot than a
-  // change of alpha, which is what finding one switched-off action in a long
-  // list actually needs. A disabled action is never the one that breaks, so
-  // this can sit under `breaks` and above everything else.
+  // Switched off is grey and dashed (`dashOf`); a disabled action never breaks.
   if (row.enabled === false) return C.GREY;
   if (row.failed) return C.GREY;
   return row.inserted ? C.ADDED : C.LAVENDER;
@@ -104,14 +99,7 @@ export function dashOf(row: Pick<ActionRow, "enabled">): number[] {
   return row.enabled === false ? [3, 3] : [];
 }
 
-/**
- * Contiguous runs of rows matching `pred`, as offset ranges.
- *
- * `[I]` **A run is outlined once, not row by row.** Five switched-off actions
- * in a row are one decision, and five separate boxes make it look like five;
- * the failing stretch has read as a block since round six and the same is true
- * of a disabled run and of a run of insertions.
- */
+/** Contiguous runs of rows matching `pred`, as offset ranges — each run is outlined once. */
 export function spansOf(
   rows: readonly ActionRow[],
   pred: (r: ActionRow) => boolean,
@@ -203,13 +191,8 @@ export function drawActionList(
     drawRow(ctx, sheet, manifest, fonts, g, row, rowTop(pinY, row.offset), icons, hovered === row.offset);
   }
 
-  // `[I]` **A stretch gets an outline of its own, per kind.** The band behind
-  // failed rows is deliberately faint — it must not fight the text — and faint
-  // is not enough to say where a stretch begins and ends. The same argument
-  // applies to a run of switched-off actions and to a run of insertions: each
-  // is one decision the player made, and one box says so where a box per row
-  // does not. Drawn outermost-meaning-first so that where two coincide the
-  // failure is the one left on top.
+  // One outline per contiguous run of inserted, disabled and failed rows —
+  // failure last, so it wins where two coincide.
   for (const kind of [
     { pred: (r: ActionRow) => r.inserted, stroke: C.ADDED, dash: [] as number[] },
     { pred: (r: ActionRow) => !r.enabled, stroke: C.GREY, dash: [3, 3] },
@@ -244,22 +227,14 @@ export function drawActionList(
   for (const row of rows) {
     drawRowBadges(ctx, sheet, fonts, g, row, rowTop(pinY, row.offset), icons);
   }
-  // `[I]` **The pending row goes last, body and badges together.** It floats
-  // *over* the list rather than in it, and it was drawn with the rows — so
-  // every row it overlapped went on to draw its value badges on top of it, and
-  // a stray number from the row underneath sat in the middle of the preview
-  // looking like one of its own columns. A thing that floats is drawn last.
-  //
-  // `[I]` Up and to the right of the current action, which is where it would
-  // land, rather than in a gap the list has to hold open for it. Its own
-  // colour, and a soft shadow so it reads as floating.
+  // `[I]` The pending insertion floats up and to the right of the current row,
+  // where it would land, so it is drawn last — over every row's badges — with
+  // its own body, outline and then badges, in that order. `inserted` gives it
+  // the `+`.
   if (pending !== null) {
     const px = g.x + 8;
     const py = rowTop(pinY, 0) - ROW_H / 2;
     const pg = { ...g, x: px };
-    // `[I]` `inserted` so the preview wears the `+` badge: it is the mark that
-    // means "the player added this", and the thing being previewed is exactly
-    // that. Without it the preview said only "some action would go here".
     const pr = { offset: 0, number: 0, summary: pending, enabled: true, inserted: true, current: false, failed: false, breaks: false };
     ctx.globalAlpha = 0.5;
     ctx.strokeStyle = "#000";
@@ -267,10 +242,6 @@ export function drawActionList(
     ctx.strokeRect(px + 1, py + 1, g.w - 8, ROW_H);
     ctx.globalAlpha = 1;
     drawRow(ctx, sheet, manifest, fonts, pg, pr, py, icons, false, { pending: true });
-    // `[F]` **The outline before the badges, as everywhere else.** Drawn after,
-    // it ran straight down the middle of the `+` — which reads exactly like the
-    // badge being transparent, the fault A7 item 1 was about, in a new place.
-    // Badges go last (see the badge pass above), and a preview is no exception.
     ctx.strokeStyle = C.ADDED;
     ctx.lineWidth = 1;
     ctx.strokeRect(px + 0.5, py + 0.5, g.w - 9, ROW_H - 1);
@@ -292,13 +263,8 @@ export function drawRow(
   opts: { pending?: boolean; number?: boolean } = {},
 ): void {
   const pending = opts.pending === true;
-  // `[F]` **Dropping the number and moving the columns are two different
-  // things.** They were one flag, so the hover preview — which has no number
-  // because it has no index yet — slid its whole contents 22 px left and sat
-  // with its icons under the *numbers* of the rows above and below it. The
-  // card is the only thing that wants the shift: it is `CARD_W` wide precisely
-  // because it drops the number column. A preview is a row, and should line up
-  // with the rows it is previewing an insertion into.
+  // Only the card (`number: false`) shifts its columns into the number's space;
+  // a pending preview drops the number but keeps the columns aligned.
   const shifted = opts.number === false;
   const numbered = !pending && !shifted;
   ctx.fillStyle = hovered ? C.BAND_HOVER : (row.failed ? C.BAND_FAILED : C.BAND)[row.number % 2]!;
@@ -331,11 +297,7 @@ export function drawRow(
       const label = String(row.summary.goldGained);
       drawText(ctx, sheet, fonts.digits, label, col(GOLD_X) + ((16 - textWidth(fonts.digits, label)) >> 1), y + 8);
     }
-    // `[I]` **The held slot is a reminder, not a statement about this action.**
-    // It says what is being carried, which is true of every action in the run
-    // and tells you nothing about this one — so it is dimmed to sit under the
-    // columns that do. The exception is the action that expends it: there the
-    // held item is exactly the point, and it draws at full strength.
+    // `[I]` The held item is a reminder, dimmed — unless this action expends it.
     if (row.summary.held !== null) {
       const alpha = ctx.globalAlpha;
       if (row.summary.held !== row.summary.spent) ctx.globalAlpha = alpha * 0.45;
@@ -385,15 +347,8 @@ export function drawRowBadges(
   opts: { pending?: boolean; number?: boolean } = {},
 ): void {
   const pending = opts.pending === true;
-  // `[F]` **Dropping the number and moving the columns are two different
-  // things.** They were one flag, so the hover preview — which has no number
-  // because it has no index yet — slid its whole contents 22 px left and sat
-  // with its icons under the *numbers* of the rows above and below it. The
-  // card is the only thing that wants the shift: it is `CARD_W` wide precisely
-  // because it drops the number column. A preview is a row, and should line up
-  // with the rows it is previewing an insertion into.
+  // Same column rule as `drawRow`: only the card shifts.
   const shifted = opts.number === false;
-  const numbered = !pending && !shifted;
   const col = (x: number): number => g.x + (shifted ? x - NUM_W - 2 : x);
   if (row.summary.kind === "noop") return;
 
@@ -455,17 +410,13 @@ function drawSpent(
     return;
   }
   if (error.code === "NO_PATH" || error.code === "NOT_ADJACENT" || error.code === "OFF_MAP") {
-    // Two pixels right of the column, clear of the outline that would otherwise
-    // cut its tail off.
+    // Two pixels right, clear of the outline on the column's left.
     if (icons.arrow) ctx.drawImage(icons.arrow, x + 2, y + ((ROW_H - icons.arrow.height) >> 1));
     return;
   }
   const stem = MISSING[error.code];
   if (stem !== undefined) blit(ctx, sheet, manifest, stem, x, y + 1);
-  // `[I]` A pixel proud of the row's own outline **top and bottom**, so the two
-  // read apart. It used to overhang only at the top, which left the bottom edge
-  // sitting exactly under the thick current-action outline and disappearing
-  // into it on the one row where it matters most.
+  // A pixel proud of the row's outline top and bottom, so the two read apart.
   ctx.strokeStyle = C.FAIL_BRIGHT;
   ctx.lineWidth = 1;
   ctx.strokeRect(x - 0.5, y - 1.5, 17, ROW_H + 2);

@@ -124,21 +124,9 @@ export function pathfind(
   cells: Uint8Array,
   player: Player,
   target: { z: number; x: number; y: number },
-  /**
-   * Whether the target is exempt from traversability, as the game`s own
-   * check_neighbour makes it. False for a **position** waypoint, which the
-   * player must be able to stand on without acting: see simulate step 1a.
-   */
+  /** Target exempt from traversability, as the game's check_neighbour has it. False for a position waypoint. */
   exemptTarget = true,
-  /**
-   * On failure, hand back the walk **as far as it got** rather than nothing.
-   *
-   * `[I]` For drawing only, and never for simulating: a route that cannot
-   * reach its waypoint fails, and this changes none of that. But `NO_PATH`
-   * drawn as an empty frame says only that something went wrong somewhere,
-   * where what a player needs to see is how far they get and where they run
-   * out — so the UI asks for the closest the search came and draws that.
-   */
+  /** On failure, return the walk to the closest square reached instead of null. Drawing only. */
   bestEffort = false,
   /** Filled with every square the search could reach, when given. */
   visited?: Addr[],
@@ -230,9 +218,7 @@ export function pathfind(
       queue[tail++] = landing;
       if (visited !== undefined) visited.push(landing);
       if (bestEffort) {
-        // Manhattan distance on the goal`s own floor, with a whole floor`s
-        // width charged per floor apart, so a node on the right floor always
-        // beats one on the wrong floor however close it looks in x and y.
+        // Manhattan distance, with two floor-widths charged per floor apart.
         const lz = Math.floor(landing / (W * W)) + 1;
         const lx = (landing % W) + 1;
         const ly = (Math.floor(landing / W) % W) + 1;
@@ -258,33 +244,18 @@ export function pathfind(
 }
 
 /**
- * How far the player gets toward an unreachable square, and what stopped them.
- *
- * `[I]` For drawing a `NO_PATH` failure, and nothing else. The refusal is the
- * whole of the simulator's answer; what a player needs on screen is the two
- * squares that make it legible — the last one they can stand on, and the one
- * beyond it they cannot enter. Without the second, a `NO_PATH` is a mark on an
- * empty corridor saying only that something, somewhere, is wrong.
- *
- * `[I]` **A `NO_PATH` on an edited route is caused by a disabled action**, so
- * a candidate that a disabled action *would have removed* is almost certainly
- * the one that matters — and that beats any amount of geometry. Failing that,
- * the ranking is by how likely a thing is to have been the change: an item or a
- * gate (removed by walking into it) over a Weak Wall (a pickaxe, rarer) over a
- * Reinforced Wall (a Hyper Pickaxe, rarer still). Iron walls and one-way walls
- * are **never** chosen: nothing removes them, so they were there all along and
- * something else must have changed. Distance to the target only breaks ties.
- *
- * `[F]` Candidates are the neighbours of the closest square reached. It is a
- * heuristic and not a proof — a region can be walled off in several places at
- * once — so it names one obstacle rather than claiming it is the only one.
+ * For drawing a `NO_PATH`: the walk to the best square to stand on, and the
+ * obstacle beside it that stopped the player. Every reachable square is paired
+ * with each non-enterable neighbour and the best pair wins (`blockerRank`,
+ * then distance to the target). A heuristic: it names one obstacle, not the
+ * only one.
  */
 export function blockedApproach(
   tower: TowerJSON,
   cells: Uint8Array,
   player: Player,
   target: { z: number; x: number; y: number },
-  /** Cells a **disabled** action would have removed. The strongest hint there is. */
+  /** Cells a disabled action would have removed. */
   removed: ReadonlySet<Addr> = new Set(),
 ): { path: PathStep[]; blocker: Addr | null } | null {
   const reached: Addr[] = [];
@@ -292,12 +263,6 @@ export function blockedApproach(
   if (fallback === null) return null;
   reached.push(addr(tower, player.z, player.x, player.y));
 
-  // `[F]` **Where to stand and what blocked you are one decision.** Ranking the
-  // neighbours of the *closest* square reached only ever sees the obstacles
-  // beside that one square, so the key a disabled action left lying in a
-  // corridor went unnoticed whenever some wall happened to sit nearer the
-  // target. Every reachable square is considered, paired with each obstacle
-  // beside it, and the best pair wins.
   let stand: Addr | null = null;
   let blocker: Addr | null = null;
   let best: [number, number] = [Infinity, Infinity];
@@ -320,8 +285,6 @@ export function blockedApproach(
     }
   }
 
-  // Walk to the square beside the obstacle, not merely as near the target as
-  // the search could get: standing beside the thing in the way is the picture.
   const path = stand === null ? fallback : pathfind(tower, cells, player, coordsOf(tower, stand)) ?? fallback;
   return { path, blocker };
 }
@@ -331,15 +294,11 @@ function coordsOf(tower: TowerJSON, a: Addr): { z: number; x: number; y: number 
 }
 
 /**
- * Lower is a likelier culprit; null is never the culprit at all.
- *
- * `[I]` **A `NO_PATH` on an edited route is caused by a disable**, so a cell a
- * disabled action would have removed beats any amount of geometry. Failing
- * that, rank by how likely a thing is to have been the change: an item or a
- * gate — removed by walking into it — over a Weak Wall, which costs a pickaxe,
- * over a Reinforced Wall, which costs a Hyper Pickaxe and is rarer still. Iron
- * walls and one-way walls are **never** chosen: nothing removes them, so they
- * were there all along and something else must have changed.
+ * How likely an obstacle is to be what changed; lower is likelier, null never.
+ * `[I]` A `NO_PATH` on an edited route is caused by a disable, so a cell a
+ * disabled action would have cleared wins outright. Then item or gate, then
+ * Weak Wall (a pickaxe), then Reinforced Wall (a Hyper Pickaxe). Iron and
+ * one-way walls are never chosen: nothing removes them.
  */
 function blockerRank(
   tower: TowerJSON,

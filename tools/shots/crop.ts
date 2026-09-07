@@ -1,13 +1,9 @@
-// SPEC-009 §4 — magnify a region of a PNG, for a one-pixel claim.
-//
-// `[D]` `Read` shows a 1280-wide frame small, and "the divider is one pixel
-// lower" is not a thing that survives being looked at small. A report of that
-// shape cites a crop or a diff, never a glance at the whole frame.
+// SPEC-009 §4 — magnify a region of a PNG, for a one-pixel claim. A report of
+// that shape cites a crop, never a glance at the whole frame.
 //
 //   npx tsx tools/shots/crop.ts build/shots/clean.png 900 40 120 90 --scale 8
 //
-// Nearest-neighbour, always: the whole job is to show which pixel is which, so
-// anything that resamples destroys the evidence it was asked to present.
+// Nearest-neighbour, always: resampling would destroy the evidence.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
@@ -54,9 +50,7 @@ function main(argv: string[]): void {
   }
   const src = decodePng(new Uint8Array(readFileSync(file)));
   const out = crop(src, Number(x), Number(y), Number(w), Number(h), scale);
-  // `[I]` **Crops go in a subfolder of their own.** They are working evidence,
-  // made and thrown away constantly, and sitting beside the shots they buried
-  // the nineteen files anyone actually reviews.
+  // A subfolder, so scratch crops do not bury the shots anyone reviews.
   const dir = join(dirname(file), CROPS_DIR);
   mkdirSync(dir, { recursive: true });
   const to = join(dir, `${basename(file, ".png")}.crop-${x}-${y}-${w}x${h}@${scale}.png`);

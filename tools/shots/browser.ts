@@ -1,34 +1,21 @@
 // SPEC-009 §2 — the browser the project owns and iestyn never opens.
 //
-// `[D]` **Confined to localhost, four ways, none load-bearing alone.** Two of
-// them are here — the launch flags and the request router — and a test pins
-// both (§5 cases 1 and 3). The other two are outside this file: iestyn's own
-// Windows Firewall outbound block on the Chromium binary, and `CLAUDE.md`'s
-// rule that an agent never edits `LAUNCH_ARGS`. That rule is only enforceable
-// because the array below is a literal a test can compare against, so **keep
-// it a literal**: build the flags at run time and the pin becomes a tautology.
+// Confined to localhost four ways, none load-bearing alone: the launch flags
+// and the request router here, both pinned by test (§5 cases 1 and 3); iestyn's
+// firewall rule on the binary; and `CLAUDE.md`'s rule that `LAUNCH_ARGS` is
+// never edited. Keep `LAUNCH_ARGS` a literal — the pin compares against it.
 //
-// `[D]` **`playwright-core`, not `playwright`.** They are the same library;
-// what `playwright` adds is a `postinstall` that downloads browsers, which
-// would put a network fetch inside `npm ci` — the first thing every session
-// runs (`CLAUDE.md` step 2). §2 asks that nothing in `package.json`'s ordinary
-// scripts reaches the network, and this is how that is true rather than merely
-// intended. The browser is installed separately, by iestyn, by the one command
-// in `npm run shots:install`.
+// `playwright-core`, not `playwright`: the latter's `postinstall` downloads
+// browsers, which would put the network inside `npm ci`. The browser is
+// installed by `npm run shots:install`, by iestyn, only.
 
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-// `[F]` **Type-only, and the runtime import is dynamic** — see
-// `useProjectBrowsers`. A static `import { chromium }` here is enough to make
-// the library read `PLAYWRIGHT_BROWSERS_PATH` before anything has set it.
+// Type-only: the runtime import is dynamic, after the env var is set. See `playwright()`.
 import type { BrowserContext, Page } from "playwright-core";
 
-/**
- * `[F]` A dead proxy for everything, bypassed for loopback only. Port 9 is
- * discard: a connection to it is refused rather than answered, so a request
- * that escapes the bypass list fails closed.
- */
+/** A dead proxy for everything, bypassed for loopback only. Port 9 is discard, so it fails closed. */
 export const LAUNCH_ARGS: readonly string[] = [
   "--proxy-server=127.0.0.1:9",
   "--proxy-bypass-list=localhost;127.0.0.1;[::1]",
@@ -41,14 +28,10 @@ export const LAUNCH_ARGS: readonly string[] = [
 ];
 
 /**
- * The window the shots are taken in.
- *
- * `[D]` **Sized so the layout lands at scale 1** (§4). `layoutFor` floors the
- * scale, so any viewport from the SPEC-007 §5 minimum (1096 × 524) up to just
- * under twice it gives scale 1 — and then the logical canvas *is* the
- * viewport, so a shot is 1280 × 720 logical pixels and every pixel in it is a
- * logical one. `deviceScaleFactor` is pinned for the same reason: a 2 here
- * would put a fractional scale under the integer one.
+ * Sized so `layoutFor` lands at scale 1 — anything from the SPEC-007 §5 minimum
+ * (1096 × 524) to just under twice it — so the logical canvas *is* the viewport
+ * and every pixel of a shot is a logical pixel. `deviceScaleFactor` is pinned
+ * for the same reason.
  */
 export const VIEWPORT = { width: 1280, height: 720 };
 
@@ -61,34 +44,21 @@ export function isLoopback(url: string): boolean {
   try {
     return LOOPBACK.has(new URL(url).hostname);
   } catch {
-    // A `data:` or `blob:` URL has no host and never leaves the process. Only
-    // something with a host can go anywhere, so anything without one is fine.
+    // `data:`/`blob:` have no host and never leave the process.
     return !/^https?:/i.test(url);
   }
 }
 
 /**
- * `[F]` **`PLAYWRIGHT_BROWSERS_PATH` is read when `playwright-core` is first
- * imported, not when a browser is launched.** Setting it in a function that
- * runs after a static `import { chromium }` is too late: the library has
- * already resolved its browsers directory to `%LOCALAPPDATA%\ms-playwright`,
- * and the launch fails saying the executable is not there — while `.browsers/`
- * holds it all along. So the env var is set here and the library is imported
- * *after*, dynamically.
+ * `PLAYWRIGHT_BROWSERS_PATH` is read when `playwright-core` is first imported,
+ * not at launch — so it is set here and the library imported after, dynamically.
  */
 async function playwright(): Promise<typeof import("playwright-core")> {
   process.env["PLAYWRIGHT_BROWSERS_PATH"] ??= BROWSERS_PATH;
   return import("playwright-core");
 }
 
-/**
- * Whether `npm run shots:install` has been run.
- *
- * `[D]` A filesystem check rather than `chromium.executablePath()`, so it stays
- * synchronous — the test suite decides at import time whether to skip — and so
- * that asking the question cannot itself import the library at the wrong
- * moment and pin the wrong directory.
- */
+/** Whether `npm run shots:install` has been run. Synchronous: the test suite decides at import time. */
 export function browsersInstalled(): boolean {
   try {
     return readdirSync(BROWSERS_PATH).some((d) => d.startsWith("chromium"));
@@ -110,14 +80,9 @@ export interface Harness {
 }
 
 /**
- * `[F]` **A fresh, temporary profile every launch, deleted on close.** No
- * profile is ever shared with anything, so there is nothing to leak *from*
- * even in principle — which is the answer to "could this reach an account".
- *
- * `[F]` It is a *persistent* context for exactly that reason: an ordinary
- * `launch()` makes a profile of its own somewhere in the temp directory, and a
- * directory the harness does not name is a directory it cannot promise to have
- * deleted. Naming it is what makes §5 case 2 a check rather than a hope.
+ * A fresh temporary profile every launch, deleted on close: nothing to leak
+ * from. A *persistent* context so the profile directory is one we name and
+ * can therefore promise to delete.
  */
 export async function launch(): Promise<Harness> {
   const { chromium } = await playwright();
@@ -127,16 +92,13 @@ export async function launch(): Promise<Harness> {
     headless: true,
     viewport: VIEWPORT,
     deviceScaleFactor: 1,
-    // The trail is anti-aliased; a device that reported "reduce" would be a
-    // second reason for a golden to shift, and one is enough (§4).
+    // The trail is anti-aliased; "reduce" would be a second reason for goldens to shift.
     reducedMotion: "no-preference",
   });
 
   const aborts: string[] = [];
   const requests: string[] = [];
-  // `[D]` The second confinement, and the one that reports. The flags fail a
-  // request closed; this refuses it *and says so*, which is what turns "no
-  // bytes left the host" from a belief into a line of output.
+  // The second confinement, and the one that reports.
   await context.route("**/*", (route) => {
     const url = route.request().url();
     requests.push(url);

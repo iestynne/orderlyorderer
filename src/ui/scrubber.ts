@@ -76,12 +76,7 @@ export interface ScrubberSettings extends ScreenSettings {
   trailBehind: boolean;
 }
 
-/**
- * Cells an action passes over without removing: the floor bitmap keeps showing
- * them, so the current action must not draw its own copy on top. Exactly the
- * game's feather_pathfind set plus the one-way walls, which are walked
- * through rather than consumed.
- */
+/** Cells an action walks over without removing, so the floor bitmap still shows them. */
 function survivesEntry(cell: Cell): boolean {
   return isEntity(cell) && SURVIVING.has(cell.type);
 }
@@ -393,13 +388,8 @@ export class Scrubber {
   }
 
   /**
-   * SPEC-009 §3 — what the visual harness reads back, and all it reads back.
-   *
-   * `[D]` `harnessState` is the app state a pointer target needs and `Layout`
-   * cannot give: the list's pin, the slider's divisions, and how many floors
-   * the panel is showing. `run.ts` computes the pixel itself, from these and
-   * the same pure functions the app drew with, so a wrong hitbox shows up as a
-   * shot pointing at the wrong thing rather than as agreement with itself.
+   * SPEC-009 §3 — the harness's read-back. `harnessState` is the app state a
+   * pointer target needs that `Layout` cannot give; `run.ts` does the geometry.
    */
   get stopIndex(): number {
     return this.stop;
@@ -602,31 +592,21 @@ export class Scrubber {
   }
 
   /**
-   * Every battle gate still standing on a shown floor, labelled with the kills
-   * it is **still waiting for**.
-   *
-   * `[I]` **The count, not the threshold, and at all times.** The number baked
-   * into the floor bitmap is the gate's threshold, which stops being the useful
-   * figure the moment the route starts killing things: what a player wants
-   * while scrubbing is how many more are needed. Drawn here, after the floors,
-   * the trail and every mark of the current action, so the route outline and
-   * the box cannot bury it — which is also what makes it readable in the one
-   * case that matters most, a path blocked by the gate itself.
+   * Every standing battle gate on a shown floor, labelled with the kills still
+   * needed. The floor bitmap bakes the threshold; this overrides it with the
+   * live count, drawn last so no outline buries it.
    */
   private drawGateCounts(set: WorkingSet, grid: Grid): void {
     const { ctx } = this.screen;
     const font = fontFrom(this.manifest, "FONT_DIGITS");
     for (const z of set.floors) {
       for (const gate of battleGatesOf(this.session.tower)[z - 1] ?? []) {
-        // A gate that has opened is gone from the grid and needs no label.
         if (this.cursor.cells[gate.addr] === 1) continue;
         const left = Math.max(0, gate.value - (this.cursor.kills[z - 1] ?? 0));
         const at = this.cellOrigin(set, grid, coords(gate.addr));
         if (at === null) continue;
         const label = String(left);
         const w = textWidth(font, label);
-        // Bedded on black, as every other value badge is: the gate's own art is
-        // busy and a bare glyph on it is unreadable.
         ctx.fillStyle = "#000";
         ctx.fillRect(at.x + CELL - 1 - w, at.y + CELL - 8, w + 1, 8);
         drawText(ctx, this.sheet, font, label, at.x + CELL - 1 - w, at.y + CELL - 7);
@@ -635,13 +615,8 @@ export class Scrubber {
   }
 
   /**
-   * The square a `NO_PATH` action never reached: boxed, and pointed at.
-   *
-   * `[F]` The arrow is `icons.arrow`, the same mark the row's spent column
-   * shows for a reachability failure, so the two say the same thing in the two
-   * places a player looks. It points **left** as drawn, so it is turned by the
-   * angle from the blocker to the target — crow-flies, because there is no
-   * route to follow; that is the whole problem.
+   * The square a `NO_PATH` action never reached: boxed, with the row's own
+   * reachability arrow flying in crow-flies from the blocker.
    */
   private drawUnreached(
     set: WorkingSet,
@@ -654,8 +629,6 @@ export class Scrubber {
     const at = this.cellOrigin(set, grid, target);
     if (at === null) return;
 
-    // The same bedded-on-black ring the player wears, so the two boxes read as
-    // a pair: here is where you stopped, there is where you were going.
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 2;
     ctx.strokeRect(at.x - 2, at.y - 2, CELL + 4, CELL + 4);
@@ -668,19 +641,14 @@ export class Scrubber {
     ctx.save();
     ctx.translate(at.x + CELL / 2, at.y + CELL / 2);
     ctx.rotate(angle);
-    // `[I]` Backed off along its own direction, so it flies *into* the square
-    // rather than sitting on top of the thing in it.
+    // Backed off 16 px along its own direction, so it flies into the square.
     ctx.drawImage(arrow, -(arrow.width >> 1) - 16, -(arrow.height >> 1));
     ctx.restore();
   }
 
   /**
-   * The cells a **switched-off** action would have cleared.
-   *
-   * `[I]` A `NO_PATH` on an edited route is caused by a disable, so one of
-   * these is almost always what is now in the way — a far better answer than
-   * whichever obstacle happens to lie nearest. Built per frame from the sites,
-   * which is a few dozen entries at most.
+   * Cells a switched-off action would have cleared: a `NO_PATH` on an edited
+   * route is caused by a disable, so one of these is almost always the blocker.
    */
   private disabledTargets(): ReadonlySet<number> {
     const out = new Set<number>();
@@ -740,27 +708,15 @@ export class Scrubber {
     // Every accent mark of a switched-off action is dashed, as its row is.
     ctx.setLineDash(dashOf(row));
 
-    // `[I]` **The walk, drawn whenever it explains something.** Always for a
-    // failure — the reason a cell blocks is the approach to it, and a mark on
-    // the blocked cell alone says where the player stopped and never where
-    // they came from. Otherwise only under the `path` setting, which is there
-    // to find out whether it reads as useful or as clutter.
+    // The walk: always for a failure, otherwise only under the `path` setting.
+    // Ghosts under the outline. The target joins the outline even when the walk
+    // never reached it, so the gap between them is the cell that stopped it.
     const { walked, blocked, unreached } = this.pathOf(this.stop);
     const locate = (w: Waypoint): { x: number; y: number } | null => this.cellOrigin(set, grid, w);
     if (walked.length > 0 && (row.breaks || this.settings.path)) {
-      // `[F]` **Ghosts first, outline over them.** The other way round, each
-      // ghost drew across the outline it sat under and the whole route read as
-      // dashed — a dash that meant nothing, beside a dash that means disabled.
       drawGhosts(ctx, this.playerSprite(), walked, locate);
-      // `[I]` The action's own target joins the outline even though the walk
-      // never reached it: without it there is nothing to say where the player
-      // was *trying* to get to, which is half of what a block is about. It is
-      // not contiguous with the walk, and that is the point — the gap between
-      // them is exactly the cell that stopped it.
       strokeOutline(ctx, [...walked, site.action.to], locate, row.breaks ? C.FAIL : accent);
     }
-    // The blocking cell is the thing that stopped the walk, so it wears the
-    // box with the player rather than the target the player never reached.
     const stoppedAt = blocked === null ? null : this.cellOrigin(set, grid, blocked);
     // `[F]` The target is framed **only** where the box over both squares will
     // not reach it — which is when the player is on a floor this working set
@@ -770,10 +726,8 @@ export class Scrubber {
 
     const cardX = tile.x + FLOOR - CARD_W;
     const cardY = tile.y + FLOOR + 1;
-    // `[F]` Past a block the player is where the walk stopped, which is not
-    // what `positions` says: the document holds the target they were heading
-    // for, and drawing them there would put them beyond the thing that stopped
-    // them. The journal knows the truth — it is the last step they managed.
+    // Past a block the player stands where the walk stopped, not at the target
+    // `positions` records for them.
     const stood = row.breaks && walked.length > 0 ? locate(walked[walked.length - 1]!) : null;
     const at = stood ?? from ?? playerScreenPos(this.points, this.visits, set, this.stop, grid, this.screen.layout);
     if (at) {
@@ -789,13 +743,8 @@ export class Scrubber {
       ctx.stroke();
       this.drawPlayer(at, accent, stoppedAt ?? (from !== null && to !== null ? to : null));
     }
-    // `[I]` **The square they were trying to reach gets a box of its own**, and
-    // an arrow flying into it from the blocker. Player and blocker say where
-    // the walk stopped; without this there is nothing on screen saying where it
-    // was *going*, and a `NO_PATH` is half a sentence.
     if (unreached !== null) this.drawUnreached(set, grid, unreached, blocked, accent);
 
-    // The card is one of the marks, so it is dashed with the rest of them.
     drawActionCard(ctx, this.sheet, this.manifest, fonts, row, cardX, cardY, this.icons, accent);
     ctx.setLineDash([]);
 
@@ -803,28 +752,17 @@ export class Scrubber {
   }
 
   /**
-   * The cells this action's walk covered, and the cell that stopped it.
-   *
-   * `[F]` The walk is already in the journal: the simulator pushes a step per
-   * cell entered, so the steps between the previous stop and this one *are* the
-   * auto-pather's route, and a failing action keeps the steps it managed before
-   * the block. Nothing has to be re-pathed to draw this.
-   *
-   * `[F]` **`NO_PATH` walks nowhere.** Its `stepIndex` is null because the
-   * failure happens before a single step is taken, and its `at` is the
-   * destination that could not be reached rather than a cell that blocked the
-   * way. So it yields an empty walk and a `blocked` that is the target — which
-   * is honest, and is what makes it read differently from a block on the way.
+   * The cells this action walked, the cell that stopped it, and for `NO_PATH`
+   * the target it never reached. The walk is read from the journal — one step
+   * per cell entered — except `NO_PATH`, which takes no steps and is asked of
+   * the pathfinder instead.
    */
   private pathOf(stop: number): { walked: Waypoint[]; blocked: Waypoint | null; unreached: Waypoint | null } {
     const from = stop === 0 ? 0 : this.stops[stop - 1] ?? 0;
     const error = this.session.failedFrom === stop ? this.timeline.error : undefined;
     const to = error?.stepIndex ?? this.stops[stop] ?? from;
     const walked: Waypoint[] = [];
-    // `[F]` **The square the walk starts from is part of the walk.** A step
-    // records the cell it *enters*, so collecting `to` alone drops the one the
-    // player was standing on when the previous action finished — the route then
-    // began a cell along from the player, with a gap where they had been.
+    // A step records the cell entered, so the starting square is the first step's `from`.
     const first = this.timeline.steps[from];
     if (first !== undefined) walked.push(coords(first.from));
     for (let i = from; i < to; i++) {
@@ -832,21 +770,11 @@ export class Scrubber {
       if (s !== undefined) walked.push(coords(s.to));
     }
 
-    // `[I]` **`NO_PATH` gets the walk it *would* have taken.** It takes no
-    // steps at all — the failure happens before the first one — so it drew an
-    // empty frame that said only "something is wrong here". The pathfinder can
-    // say how close it came, and how far the player gets before running out is
-    // exactly what makes the refusal legible: the ghosts stop at the last
-    // reachable square and the thing in the way is the gap beyond them.
     if (error?.code === "NO_PATH") {
       const p = this.cursor.player;
       const tried = blockedApproach(this.session.tower, this.cursor.cells, p, error.at, this.disabledTargets());
       if (tried !== null) {
         walked.push({ z: p.z, x: p.x, y: p.y }, ...tried.path.map((s) => coords(s.to)));
-        // `[F]` The **blocker**, not the target: the box goes round the player
-        // and the square that stopped them, which are adjacent. Round the
-        // player and the far-off target it was a rectangle covering half the
-        // floor and said nothing about either.
         return {
           walked,
           blocked: tried.blocker === null ? null : coords(tried.blocker),
@@ -911,28 +839,14 @@ export class Scrubber {
       ctx.drawImage(this.sheet, r.x, r.y, r.w, r.h, at.x, at.y, CELL, CELL);
       return;
     }
-    // `[F]` **Nothing is knocked askew that the action did not remove.** The
-    // transform below exists because the floor bitmap already shows the square
-    // *after* the action, so without it there is nothing left there to see. A
-    // spike tile and a one-way wall survive being walked on, so the bitmap
-    // still holds them — and drawing a rotated, shrunken copy on top gave two
-    // of the same sprite, misaligned, with the value badge caught between them.
-    // 1-5 "4.6G win" at action 167. They need no redraw at all: the floor's own
-    // copy is correct and its badge is already in the label pass.
+    // The floor bitmap already shows a surviving cell; only a removed one needs redrawing.
     if (survivesEntry(row.summary.cell)) return;
     this.knockedAway(at, r);
   }
 
   /**
-   * A tile drawn shrunk and turned, as if it had just been knocked out of
-   * place — or, for a pop-up, knocked *into* place.
-   *
-   * `[I]` The floor bitmap shows the square as it stands *after* the action, so
-   * a cell the action removed has nothing left to see and this is what shows
-   * what happened to it. A pop-up is the same event in reverse: it is the one
-   * thing that **appears**, and it appears on the action that walks the player
-   * off it. Giving it the same transform there says "this arrived" in exactly
-   * the vocabulary the rest of the panel already uses for "this left".
+   * A tile drawn shrunk and turned, as if just knocked out of place — or, for
+   * a pop-up, into it. Always the only copy of the tile on that square.
    */
   private knockedAway(at: { x: number; y: number }, r: { x: number; y: number; w: number; h: number }): void {
     const { ctx } = this.screen;
@@ -945,37 +859,23 @@ export class Scrubber {
   }
 
   /**
-   * Pop-up walls this action raised behind the player.
-   *
-   * `[F]` A pop-up commits when the player steps **off** it (SPEC-004 §4.1
-   * phase 7), so the wall belongs to the walking-away action and not to the
-   * one that stepped on. The journal says which: an edit whose `after` is
-   * `Reinforced` is a pop-up and nothing else, because that is the only state
-   * any rule ever writes besides `Gone`.
+   * Pop-up walls this action raised. A pop-up commits when the player steps
+   * off it (SPEC-004 §4.1 phase 7), so it belongs to the walking-away action;
+   * `Reinforced` is the only `after` a pop-up ever writes, so it identifies one.
    */
   private drawPopups(set: WorkingSet, grid: Grid): void {
     const { ctx } = this.screen;
     const from = this.stop === 0 ? 0 : this.stops[this.stop - 1] ?? 0;
     const to = this.stops[this.stop] ?? from;
     const wall = this.manifest.sprites[spriteFor(keyOf(2), this.manifest) ?? ""];
-    // `[F]` **The transform is always the only copy of the tile.** The floor
-    // bitmap shows the square *after* the action, so for a cell the action
-    // removed there is nothing left there and the askew sprite stands alone —
-    // which is the whole idiom. A pop-up is the one case where the bitmap has
-    // the tile too, so drawing the askew one over it gave two walls, one
-    // upright and one turned. The square is repainted as bare floor first, and
-    // the pop-up lands on it exactly as a knocked-away tile leaves one.
     if (wall === undefined) return;
     for (let i = from; i < to; i++) {
       for (const e of this.timeline.steps[i]?.edits ?? []) {
         if (e.after !== CellState.Reinforced) continue;
         const at = this.cellOrigin(set, grid, coords(e.addr));
         if (at === null) continue;
-        // `[F]` **Empty floor has no sprite** — `spriteFor(keyOf(0))` is null,
-        // and `FloorCache.tile` draws nothing for an empty cell, leaving the
-        // frame's own ground showing through. So a square is cleared by
-        // painting that ground, not by blitting a tile. Looking for a sprite
-        // that does not exist is what made this draw nothing at all.
+        // The bitmap already holds the wall; empty floor has no sprite, so the
+        // square is cleared with the ground colour before the askew copy.
         ctx.fillStyle = C.GROUND;
         ctx.fillRect(at.x, at.y, CELL, CELL);
         this.knockedAway(at, wall);

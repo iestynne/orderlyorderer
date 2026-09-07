@@ -316,12 +316,8 @@ d("stage 3 — the draw path runs over real records", () => {
   // says so. Every item gets the same slot, so none of them shifts as another
   // appears or disappears.
   it("no status item outgrows the digits it reserves, over every record", () => {
-    // `[F]` **Measured over the corpus, never from a made-up player.** This
-    // used to feed a synthetic 9999 into every counter, which is not a fact
-    // about anything: it says only that the fixture is bigger than the slot.
-    // It reported that gems needed four digits when they never pass 230, and
-    // the reservation was widened on that evidence. What the layout has to
-    // survive is the real maxima, so those are what it is checked against.
+    // Measured over the corpus, never from a made-up player: a synthetic maximum
+    // only proves the fixture is bigger than the slot.
     const digits = fontFrom(manifest, "FONT_DIGITS");
     const worst = new Map<string, { value: string; digits: number; where: string }>();
     for (const { towerId, file, tower } of loadAllSaves()) {

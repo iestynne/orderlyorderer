@@ -4,16 +4,9 @@
 //   npm run shots -- --update  re-baseline: write the goldens instead
 //   npm run shots -- --only=hover-row,break-gold   (or repeat the flag)
 //
-// `[D]` **Re-baselining is a command, not a fallback.** A task runs `--update`
-// only when the change to the picture was the point of the task, and the
-// diffs are looked at before the commit that carries them. A golden that gets
-// quietly rewritten whenever it fails is a golden that tests nothing.
-//
-// `[D]` **The shot is the app's own frame**, `capture()`'s 1× buffer, not a
-// window screenshot: every pixel in it is a logical pixel, so a claim about
-// one is a claim about a pixel the app drew. Invariant 2 is what makes that
-// safe to assume — it checks the buffer against what the browser actually
-// shows, and if those ever part company every golden is suspect.
+// Re-baselining is a command, never a fallback: `--update` only when the change
+// to the picture was the point, and after looking. The shot is `capture()`'s 1×
+// buffer, not a window screenshot; invariant 2 checks the two agree.
 
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -37,19 +30,9 @@ export const BASE_URL = process.env["SHOTS_URL"] ?? "http://localhost:5173";
 const PORTS = [5173, 5174, 5175, 5176, 5177, 5178, 5179, 5180];
 
 /**
- * The dev server, found rather than assumed.
- *
- * `[I]` **Vite takes the next free port when 5173 is busy**, and a worktree
- * each makes that the normal case — so the default was wrong more often than
- * right, and being wrong cost a 30-second timeout under an error naming
- * `waitForFunction`, which says nothing about ports at all.
- *
- * `[F]` **The test is `window.__orderly`, not the HTML.** Every worktree serves
- * the same `index.html` out of the same repository, so matching on that found a
- * *sibling worktree's* server — and would have taken nineteen shots of another
- * branch's code without a word of complaint, which is far worse than a
- * timeout. Only the dev hook proves it is this build, and proving it needs the
- * browser, which is why this takes a page rather than using `fetch`.
+ * The dev server, found by walking Vite's ports. Identified by `window.__orderly`,
+ * not by the HTML: every worktree serves the same `index.html`, and shooting a
+ * sibling worktree's build would fail nothing. Hence a page, not `fetch`.
  */
 export async function resolveBaseUrl(page: Page): Promise<string> {
   const env = process.env["SHOTS_URL"];
@@ -88,13 +71,7 @@ async function readback(page: Page): Promise<Readback> {
   }));
 }
 
-/**
- * `[F]` Read back before **every** step, never once at the start. A click on a
- * row moves the pin, and an insertion changes the stop count and can change
- * which floors are shown, so a target resolved against stale state points at
- * where the thing used to be. Re-reading is also what keeps `run.ts` from
- * having to reimplement the app's "the clicked row does not move" rule.
- */
+/** State is read back before every step: a click moves the pin, an insertion changes the floors. */
 async function playStep(page: Page, step: Step): Promise<void> {
   const { layout, state } = await readback(page);
   if ("hover" in step) {
@@ -120,13 +97,8 @@ async function playStep(page: Page, step: Step): Promise<void> {
 }
 
 /**
- * One scenario, from navigation to a PNG.
- *
- * `[F]` The waits are what invariant 3 buys: two runs of a scenario must
- * produce identical PNGs, and the fix for anything else is a wait here, never
- * a tolerance in the diff. `__orderly` appearing means the module loaded;
- * a mounted scrubber is a separate wait, because the fixture is still being
- * fetched and simulated when the global is installed.
+ * One scenario, from navigation to a PNG. The waits are what makes a scenario
+ * replayable (invariant 3); a timing fault is fixed here, never with a tolerance.
  */
 export async function shoot(h: Harness, s: Scenario, base = BASE_URL): Promise<Uint8Array> {
   const before = h.aborts.length;
@@ -181,12 +153,7 @@ export async function runAll(names: readonly string[], update: boolean, base?: s
       const png = await shoot(h, s, base);
       const shot = join(SHOTS_DIR, `${s.name}.png`);
       writeFileSync(shot, png);
-      // `[F]` **Every crop of this shot is deleted, because it is now stale.**
-      // A crop is evidence about one frame; left behind when that frame is
-      // retaken it is evidence about a frame nobody can see any more. One was
-      // read as current a day after its shot had moved on, and the mismatch it
-      // seemed to show — a scenario on the wrong action — was the crop's age
-      // and nothing else. Stale evidence is worse than none.
+      // A crop is evidence about one frame; retaking the frame makes it stale.
       const crops = join(SHOTS_DIR, CROPS_DIR);
       for (const f of existsSync(crops) ? readdirSync(crops) : []) {
         if (f.startsWith(`${s.name}.crop-`)) rmSync(join(crops, f), { force: true });
@@ -205,10 +172,7 @@ export async function runAll(names: readonly string[], update: boolean, base?: s
       const d = diffPng(png, goldenBytes);
       if (d.count !== 0 && d.image !== null) {
         writeFileSync(join(SHOTS_DIR, `${s.name}.diff.png`), d.image);
-        // `[D]` The review sheet is written whenever a shot moves, not only
-        // when asked for. A changed golden is always a question — bug or
-        // intended churn — and the answer is always this picture, so making it
-        // conditional would only mean running the whole suite twice.
+        // Always, not behind a flag: a changed golden is always the same question.
         const sheet = reviewImage(goldenBytes, png, d.image);
         if (sheet !== null) writeFileSync(join(SHOTS_DIR, `${s.name}.review.png`), sheet);
       }

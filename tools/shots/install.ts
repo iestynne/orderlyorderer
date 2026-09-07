@@ -3,13 +3,9 @@
 //
 //   npm run shots:install
 //
-// `[D]` A script rather than a bare `npx playwright-core install chromium`,
-// for two reasons. `PLAYWRIGHT_BROWSERS_PATH` has to be set for the install to
-// land in the project's own gitignored `.browsers/` rather than in the user's
-// home directory, and an npm script cannot set an environment variable in a
-// way that works on both Windows and POSIX. And an agent must never run this:
-// `CLAUDE.md` forbids reaching off localhost during a task, so the command
-// says out loud what it is about to do.
+// A script, not a bare `npx playwright-core install`: `PLAYWRIGHT_BROWSERS_PATH`
+// must be set for the install to land in `.browsers/`, and an npm script cannot
+// set an env var portably. An agent never runs this (`CLAUDE.md`).
 
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";

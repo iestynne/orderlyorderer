@@ -194,23 +194,7 @@ export class RouteSession {
     return summary;
   }
 
-  /**
-   * `[I]` The route's name, which the player will want to change: what they
-   * imported was named for a save slot, and what they are building is theirs.
-   *
-   * `[D]` Document-tier, so it sets the unsaved-changes marker like every other
-   * edit — but not an `Edit`, because it is not undoable and does not belong in
-   * a run of insertions.
-   */
-  /**
-   * The gems this route spends.
-   *
-   * `[I]` iestyn: **exceeding your gem count is the point, not a mistake.** A
-   * player plans routes that become viable at a future gem total — a "gem
-   * schedule" of which tweaks unlock next — so the app must never refuse the
-   * spend. What it must do is say so plainly, because a save the game then
-   * declines to load looks exactly like an export bug.
-   */
+  /** The gems this route spends. Never refused (D46): the game refuses the load instead. */
   get gemsRequired(): number {
     return this.evaluation.mainline.steps.at(-1)?.player.gemsSpent ?? 0;
   }
@@ -222,12 +206,9 @@ export class RouteSession {
   nameEdited = false;
 
   /**
-   * The name to show, save and export under.
-   *
-   * `[D]` A route whose **gem cost this app changed** announces that cost in
-   * its name, so the requirement is visible in the game's own save list, where
-   * a player meets it again long after leaving here. An untouched import keeps
-   * the name it was given, and typing anything keeps that instead.
+   * The name to show, save and export under: `"N gems"` when this app changed
+   * the route's gem cost and the player has not typed a name, so the
+   * requirement is legible in the game's own save list (D46).
    */
   get displayName(): string {
     if (this.nameEdited || this.gemsRequired === this.importedGems || this.gemsRequired === 0) {
@@ -236,6 +217,14 @@ export class RouteSession {
     return `${this.gemsRequired} gems`;
   }
 
+  /**
+   * `[I]` The route's name, which the player will want to change: what they
+   * imported was named for a save slot, and what they are building is theirs.
+   *
+   * `[D]` Document-tier, so it sets the unsaved-changes marker like every other
+   * edit — but not an `Edit`, because it is not undoable and does not belong in
+   * a run of insertions.
+   */
   rename(name: string): void {
     this.nameEdited = true;
     const routes = this.document.routes.slice();

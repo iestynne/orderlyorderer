@@ -304,11 +304,7 @@ export default function App(): React.ReactElement {
         }],
       });
       download(`${session.route.tower}.orderlyorderer.${stamp()}.sav`, bytes, "application/octet-stream");
-      // `[I]` **The gem requirement is said out loud, on every export that has
-      // one.** The app deliberately lets a route spend gems the player has not
-      // got — planning a route that becomes viable at a future total is the
-      // whole point — so the game will refuse to load it until then. Unsaid,
-      // that refusal looks exactly like an export bug, and the export is fine.
+      // D46: the app never refuses a gem spend, so the game may refuse the load; say so.
       const gems = session.gemsRequired;
       setNotice(
         (gems > 0

@@ -1,10 +1,7 @@
 // SPEC-009 §5 — the Verification Contract for the visual harness.
 //
-// `[D]` **The browser-dependent cases skip, loudly, when `.browsers/` is
-// absent.** Installing Chromium reaches the network, which only iestyn may do
-// (§2), so a fresh clone has no browser and `npm test` must still be green.
-// A silent skip would make "320 tests pass" mean less than it says, so each
-// skipped case names itself and the suite prints how to fix it.
+// The browser-dependent cases skip, loudly, when `.browsers/` is absent: a
+// fresh clone has no browser (§2) and `npm test` must still be green.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
@@ -329,13 +326,8 @@ describe("SPEC-009 §5 — the browser", () => {
       await h.page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
       const url = await h.page.evaluate(() => window.__orderly!.capture());
       const own = new Uint8Array(Buffer.from(url.slice(url.indexOf(",") + 1), "base64"));
-      // `[F]` **The toolbar is hidden for this one comparison, and only this
-      // one.** `.tools` is `position: fixed` and deliberately sits *over* the
-      // canvas (docs/UI.md §1), and Playwright's element screenshot captures
-      // the page region the element occupies — chrome painted on top included.
-      // Without this the invariant failed by 29 564 pixels, which is the strip,
-      // not a rendering fault. What the invariant is about is the backing store
-      // against what the canvas itself paints.
+      // `.tools` is `position: fixed` over the canvas, and an element screenshot
+      // includes whatever is painted on top. The invariant is about the canvas.
       await h.page.addStyleTag({ content: ".tools { display: none !important }" });
       const shown = new Uint8Array(await h.page.locator("canvas.stage").screenshot({ type: "png" }));
       expect(diffPng(own, shown).count).toBe(0);
@@ -384,16 +376,10 @@ describe("SPEC-009 §5 — the browser", () => {
     const by = new Map(results.map((r) => [r.name, r.differing ?? 0]));
     // The break shows a deficit, so its shot must move.
     expect(by.get("break-gold-gate")).toBeGreaterThan(0);
-    // `[D]` Draft 1 said "and only it". Every shot of a *breaking* route
-    // carries deficit ink — the list window holds the breaking row even from a
-    // stop or two away — so what the diagnostic can say is that no shot
-    // **without a break in it** moves. That is still diagnostic: a SHORTFALL
-    // used somewhere it does not belong shows up here as a clean shot moving.
-    //
-    // `[F]` **Which shots break is a property of the scenario, not of its
-    // fixture.** Filtering on `1-5.INSUFFICIENT-POWER` called
-    // `added-then-broken` clean — its fixture is, but the scenario disables an
-    // action to break it on purpose, which is the whole point of the shot.
+    // Every shot of a breaking route carries deficit ink (the list window shows
+    // the breaking row from nearby stops), so the diagnostic is that no shot
+    // *without* a break moves. Whether a shot breaks is the scenario's, not the
+    // fixture's: `added-then-broken` breaks a clean record by editing it.
     for (const s of SCENARIOS.filter((x) => x.code === undefined && x.breaks !== true)) {
       expect(by.get(s.name), `${s.name} shows no break and must not move`).toBe(0);
     }
@@ -401,22 +387,16 @@ describe("SPEC-009 §5 — the browser", () => {
 });
 
 /**
- * `[F]` **A failure scenario is checked against the simulator, not only against
- * its golden.** A shot of the wrong failure is still a perfectly good-looking
- * shot, and a golden blessed once will keep it forever. Two scenarios drifted
- * to `NO_PATH` the moment the simulator stopped walking to stale positions —
- * `break-dark-key` and a `break-battle-gate` that turned out to be reachable
- * only *because* of that bug — and nothing failed. This runs headlessly, so it
- * catches the drift before a shot is ever taken.
+ * A failure scenario is checked against the simulator, not only its golden: a
+ * shot of the wrong failure still looks plausible, and a blessed golden keeps
+ * it. Headless, so drift is caught before a shot is taken.
  */
 describe("SPEC-009 §4 — every failure scenario still shows the failure it names", () => {
   const withCode = SCENARIOS.filter((s) => s.code !== undefined);
 
   it("is named for the code it shows, so two shots cannot be confused", () => {
-    // `[I]` `break-gold` and `break-gold-gate` were a scenario about NEED_GOLD
-    // and the canonical picture of a break, and nothing but memory told them
-    // apart. A failure shot now carries its code in its name, and this keeps
-    // the two from drifting.
+    // A failure shot carries its code in its name, so `break-need-gold` and
+    // the canonical `break-gold-gate` cannot be confused.
     for (const s of withCode) {
       expect(s.name).toBe(`break-${s.code!.toLowerCase().replace(/_/g, "-")}`);
     }

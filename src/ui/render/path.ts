@@ -1,17 +1,6 @@
-// docs/UI.md §6 — the route an action took, drawn on the floor.
-//
-// `[I]` iestyn: a failure showed the player at the blocked cell and nothing
-// else, so you could see *where* they stopped and never *where they came from*
-// — and the reason a cell blocks is the approach to it. Drawing the player at
-// the far end instead only swaps which half is missing. Both halves are the
-// answer, and the game already draws this shape: when you move, it flashes the
-// auto-pather's route as a line of ghosted players.
-//
-// `[D]` **The outline is the union's outer edge, never a box per cell.** A box
-// per cell reads as a row of separate marks and buries the floor under grid
-// lines; the union says "this is one journey" in a quarter of the ink. An edge
-// is drawn exactly where the neighbour across it is not in the set, which is
-// what makes internal edges disappear without any special-casing.
+// docs/UI.md §6 — the route an action took, drawn on the floor: ghosted
+// players along the walk, and one outline round the union of its cells. The
+// game itself flashes the auto-pather's route this way on every move.
 
 import { CELL } from "./screen";
 import type { Waypoint } from "../../sim/types";
@@ -20,12 +9,9 @@ import type { Waypoint } from "../../sim/types";
 export type Locate = (w: Waypoint) => { x: number; y: number } | null;
 
 /**
- * The outer edge of a set of cells.
- *
- * `[F]` Half-pixel offsets throughout: a 1 px stroke centred on an integer
- * coordinate straddles two pixel columns and comes out two pixels wide and
- * grey. The app is pixel-exact (D10) and a blurred outline would be the one
- * mark on screen that is not.
+ * The outer edge of a set of cells: an edge is drawn exactly where the
+ * neighbour across it is not in the set, so internal edges vanish for free.
+ * Half-pixel offsets keep a 1 px stroke to one pixel column (D10).
  */
 export function strokeOutline(
   ctx: CanvasRenderingContext2D,
@@ -68,14 +54,7 @@ export function strokeOutline(
   ctx.setLineDash([]);
 }
 
-/**
- * The ghosted players along the walk.
- *
- * `[D]` Every cell but the last: the last is where the player actually is, and
- * it gets the solid sprite and the box. Ghosts are the same sprite at low
- * alpha rather than a different mark, because they are the same thing at a
- * different time — which is exactly what the game's own transient trail says.
- */
+/** The player's sprite at 30% on every cell of the walk but the last, where the player is. */
 export function drawGhosts(
   ctx: CanvasRenderingContext2D,
   sprite: CanvasImageSource | null,

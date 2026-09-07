@@ -95,18 +95,9 @@ export interface StatusRow {
   /** What the row means, for the hover tooltip: the words the column has no room for. */
   title: string;
   /**
-   * Digits to reserve room for.
-   *
-   * `[I]` **Reserved per item, not one width for all.** A flat 44 px column
-   * gave a four-digit slot to counters that never pass two, and left a gap
-   * beside the held item, which has no number at all — so the row was mostly
-   * air and the score had nowhere to go. Reserving the digits each item can
-   * actually reach keeps it tight and still stops the row shuffling when a
-   * number gains a digit. Measured over the corpus, not guessed: gold peaks at
-   * 3 343 and gems at 230, and pickaxes never pass two. Light keys need three:
-   * under `negative_keys` they go **negative** — EX-3 reaches -10 — and the
-   * minus sign is a character like any other. A test walks every record and
-   * fails if any of these reservations is too small; it is what found that.
+   * Digits to reserve, so the row never shifts as a number grows. Corpus
+   * maxima: gold 3 343, gems 230, pickaxes 2, light keys -10 (the sign counts,
+   * under `negative_keys`). A test over every record enforces them.
    */
   digits: number;
 }
@@ -126,11 +117,8 @@ export interface StatusRow {
 export function statusRows(tower: TowerJSON, p: Player): StatusRow[] {
   const flags = tower.metadata.computed_flags;
   const rows: StatusRow[] = [];
-  // `[I]` **The held item leads, and everything else keeps its place.** The row
-  // is ranged right, so an item at the *end* moves every other one a slot left
-  // the moment it appears — and the held item is the one entry that comes and
-  // goes constantly, which made the whole row twitch as a route was scrubbed.
-  // At the front it is the only thing that moves.
+  // The row is ranged right, so the held item — which comes and goes — leads,
+  // and nothing else moves when it appears.
   if (p.held !== null) rows.push({ sprite: p.held, value: "", title: `held: ${p.held}`, digits: 0 });
   rows.push({ sprite: "key", value: String(p.lightKeys), title: "light keys", digits: 3 });
   if (flags.negative_keys !== true) rows.push({ sprite: "dark_key", value: String(p.darkKeys), title: "dark keys", digits: 2 });
@@ -153,13 +141,7 @@ export interface RightPanelState {
   failedFrom: number | null;
   perf: boolean;
   perfLine: string;
-  /**
-   * The score the route submits, or 0 where it never reaches a crown.
-   *
-   * `[I]` **The route`s score, not the current stop`s.** It is what the run is
-   * worth if it is played out, so it belongs on screen the whole way through
-   * rather than appearing on the last action.
-   */
+  /** The score the whole route submits, or 0 short of a crown. Shown throughout, not only at the end. */
   score: number;
 }
 
@@ -221,17 +203,9 @@ export function drawRightPanel(
   const power = `${powerToString(s.player.power)} Power`;
   drawText(ctx, sheet, standard, power, x0 + PANEL_W - textWidth(standard, power), 5);
 
-  // ...and under it the action counter, which is short and fixed, opposite
-  // everything the player is carrying. The floor name is not here: the stack
-  // labels the current floor and every tile in the strip is captioned.
-  //
-  // `[F]` **Drawn once.** The slider drew it a second time three pixels lower,
-  // from before it moved up here, and two copies of a changing number three
-  // pixels apart read as one number that will not hold still.
-  // `[I]` **The score, where the action counter used to be.** The counter said
-  // what the slider already says, in the one place with room for the figure a
-  // player is actually chasing. A route that never reaches a crown has no score
-  // and the line stays empty rather than showing a nought.
+  // ...and under it the score, opposite everything the player is carrying.
+  // Blank rather than 0 for a route that never reaches a crown. The floor name
+  // is not here: the stack labels the current floor.
   if (s.score > 0) drawText(ctx, sheet, standard, `Score ${powerToString(s.score)}`, x0, 17);
   drawStatus(ctx, sheet, manifest, digits, s, layout);
 
@@ -256,14 +230,7 @@ export const STATUS_Y = 14;
 /** Air between one status item and the next. */
 const STATUS_GAP = 5;
 
-/**
- * Where each status item sits, right-aligned as a block.
- *
- * `[D]` One function, used by the drawing and by the hit-test. They were two
- * different calculations — the hit-test divided the block by the item count
- * and called that near enough — and near enough stops being true the moment
- * the items stop being the same width.
- */
+/** Where each status item sits, right-aligned as a block. Shared by the drawing and the hit-test. */
 export function statusLayout(
   rows: readonly StatusRow[],
   font: AtlasFontRef,
@@ -313,17 +280,9 @@ export function yToStop(y: number, stopCount: number, g: { y: number; h: number 
 const MARK_LEFT = 6;
 
 /**
- * The failure mark's box on the track: what it is drawn in and what a click on
- * it hits.
- *
- * `[F]` **Beside the track, not on it.** Centred on the slider the mark sat on
- * the red stretch it marks — always, since the red starts exactly there — so a
- * red glyph was asked to read against red. Six pixels left clears the track
- * and leaves it inside the panel's own padding.
- *
- * `[D]` Here rather than in `Scrubber` because the harness aims at it too
- * (SPEC-009 §4), and a hitbox with two definitions is a hitbox that can drift
- * from the mark it is supposed to be under.
+ * The failure mark's box on the track — drawn in it, and hit by a click on it.
+ * Beside the track rather than on it, so red is not asked to read against red.
+ * Exported because the harness aims at it (SPEC-009 §4).
  */
 export function failureMarkBox(
   layout: Layout,

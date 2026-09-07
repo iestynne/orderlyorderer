@@ -2,18 +2,9 @@
 //
 //   npm run bless
 //
-// `[I]` iestyn: typing out a dozen scenario names to re-baseline them is too
-// slow to do often, and a review that is slow to do is a review that stops
-// happening. This takes the shots once, then for each one that moved opens its
-// review sheet — golden, shot, diff — and waits for a single keypress. The
-// answer to every one of them is the same question: is this the change I meant?
-//
-// `[D]` **The shot is never taken twice.** `runAll` hands back the bytes it
-// captured, so blessing writes exactly the image that was looked at. Re-running
-// to update would re-shoot, and the picture blessed would be one nobody saw.
-//
-// `[D]` Nothing is written until the walk finishes, so quitting part-way leaves
-// every golden as it was.
+// Takes the shots once, opens each moved one's review sheet, waits for a key.
+// Blesses the exact bytes that were looked at — never re-shoots — and writes
+// nothing until the walk finishes, so quitting leaves every golden as it was.
 
 import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";

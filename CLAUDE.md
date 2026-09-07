@@ -104,6 +104,10 @@ the branch, the docs and the code, and nothing else. Before stopping:
   the half only this session holds.
 - **Rationale belongs in the code**, as `[I]`/`[F]` comments beside what it
   explains. That survives a session boundary on its own; a chat log does not.
+  **Rationale is not history.** A comment is a one-line summary of a chunk, for
+  skimming, or a non-obvious fact about the lines under it — never the story
+  of the bug that led there. The commit holds the story; the comment holds the
+  conclusion. `[I]` "Used to do X, now does Y" is the pattern to delete.
 
 Resuming is step 1 with the same `<WTTN>`. The worktree already exists so step 2
 reuses it, and the session starts from that §A section rather than from the

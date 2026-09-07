@@ -87,13 +87,7 @@ export function bakeIcons(manifest: AtlasManifest, sheet: CanvasImageSource): Ic
   };
 }
 
-/**
- * `[I]` **The reachability arrow points right.** The game`s own icon points
- * left, and in the row it sat to the left of the thing the player was trying to
- * get to — pointing away from it, which reads as leaving rather than as being
- * turned back. Flipped once here, so the row and the mark on the floor agree,
- * and so the floor mark`s rotation is measured from a sensible zero.
- */
+/** `[I]` The game's arrow points left; ours points right, toward the thing it names. */
 function flipX(src: HTMLCanvasElement | null): HTMLCanvasElement | null {
   if (src === null) return null;
   const c = document.createElement("canvas");
@@ -186,9 +180,7 @@ export function drawCellMark(
     if (icons.noEntry) ctx.drawImage(icons.noEntry, x, y);
     return;
   }
-  // `[I]` **Centred on the tile's upper-right corner**, so three quarters of it
-  // hangs outside the cell and it covers as little of the sprite inside as it
-  // can while still plainly belonging to that square.
+  // Centred on the upper-right corner, so it covers little of the sprite.
   drawPlus(ctx, icons, x + CELL - (icons.badge >> 1), y - (icons.badge >> 1));
 }
 

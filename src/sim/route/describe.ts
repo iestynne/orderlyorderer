@@ -80,20 +80,10 @@ export function describeAction(
   } = {},
 ): ActionSummary {
   const now = effectiveCell(tower, cells, target.z, target.x, target.y);
-  // `[F]` A **recorded** action always changed state (SAVE_FORMAT §3), so one
-  // whose cell reads as empty floor changed it somewhere else — and the pop-up
-  // chain is the only rule that does, reinforcing the pop-up behind the player
-  // as they step onto the next one. The square the row should name is the
-  // pop-up the tower has there, not the floor the chain has left behind.
-  //
-  // `[F]` **Only for a recorded action**, and getting that wrong was a bug that
-  // took a very lucky hover to find. A hover preview is an action that has not
-  // happened, so "it must have changed something" does not hold for it — and on
-  // a genuinely empty square this line then reported whatever the *tower*
-  // originally had there. On 1-6 at action 193, hovering an empty (13,8) on 5F
-  // offered a pickaxe and (9,8) a 2k scorpion: both long dead, both still in
-  // `towerCell`. It surfaced only where walking to that square happens to
-  // change player state, which is what makes `classify` build a preview at all.
+  // `[F]` A recorded action always changed state (SAVE_FORMAT §3), so one whose
+  // cell reads as empty floor was a pop-up chain: name the pop-up the tower has
+  // there. A hypothetical action has not happened, so for it an empty square
+  // is empty — naming the tower's cell would revive whatever the route removed.
   const own = towerCell(tower, target.z, target.x, target.y);
   const cell = now === 0 && opts.hypothetical !== true && isEntity(own) ? own : now;
   const summary: ActionSummary = {
@@ -109,18 +99,10 @@ export function describeAction(
 }
 
 /**
- * What this action *would* pay, for an action past the route's break.
- *
- * `[I]` iestyn: past a failure the simulation has not run, so the measured
- * delta is zero and the gold column goes blank down the whole grey tail — at
- * exactly the moment a player is asking whether they can afford what comes
- * next. The purse items held at the break are known, and they change only when
- * one is picked up, so evaluating the gain from the cell and that held item is
- * right unless the tail itself picks a new one up. `[D]` **Wrong sometimes is
- * the right trade here, and the row already makes it**: the "what was expended"
- * slot is filled past the break on the same reasoning, and a column that is
- * blank is not more honest than one that is usually right — it is just less
- * use. The grey tail is what says none of this has happened.
+ * What an action past the break *would* pay, from the cell and the purse item
+ * held at the break. `[I]` Wrong if the tail picks up another purse item, and
+ * accepted as such: the spent slot is already projected the same way, and the
+ * grey tail says none of it has happened.
  */
 function projectedGold(cell: Cell, held: HeldItem | null): number {
   if (!isEntity(cell)) return 0;

@@ -1,11 +1,7 @@
 // SPEC-009 §4 — comparing a shot with its golden.
 //
-// `[D]` **Exact: zero differing pixels, no tolerance.** A tolerance is a
-// number nobody can defend, and every fault §1 names — a hover offset, a click
-// on the wrong row, a clipped badge — moves whole pixels. The one real source
-// of drift is Chromium's anti-aliasing of the trail, and the answer to that is
-// a pinned browser version and a deliberate re-baseline, not a threshold that
-// would also swallow the faults.
+// Exact — zero differing pixels. Every fault §1 names moves whole pixels, and
+// a tolerance would swallow them; Chromium drift is met by pinning the version.
 
 import { decodePng, encodePng } from "../../src/mapdiff/png";
 
@@ -21,17 +17,9 @@ export interface Diff {
 }
 
 /**
- * Golden, shot and diff stacked into one image, for judging intended churn.
- *
- * `[I]` iestyn: when a UI change makes every golden fail, the question is not
- * "did it change" — it is *did it change the way I meant*. A count cannot
- * answer that and two files in a directory make you flick between them. One
- * image, before over after over diff, can be looked at once and answered.
- *
- * `[D]` Stacked, not side by side: the frame is 1280 wide and a row of three
- * would be 3840, which no reader sees at once. Magenta rules separate the
- * panels because nothing in the app's palette is magenta, so a rule can never
- * be mistaken for content.
+ * Golden, shot and diff stacked into one image, for judging whether a change
+ * is the one that was meant. Stacked because a row of three is 3840 wide;
+ * magenta rules because nothing in the palette is magenta.
  */
 export function reviewImage(golden: Uint8Array, shot: Uint8Array, diff: Uint8Array): Uint8Array | null {
   const panels = [decodePng(golden), decodePng(shot), decodePng(diff)];

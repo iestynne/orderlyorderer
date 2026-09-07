@@ -339,17 +339,10 @@ function decode(payload: Uint8Array): number[][] {
 }
 
 /**
- * `[I]` iestyn, 2026-09-05, and the case he asked be tested by name.
- *
- * Disabling a key pickup used to leave a *later* action collecting that key on
- * its way past, so the route never failed for the missing key at all. The cause
- * was the position half of a save entry being simulated: a waypoint is exempt
- * from traversability, so walking to a now-stale `from` entered it under the
- * full entry rules. See `simulate` step 1a.
- *
- * Diagnostic (D18): make a position waypoint exempt again — `exemptTarget` in
- * the `pathfind` call — and the second expectation fails, because action 81
- * goes back to doing two things.
+ * `[I]` iestyn's named case: a disabled pickup must leave its item lying there,
+ * not be collected by a later action passing over it. Diagnostic (D18) for
+ * `simulate` step 1a — walk position waypoints with the target exemption on
+ * and the second expectation fails.
  */
 d("one action does one thing, even after a disable", () => {
   it("1-6 '747M C2 win': disabling action 73 fails later for the missing key", () => {
@@ -369,10 +362,8 @@ d("one action does one thing, even after a disable", () => {
     // It must fail, and for the key — not silently succeed, and not NO_PATH.
     expect(after.mainline.error?.code).toBe("NEED_LIGHT_KEY");
 
-    // And the disabled key is still lying there: nothing picked it up on the
-    // way past. `[F]` Not "no step edits two cells" — a kill legitimately edits
-    // the battle gates it opens, and the pop-up chain reinforces behind the
-    // player, so multi-edit steps are normal. The claim is about *this* cell.
+    // The disabled key is still lying there. Not "no step edits two cells":
+    // kills open battle gates and pop-ups reinforce, so multi-edit steps are normal.
     const key = addr(r.tower, 3, 9, 6);
     const took = after.mainline.steps.filter((s) => s.edits.some((e) => e.addr === key));
     expect(took, "nothing may collect the key whose pickup was switched off").toEqual([]);
