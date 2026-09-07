@@ -85,6 +85,7 @@ path (`TODO.md` §C).
 | SPEC-007 tower scrubber | **implemented**, all three stages. Stages 1-2 green against the contract; stage 3 awaits an eye (D24a). |
 | SPEC-008 route editing | **implemented**, draft 2. Three features, one machinery. Oracles 1-4 pass; the UI awaits an eye (D24a). |
 | SPEC-009 visual harness | **implemented**, draft 2. 19 scenarios, every golden blessed by eye, the whole contract green. `npm run shots` to check, `npm run bless` to review what moved. |
+| SPEC-010 log oracle | **draft 1**, not started. Validates the simulator's event *ordering* against the game's own `log1.txt`. Manual pass through the game; everything either side scripted. |
 | SPEC-003 headless Lua harness | stub. **Do not build:** its gate required manual verification to have become the bottleneck, and the replay sweep is that oracle instead. |
 | SPEC-001 overlay detector | **cancelled**, in `specs/obsolete/`. Overlays are declared in the level data, not inferred. |
 
