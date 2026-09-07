@@ -309,6 +309,84 @@ Deliberately deferred, not forgotten. All are out of scope for v1 (SPEC-004 §1)
   (`GAME_MECHANICS.md` §5.3); what remains is how `royal_boon2` injects it.
 - One unidentified sprite on 1-5 floor 1, at `(1,4)` and `(15,4)`.
 
+## G. Two sim oracles the game already ships
+
+Neither needs a dev build, a flag or a code change on their side, and neither is
+built. Recorded as a possibility, not queued: worth running occasionally, not
+per-commit.
+
+- **`logs/log1.txt`** — `logger.lua`, always on, no flag, rotated 10 deep at
+  each *launch*, so one session appends to one file however many saves are
+  loaded into it. It records every floor transition, every item obtained or
+  consumed, every unlock flag set, and each level script that ran. Not
+  move-by-move, so it cannot replace the replay oracle — but it is a free
+  *ordering* check against what the simulator predicts.
+
+  **And it does not need a hand-played run.** `save_manager:load` replays a
+  savestate's move list through the real engine, and the `entitydef` interact
+  logs fire during that replay — `g_sfx.lock` silences the audio, not the
+  logger. So one keypress per save emits that whole run's pickup-and-floor
+  trace. `data/saves/` already holds 326 routes to draw a set from.
+
+  **`[I]` Agreed shape, 2026-09-06: iestyn loads saves in the game by hand and
+  the log gets scanned afterwards.** An occasional sanity check, not a build
+  step — so what this needs is a log parser and a comparison against the
+  simulator's predicted ordering, not a way to drive the game.
+
+  **`[I]` The corpus is purpose-built: one route per tower, pruned from the
+  originals.** iestyn's own `.sav` files hold dozens of routes each, and the
+  cost of this exercise is **UI navigation, not replay** — so each tower gets a
+  file holding a **single** entry named `TEST`, and the loop is: enter tower,
+  `f5`, load the only save there, back out, next tower in menu order. These are
+  not newly authored routes; they are one existing route per tower, kept.
+
+  `[F]` **Pruning is a container operation, and a cheap one.** The top level of
+  a `.sav` is `name -> value` (`SAVE_FORMAT.md` §2), so it is: `load()`, drop
+  every key but one, rename that key `TEST`, `emit()`. The blob is copied
+  **verbatim** — nothing is re-compressed — so **B1 does not apply here**, and
+  the round trip is already verified byte-exact. Keep the record's value in
+  whichever shape it already has (bare blob, or the `time`/`data` table); the
+  loader takes both.
+
+  **`[I]` Which route per tower: the hi-score run.** The trace is an *ordering*
+  check, so the richest route tests the most — and a Dark Crown doubles the
+  score, so the hi-score route is generally the one that visits the most.
+
+  **`[I]` Deployment is a temp folder swap, and the name on disk is not ours.**
+  `SaveManager.new` builds `path = "savestates/"..tower_name..".sav"` from the
+  map filename (`save_manager.lua:26`), so the game opens `savestates/1-1.sav`
+  exactly and would never see a file we named differently. So: the repo holds
+  `1-1.TEST.sav` and the like, distinguishable from the originals, and the swap
+  step **strips `.TEST`** on the way in — move the real `savestates/` aside,
+  drop the test set in under bare `<tag>.sav`, run the pass, move it back.
+
+  `[F]` **Do not do this with a fresh `t.identity` instead.** A new save
+  directory means empty `score`, `crown` and `unlocks`. `Game.new` calls
+  `get_total_gems` and `get_total_crowns` at stage start (`game.lua:479-480`)
+  and those read all three (`util.lua:61-96`), so both would come back 0, every
+  gem door would be unopenable, and the replay would die on `found illegal
+  move`. The missing `unlocks` would also drop the boon flags, so
+  `level_scripts` would stop injecting Rapiers. **The swap has to keep `score`,
+  `crown` and `unlocks` in place** — only `savestates/` moves.
+
+  `[F]` **The log is delimited, so the parser does not have to be clever.** Each
+  replay is bracketed by `loading savestate: TEST` (`save_manager.lua:586`) and
+  `switching the gamestate` (`:670`); everything between is that route's trace.
+  A rejected replay says `found illegal move, returning...` (`:657`) instead of
+  reaching the terminator, which is the load-failure signal for free. The tower
+  is named by `checking for the level script for tag <tag>` (`game.lua:524`) —
+  but note it is emitted **twice** per load, once on entering the tower and
+  again when `SaveManager:load` builds a fresh `GsGame`, so key the segmentation
+  off the savestate line, not the tag line.
+
+- **The in-run stats screen** (`i`) — `ingame_stats.lua` `STATS_ORDER`, 24
+  counters: kills split positive/negative, per-item gains and losses, gold in
+  and out, keys spent, power the Adamantine Shield saved *and* lost. The
+  simulator tracks none of them. A mismatch there names a mechanic; a mismatch
+  in final power only says "something". This half stays manual — the counters
+  are drawn and never written to a file, and SPEC-009's harness screenshots our
+  app, not the game.
+
 ## F. Standing habits
 
 - **State the app version with every new batch of game data.** Main menu, bottom
