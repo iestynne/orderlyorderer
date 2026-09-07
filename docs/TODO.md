@@ -303,12 +303,12 @@ per-commit.
 
   `[F]` **Do not do this with a fresh `t.identity` instead.** A new save
   directory means empty `score`, `crown` and `unlocks`. `Game.new` calls
-  `get_total_gems` and `get_total_crowns` at stage start
-  (`game.lua:479-480`), and those read all three (`util.lua:61-96`): both would come back 0, every gem door would be
-  unopenable, and the replay would die on `found illegal move`. The missing
-  `unlocks` would also drop the boon flags, so `level_scripts` would stop
-  injecting Rapiers. **The swap has to keep `score`, `crown` and `unlocks` in
-  place** — only `savestates/` moves.
+  `get_total_gems` and `get_total_crowns` at stage start (`game.lua:479-480`)
+  and those read all three (`util.lua:61-96`), so both would come back 0, every
+  gem door would be unopenable, and the replay would die on `found illegal
+  move`. The missing `unlocks` would also drop the boon flags, so
+  `level_scripts` would stop injecting Rapiers. **The swap has to keep `score`,
+  `crown` and `unlocks` in place** — only `savestates/` moves.
 
   `[F]` **The log is delimited, so the parser does not have to be clever.** Each
   replay is bracketed by `loading savestate: TEST` (`save_manager.lua:586`) and
