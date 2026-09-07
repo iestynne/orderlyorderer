@@ -481,7 +481,7 @@ export class Scrubber {
     const currentSlot = slotOfVisit(set, this.visits, visit);
     const grid = gridFor(layout, PANEL_W, set.floors.length);
 
-    ctx.fillStyle = "#0c0c10";
+    ctx.fillStyle = C.GROUND;
     ctx.fillRect(0, 0, layout.w, layout.h);
 
     const tower = this.timeline.tower;
@@ -965,14 +965,19 @@ export class Scrubber {
     // the tile too, so drawing the askew one over it gave two walls, one
     // upright and one turned. The square is repainted as bare floor first, and
     // the pop-up lands on it exactly as a knocked-away tile leaves one.
-    const empty = this.manifest.sprites[spriteFor(keyOf(0), this.manifest) ?? ""];
-    if (wall === undefined || empty === undefined) return;
+    if (wall === undefined) return;
     for (let i = from; i < to; i++) {
       for (const e of this.timeline.steps[i]?.edits ?? []) {
         if (e.after !== CellState.Reinforced) continue;
         const at = this.cellOrigin(set, grid, coords(e.addr));
         if (at === null) continue;
-        ctx.drawImage(this.sheet, empty.x, empty.y, empty.w, empty.h, at.x, at.y, CELL, CELL);
+        // `[F]` **Empty floor has no sprite** — `spriteFor(keyOf(0))` is null,
+        // and `FloorCache.tile` draws nothing for an empty cell, leaving the
+        // frame's own ground showing through. So a square is cleared by
+        // painting that ground, not by blitting a tile. Looking for a sprite
+        // that does not exist is what made this draw nothing at all.
+        ctx.fillStyle = C.GROUND;
+        ctx.fillRect(at.x, at.y, CELL, CELL);
         this.knockedAway(at, wall);
       }
     }
