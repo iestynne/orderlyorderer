@@ -430,9 +430,25 @@ the file the game reads.
 
 ```
 tos_backups/
-  savestates_2026-09-10/      the player's own copy, made in Explorer
-  savestates_ORD_EXPORT/      ours: every .sav, one with the route added
+  savestates_2026-09-10/              the player's own copy, made in Explorer
+  savestates_ORD_EXPORT_2026-09-10/   ours, named for the copy it came from
 ```
+
+`[D]` **The export folder is named for the snapshot it was built from**, so a
+new snapshot starts a new export folder rather than quietly joining an old one,
+and which came from what survives being looked at a week later. `[D]` **Only
+the towers actually exported are copied in**, so copying the folder across
+cannot roll back a tower that was merely played. `[D]` A second route **joins**
+the file already there rather than rebuilding from the snapshot — sound exactly
+as long as the game has not run since the snapshot was taken, which is why a
+snapshot that is not the most recent in `tos_backups` is flagged.
+
+`[D]` **No staleness detection.** The app cannot see the master folder, so any
+check it ran would prove less than it implied, and an over-promised safety
+property is worse than an absent one. `[I]` iestyn, 2026-09-10: the protocol is
+offered, the player is in charge of backups and of deploying, and anticipating
+how others will want to use this is a fool's errand short of handing it out and
+asking them.
 
 `[D]` The export folder is a **sibling** of the copy, never inside it — the API
 cannot reach a picked folder's parent, which is why the player picks the

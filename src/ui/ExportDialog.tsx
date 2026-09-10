@@ -15,7 +15,7 @@
 
 import type React from "react";
 import { useState } from "react";
-import { EXPORT_DIR, type Backup } from "../store/savefolder";
+import { exportDirFor, type Backup } from "../store/savefolder";
 
 export type ExportChoice = "pick" | "download";
 
@@ -28,9 +28,9 @@ const PREPARE: readonly (readonly [string, string])[] = [
 
 const THEN: readonly (readonly [string, string])[] = [
   ["Pick tos_backups below, and choose that dated copy", "The app reads it and never writes to it."],
-  [`We write ${EXPORT_DIR} beside it`, "Every save you had, byte for byte, with your route added to one of them."],
+  ["We write an export folder beside it", "Named for the copy it came from, holding only the towers you export, with your route added."],
   ["Launch the game, let Steam Cloud finish, sit on the main menu", "Not inside the tower you are about to change."],
-  [`Copy everything from ${EXPORT_DIR} into your savestates folder`, "The folder's contents, not the folder itself — a folder in there becomes a junk save."],
+  ["Copy that folder's contents into your savestates folder", "The contents, not the folder itself — a folder in there becomes a junk save."],
   ["Load that tower and check it", "Every route you had, plus the new one, and the new one plays."],
   ["Quit, and let Steam Cloud upload", "Now the route is part of your saves."],
 ];
@@ -43,8 +43,6 @@ interface Props {
   busy: boolean;
   /** Non-null once a container has been picked: what was found inside it. */
   backups: readonly Backup[] | null;
-  /** Files already sitting in the export folder, if it is there at all. */
-  existing: readonly string[] | null;
   onChoose: (c: ExportChoice) => void;
   onExport: (b: Backup) => void;
   onCancel: () => void;
@@ -129,14 +127,11 @@ export function ExportDialog(props: Props): React.ReactElement {
           <>
             <p className="lede">Which copy should the export be built from?</p>
 
-            {props.existing !== null && (
-              <p className="warn">
-                <code>{EXPORT_DIR}</code> is already there, holding {props.existing.length} files.
-                Exporting will <strong>empty it and refill it</strong> — and this export is built from the
-                backup you pick, so a route you added last time is not in it. If you have not copied those
-                files into your savestates folder yet, cancel and do that first.
-              </p>
-            )}
+            <p className="hint">
+              The export lands in <code>{exportDirFor("savestates_…")}</code>, named for whichever you choose.
+              Export again from the same one and the routes gather there — which is safe exactly as long as
+              the game has not run since you took it.
+            </p>
 
             {props.backups.length === 0 && (
               <p className="hint">
@@ -153,6 +148,7 @@ export function ExportDialog(props: Props): React.ReactElement {
                   <span>
                     {b.towers.length} saves{b.towers.includes(props.towerId) ? "" : ` — no ${props.towerId}.sav`}
                     {b.stamped ? "" : " — no date in the name, so it cannot be told from any other copy later"}
+                    {b.stamped && !b.newest && " — not the most recent copy here, so the game has probably run since"}
                   </span>
                 </li>
               ))}
