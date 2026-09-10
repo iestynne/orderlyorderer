@@ -43,6 +43,8 @@ interface Props {
   busy: boolean;
   /** Non-null once a container has been picked: what was found inside it. */
   backups: readonly Backup[] | null;
+  /** Files already sitting in the export folder, if it is there at all. */
+  existing: readonly string[] | null;
   onChoose: (c: ExportChoice) => void;
   onExport: (b: Backup) => void;
   onCancel: () => void;
@@ -126,6 +128,16 @@ export function ExportDialog(props: Props): React.ReactElement {
         ) : (
           <>
             <p className="lede">Which copy should the export be built from?</p>
+
+            {props.existing !== null && (
+              <p className="warn">
+                <code>{EXPORT_DIR}</code> is already there, holding {props.existing.length} files.
+                Exporting will <strong>empty it and refill it</strong> — and this export is built from the
+                backup you pick, so a route you added last time is not in it. If you have not copied those
+                files into your savestates folder yet, cancel and do that first.
+              </p>
+            )}
+
             {props.backups.length === 0 && (
               <p className="hint">
                 No folder in there holds any <code>.sav</code> files. Copy your savestates folder into{" "}

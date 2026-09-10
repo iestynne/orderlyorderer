@@ -42,8 +42,14 @@ inject button; the download route beside it is never gated.
 container; the app lists what it found, refuses any copy without a date in its
 name, and writes a sibling `savestates_ORD_EXPORT` holding every save
 byte-for-byte with one record added to one of them. It then reads that file back
-from disk and checks every original record is present and unchanged. Moving the
-result into place is the player's, in Explorer.
+from disk and checks every original record is present and unchanged. Copying the
+result into place is the player's, in Explorer. **Every instruction says copy,
+never move** — the source is what they fall back to.
+
+**A second export empties the folder and refills it**, and says so before it
+does: this export is built from the backup, so a route added last time is not in
+it and would be lost if it had not been copied across. `[O]` The alternative is
+to accumulate into the export folder instead; not built.
 
 **So the first screen is preparation, not warning.** A player who meets the OS
 folder dialog without having made `tos_backups` has nothing to select, and the

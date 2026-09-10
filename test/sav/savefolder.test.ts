@@ -11,7 +11,7 @@
 import { describe, expect, it } from "vitest";
 import { ordName } from "../../src/sav/inject";
 import { parseSaveFile } from "../../src/sav/savefile";
-import { EXPORT_DIR, ExportFailed, STAMPED, exportInto, listBackups } from "../../src/store/savefolder";
+import { EXPORT_DIR, ExportFailed, STAMPED, existingExport, exportInto, listBackups } from "../../src/store/savefolder";
 import { haveSaves, loadAllSaves } from "./helpers";
 
 /** A directory tree of `Uint8Array` leaves, shaped like the real handles. */
@@ -33,6 +33,10 @@ function fakeTree(seed: Record<string, Record<string, Uint8Array>>) {
         dirs.set(name, new Map());
       }
       return Promise.resolve(dirHandle(name));
+    },
+    removeEntry: (name: string) => {
+      dirs.get(self)!.delete(name);
+      return Promise.resolve();
     },
     getFileHandle: (name: string, opts?: { create?: boolean }) => {
       const files = dirs.get(self)!;
@@ -92,10 +96,25 @@ d("exportInto", () => {
     expect(dirs.has(EXPORT_DIR)).toBe(false);
   });
 
-  it("refuses when a previous export was never moved into place", async () => {
-    const { root } = fakeTree({ "savestates_2026-09-10": corpus(), [EXPORT_DIR]: corpus() });
+  it("refuses a previous export that has not been copied across, unless told to replace", async () => {
+    const stale = { "1-1.sav": corpus()[`${towers()[0]!}.sav`]!, "9-9.sav": corpus()[`${towers()[0]!}.sav`]! };
+    const { root, dirs } = fakeTree({ "savestates_2026-09-10": corpus(), [EXPORT_DIR]: stale });
     const backup = (await listBackups(root)).find((b) => b.name !== EXPORT_DIR)!;
-    await expect(exportInto(root, backup, towers()[0]!, "r", [[1, 5, 5]])).rejects.toThrow(/already there/);
+
+    await expect(exportInto(root, backup, towers()[0]!, "r", [[1, 5, 5]])).rejects.toThrow(/already holds 2 files/);
+    expect([...dirs.get(EXPORT_DIR)!.keys()].sort()).toEqual(["1-1.sav", "9-9.sav"]);
+
+    await exportInto(root, backup, towers()[0]!, "r", [[1, 5, 5]], { replace: true });
+    // Emptied, not written over: 9-9.sav was not in the backup and must be gone,
+    // or it would read as part of this export and is not.
+    expect([...dirs.get(EXPORT_DIR)!.keys()].sort()).toEqual(towers().map((t) => `${t}.sav`).sort());
+  });
+
+  it("reports what is already in the export folder, before offering to write", async () => {
+    const { root } = fakeTree({ "savestates_2026-09-10": corpus() });
+    expect(await existingExport(root)).toBeNull();
+    const { root: root2 } = fakeTree({ "savestates_2026-09-10": corpus(), [EXPORT_DIR]: corpus() });
+    expect((await existingExport(root2))!.sort()).toEqual(towers().map((t) => `${t}.sav`).sort());
   });
 
   it("refuses a backup that does not hold the tower being exported", async () => {

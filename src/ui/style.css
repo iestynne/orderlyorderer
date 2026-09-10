@@ -380,3 +380,14 @@ code {
 .backups button { flex: none; }
 .backups span { color: var(--dim); }
 .backups button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* `[D]` A warning inside the screen, distinct from the CAVEAT: this one names a
+   thing already on disk that the next click will replace. */
+.export .warn {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid #7a5a2a;
+  border-radius: 6px;
+  background: rgba(255, 180, 84, 0.08);
+  line-height: 1.45;
+}

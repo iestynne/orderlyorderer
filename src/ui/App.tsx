@@ -20,7 +20,7 @@ import { RouteSession } from "./session";
 import { Scrubber, type ScrubberSettings } from "./scrubber";
 import { ExportDialog, type ExportChoice } from "./ExportDialog";
 import { localStamp, ordName } from "../sav/inject";
-import { canPickFolder, exportInto, listBackups, pickBackupRoot, type Backup } from "../store/savefolder";
+import { canPickFolder, existingExport, exportInto, listBackups, pickBackupRoot, type Backup } from "../store/savefolder";
 
 const NOTICE =
   "Unofficial. Orderlyorderer is a fan-made planning tool for Towers of Scale. " +
@@ -75,6 +75,7 @@ export default function App(): React.ReactElement {
   const [exporting, setExporting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [backups, setBackups] = useState<readonly Backup[] | null>(null);
+  const [existing, setExisting] = useState<readonly string[] | null>(null);
   const rootRef = useRef<FileSystemDirectoryHandle | null>(null);
   const [pendingBytes, setPendingBytes] = useState<Uint8Array | null>(null);
   const [pendingOrd, setPendingOrd] = useState<OrdFile | null>(null);
@@ -344,6 +345,9 @@ export default function App(): React.ReactElement {
       return;
     }
     rootRef.current = root;
+    // Both read before anything is offered: the warning about replacing a
+    // previous export has to be on screen with the button that would do it.
+    setExisting(await existingExport(root));
     setBackups(await listBackups(root));
   }, []);
 
@@ -353,7 +357,11 @@ export default function App(): React.ReactElement {
       if (!session || !root) return;
       setBusy(true);
       setError(null);
-      void exportInto(root, backup, session.route.tower, session.displayName, decodeEntries(session.toSaveRecord()))
+      // `[D]` `replace` is set here and only here: reaching this callback means
+      // the player read the warning beside the button they just pressed.
+      void exportInto(root, backup, session.route.tower, session.displayName, decodeEntries(session.toSaveRecord()), {
+        replace: true,
+      })
         .then((out) => {
           setNotice(
             `Wrote ${out.folder} beside ${out.from}: ${out.copied} saves, with ${out.name} added to ` +
@@ -363,6 +371,7 @@ export default function App(): React.ReactElement {
           );
           setExporting(false);
           setBackups(null);
+          setExisting(null);
         })
         .catch((e: Error) => setError(String(e)))
         .finally(() => setBusy(false));
@@ -389,6 +398,7 @@ export default function App(): React.ReactElement {
   const closeExport = useCallback(() => {
     setExporting(false);
     setBackups(null);
+    setExisting(null);
   }, []);
 
   if (session && sheet) {
@@ -430,6 +440,7 @@ export default function App(): React.ReactElement {
             canPick={canPickFolder()}
             busy={busy}
             backups={backups}
+            existing={existing}
             onChoose={onExportChoice}
             onExport={runExport}
             onCancel={closeExport}

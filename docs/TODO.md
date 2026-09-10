@@ -155,6 +155,14 @@ Delete this section when the branch merges.
    saves from TypeScript.
 3a. `[O]` **The export language wants a pass.** `[I]` iestyn, 2026-09-10, likes
    the screen and wants to tweak the wording for clarity. His edit, not ours.
+3b. `[O]` **Exporting several routes costs a fresh backup folder each time.**
+   An export is built from the backup, so a second one rebuilds the folder and
+   the first route goes with it — hence the warning before it empties. `[D]`
+   Safe and less convenient, for now (iestyn, 2026-09-10). `[O]` The fix if it
+   chafes: accumulate, by injecting into the export folder's own copy when it
+   already holds that tower, so routes pile up and cross in one action.
+   `[I]` iestyn: the risk of leaving it is that inconvenience invites
+   shortcuts, and the shortcut here is skipping the backup.
 4. `[O]` **`UI.md` is at 258 lines**, past D31's 150 and past the 185 that was
    ratified as a deliberate overage. The export screen added to it. The split
    §A.1a and the segment-editing spec owe is now overdue rather than pending.

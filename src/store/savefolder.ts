@@ -5,8 +5,9 @@
 // browser at all, and this app never sees the file the game reads. Verified by
 // iestyn, 2026-09-09.
 //
-// `[D]` So the app writes only into folders it created, and the player moves
-// files with Explorer. `[I]` iestyn: filesystem operations are more reliable
+// `[D]` So the app writes only into folders it created, and the player copies
+// files with Explorer -- copies, never moves: the source is the reference the
+// player falls back to. `[I]` iestyn: filesystem operations are more reliable
 // than any code either of us would write for this, and a copy he performs is
 // one he can see. That removes the backup, the verify-and-restore and the
 // writing-into-someone-else's-file, and what is left cannot damage a save
@@ -84,6 +85,7 @@ interface Dir {
   entries: () => AsyncIterable<[string, { kind: string }]>;
   getFileHandle: (name: string, opts?: { create?: boolean }) => Promise<FileSystemFileHandle>;
   getDirectoryHandle: (name: string, opts?: { create?: boolean }) => Promise<FileSystemDirectoryHandle>;
+  removeEntry: (name: string) => Promise<void>;
 }
 
 const as = (d: FileSystemDirectoryHandle): Dir => d as unknown as Dir;
@@ -104,6 +106,20 @@ async function write(dir: FileSystemDirectoryHandle, name: string, bytes: Uint8A
   const w = await (await as(dir).getFileHandle(name, { create: true })).createWritable();
   await w.write(new Uint8Array(bytes).buffer.slice(0));
   await w.close();
+}
+
+/**
+ * What is already sitting in `savestates_ORD_EXPORT`, or `null` if it is not
+ * there. `[D]` Read before the export screen offers to write, because the
+ * player is the only one who knows whether they have copied it across yet.
+ */
+export async function existingExport(root: FileSystemDirectoryHandle): Promise<string[] | null> {
+  for await (const [name, h] of as(root).entries()) {
+    if (name === EXPORT_DIR && h.kind === "directory") {
+      return (await savesIn(h as unknown as FileSystemDirectoryHandle)).map((t) => `${t}.sav`);
+    }
+  }
+  return null;
 }
 
 /**
@@ -128,15 +144,21 @@ export async function listBackups(root: FileSystemDirectoryHandle): Promise<Back
  * Copy every `.sav` in `from` into a fresh `savestates_ORD_EXPORT` beside it,
  * with one record added to the one named for `towerId`.
  *
- * `[D]` **Every save is copied, not only the edited one**, so the player moves
- * a whole folder's contents in one action rather than picking one file out of
- * it. The copies are byte-identical; the target file differs only by its record
- * count and one appended record.
+ * `[D]` **Every save is copied, not only the edited one**, so the player copies
+ * a whole folder's contents across in one action rather than picking one file
+ * out of it. The copies are byte-identical; the target file differs only by its
+ * record count and one appended record.
  *
- * `[D]` **Refuses when the export folder already exists.** That state means a
- * previous export was never moved into place, and writing over it would discard
- * work the player still has to do — SPEC-010's `deploy` refuses for the same
- * reason.
+ * `[D]` **Refuses when the export folder already exists, unless `replace`.** That
+ * state means a previous export has not been copied across yet, and rebuilding
+ * the folder from the backup would discard it — this export starts from the
+ * backup, so a route added last time is not in it. The caller sets `replace`
+ * only after saying that to the player.
+ *
+ * `[O]` The alternative is to accumulate: inject into the export folder's own
+ * copy when it already holds the tower, so several routes pile up and cross in
+ * one action. `[D]` Not built — safe and less convenient first (iestyn,
+ * 2026-09-10), with the risk noted that inconvenience invites shortcuts.
  */
 export async function exportInto(
   root: FileSystemDirectoryHandle,
@@ -144,7 +166,7 @@ export async function exportInto(
   towerId: string,
   base: string,
   entries: Entry[],
-  deflate?: Parameters<typeof injectRecord>[4],
+  opts: { replace?: boolean; deflate?: Parameters<typeof injectRecord>[4] } = {},
 ): Promise<Exported> {
   if (!from.stamped) {
     throw new ExportFailed(
@@ -155,12 +177,12 @@ export async function exportInto(
   if (!from.towers.includes(towerId)) {
     throw new ExportFailed(`${from.name} holds no ${towerId}.sav — it has ${from.towers.join(", ") || "no saves"}.`);
   }
-  for await (const [name] of as(root).entries()) {
-    if (name === EXPORT_DIR) {
-      throw new ExportFailed(
-        `${EXPORT_DIR} is already there. Move what is in it into your savestates folder, or delete it, then export again.`,
-      );
-    }
+  const already = await existingExport(root);
+  if (already !== null && opts.replace !== true) {
+    throw new ExportFailed(
+      `${EXPORT_DIR} already holds ${already.length} files. Copy them into your savestates folder first — ` +
+        "this export is built from your backup, so a route added last time is not in it.",
+    );
   }
 
   const before = await read(from.handle, `${towerId}.sav`);
@@ -169,9 +191,12 @@ export async function exportInto(
   // file already holds. An earlier export of the same route is a collision the
   // player should not have to think about; a counter settles it.
   const name = ordName(base, new Set(original.records.map((r) => r.name)));
-  const after = injectRecord(before, name, entries, undefined, deflate);
+  const after = injectRecord(before, name, entries, undefined, opts.deflate);
 
   const out = await as(root).getDirectoryHandle(EXPORT_DIR, { create: true });
+  // `[D]` Emptied rather than written over: a save left behind from a previous
+  // export would look like part of this one and would not be.
+  for (const stale of already ?? []) await as(out).removeEntry(stale);
   for (const id of from.towers) {
     await write(out, `${id}.sav`, id === towerId ? after : await read(from.handle, `${id}.sav`));
   }

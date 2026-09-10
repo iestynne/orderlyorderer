@@ -120,9 +120,10 @@ changes are not. `[I]` iestyn will refine this from real use.
 
 `[D]` **Export never overwrites anything at all.** It writes a folder of its
 own, holding a copy of every save the player gave it, one of which has gained an
-`ORD:`-named record and kept every other byte (`SAVE_FORMAT.md` §8). Moving
+`ORD:`-named record and kept every other byte (`SAVE_FORMAT.md` §8). Copying
 that into place is the player's, in Explorer, because Windows will not let a
-browser near the folder the game reads. A download of a fresh, uniquely-named
+browser near the folder the game reads. `[I]` Every instruction says **copy**:
+a move leaves the player with one of something they wanted two of. A download of a fresh, uniquely-named
 one-record file is still offered beside it.
 
 `[D]` **There is a full-screen gate, and it is instruction before it is
