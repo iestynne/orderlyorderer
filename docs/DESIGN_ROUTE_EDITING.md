@@ -118,12 +118,24 @@ changes are not. `[I]` iestyn will refine this from real use.
 
 ### 2.4 Export
 
-`[D]` **Export never overwrites** — each one writes a fresh, uniquely-named
-file. `[D]` So there is **no full-screen acknowledgement gate**: removing the
-destructive operation beats warning about it, and a modal clicked through weekly
-stops being read. What the player is owed instead is advice on their own file
-hygiene, in the empty state and a one-time notice. `[I]` iestyn will supply the
-wording.
+`[D]` **Export never overwrites a record.** It writes into the player's own
+`<tower>.sav`, which gains one `ORD:`-named record and keeps every other byte
+(`SAVE_FORMAT.md` §8). A download of a fresh, uniquely-named one-record file is
+still offered beside it.
+
+`[D]` **There is a full-screen acknowledgement gate, and this reverses the
+earlier decision.** That decision — removing the destructive operation beats
+warning about it — was sound while export only ever wrote a new file. It does
+not survive writing into a file the player cannot regenerate: the operation
+cannot be removed, so the choice is between warning and not warning. `[I]`
+iestyn, 2026-09-09, asked for the warning and supplied the protocol on it.
+
+`[D]` The gate is kept from becoming wallpaper by what is behind it rather than
+by its wording: a checkbox naming two preconditions the player must actually
+have met, and a screen they reach only when they chose to write to their save.
+The download route is never gated. `[O]` If it does start being clicked
+through, that is a signal the injection needs to be rarer, not that the modal
+needs to be louder.
 
 `[D]` **Export refuses a failing route.** `[F]` The game's loader would refuse it
 anyway by re-simulation, so this only decides that we say so, clearly, first.

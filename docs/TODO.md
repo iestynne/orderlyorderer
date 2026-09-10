@@ -157,7 +157,13 @@ Delete this section when the branch merges.
 4. `[O]` **`UI.md` is at 249 lines**, past D31's 150 and past the 185 that was
    ratified as a deliberate overage. The export screen added to it. The split
    §A.1a and the segment-editing spec owe is now overdue rather than pending.
-5. `[O]` **The dev server base path is new** (`tools/worktree.ts`). The shots
+5. `[O]` **SPEC-008 §7 now describes behaviour the code no longer has.** It
+   says "every write is a fresh, uniquely named file"; export injects into the
+   player's own `.sav`. Specs are frozen once tests exist against them
+   (`CLAUDE.md`), so this is **not** a doc to quietly fix — it needs iestyn's
+   call between an amendment note in SPEC-008 and a SPEC-011 for export. The
+   live docs (DESIGN §2.4, UI.md, SAVE_FORMAT §8) are already corrected.
+6. `[O]` **The dev server base path is new** (`tools/worktree.ts`). The shots
    harness walks ports at this worktree's own path now, which is a strict
    improvement, but no golden has been shot since the change.
 

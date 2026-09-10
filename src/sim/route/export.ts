@@ -1,9 +1,9 @@
 // SPEC-008 §7 — document to `.sav` record.
 //
-// `[D]` **Export never overwrites**: every write is a fresh, uniquely named
-// file, which is what removes the destructive operation instead of warning
-// about it (DESIGN §2.4). The naming is the caller's; this module produces
-// bytes.
+// `[D]` This module produces one record's payload and nothing else. Where it
+// goes is the caller's: `store/savefolder.ts` injects it into the player's own
+// `.sav`, keeping every other record's bytes, and `App.tsx` can instead put it
+// in a fresh one-record file. Neither ever overwrites a record (DESIGN §2.4).
 //
 // Pure module: no UI imports, no filesystem (D7).
 

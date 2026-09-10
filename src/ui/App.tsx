@@ -51,7 +51,9 @@ function download(name: string, bytes: string | Uint8Array, type: string): void 
   URL.revokeObjectURL(url);
 }
 
-/** `[D]` Export never overwrites, so every file carries the moment it was written. */
+/** `[D]` The download route never overwrites, so every file it writes carries
+ * the moment it was written. The injecting route stamps its backup instead
+ * (`store/savefolder.ts`), in local time, because a person reads that one. */
 function stamp(): string {
   return new Date().toISOString().replace(/[-:]/g, "").replace(/\..*/, "");
 }

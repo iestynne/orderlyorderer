@@ -232,8 +232,9 @@ same enemy — says nothing but its number, and is not exported.
 
 Anything that changes the document sets the **unsaved-changes marker**, in the
 toolbar and the tab title; scrubbing and the option toggles do neither. **Save
-`.ord`** clears it. **Export `.sav`** writes a fresh, uniquely named file, never
-an overwrite, and refuses a route that fails. Segment affordances are off.
+`.ord`** clears it. **Export `.sav`** opens the export screen — inject one
+record into the player's own file, or download a fresh one — and refuses a
+route that fails. Segment affordances are off.
 
 ## 7. Open questions
 
