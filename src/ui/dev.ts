@@ -88,7 +88,7 @@ export async function openFromUrl(
   const p = devParams(window.location.search);
   if (p === null || opened) return;
   opened = true;
-  const res = await fetch(`/data/saves/${p.fixture.includes("/") ? p.fixture : `tests/${p.fixture}`}.sav`);
+  const res = await fetch(`${import.meta.env.BASE_URL}data/saves/${p.fixture.includes("/") ? p.fixture : `tests/${p.fixture}`}.sav`);
   if (!res.ok) throw new Error(`fixture ${p.fixture}: ${res.status}`);
   const bytes = new Uint8Array(await res.arrayBuffer());
   const tower = await loadTower(towerOfFixture(p.fixture));

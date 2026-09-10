@@ -19,24 +19,27 @@ import { launch, type Harness } from "./browser";
 import { SCENARIOS, pointOf, type Scenario, type Step } from "./scenarios";
 import { diffPng, reviewImage } from "./diff";
 import { CROPS_DIR } from "./crop";
+import { sitePath } from "../worktree";
 
 export const SHOTS_DIR = "build/shots";
 export const GOLDEN_DIR = "test/ui/golden";
 
 /** Where the dev server is. Loopback only — there is nowhere else to point it. */
-export const BASE_URL = process.env["SHOTS_URL"] ?? "http://localhost:5173";
+export const BASE_URL = process.env["SHOTS_URL"] ?? `http://localhost:5173${sitePath()}`;
 
 /** The ports Vite walks when 5173 is taken — one per worktree, in practice. */
 const PORTS = [5173, 5174, 5175, 5176, 5177, 5178, 5179, 5180];
 
 /**
- * The dev server, found by walking Vite's ports. Identified by `window.__orderly`,
- * not by the HTML: every worktree serves the same `index.html`, and shooting a
- * sibling worktree's build would fail nothing. Hence a page, not `fetch`.
+ * This worktree's dev server, found by walking Vite's ports at this worktree's
+ * own base path (`tools/worktree.ts`) — a sibling's server answers on a different
+ * path and is skipped. `window.__orderly` then confirms it is a dev build, which
+ * the HTML cannot: every worktree serves the same `index.html`. Hence a page,
+ * not `fetch`.
  */
 export async function resolveBaseUrl(page: Page): Promise<string> {
   const env = process.env["SHOTS_URL"];
-  const candidates = env !== undefined ? [env] : PORTS.map((p) => `http://localhost:${p}`);
+  const candidates = env !== undefined ? [env] : PORTS.map((p) => `http://localhost:${p}${sitePath()}`);
   for (const url of candidates) {
     try {
       await page.goto(`${url}/`, { waitUntil: "domcontentloaded", timeout: 2000 });
