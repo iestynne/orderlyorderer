@@ -78,9 +78,15 @@ export function emitPayload(entries: Entry[]): Uint8Array {
  * `[F]` Level 6 with the default strategy reproduces 82 of the game's 326
  * streams and not the other 244 (SPEC-006 §6). That is the whole reason
  * `inject.ts` never rebuilds a record it did not author.
+ *
+ * `[D]` The compressor is a parameter because the browser's is not Node's:
+ * `vite.config.ts` aliases `node:zlib` to fflate for the bundle, so the stream
+ * a player actually writes is one no Node test would exercise by default.
  */
-export function emitBlob(entries: Entry[]): Uint8Array {
-  const compressed = new Uint8Array(deflateSync(emitPayload(entries), { level: 6 }));
+export type Deflate = (data: Uint8Array, opts: { level: number }) => Uint8Array;
+
+export function emitBlob(entries: Entry[], deflate: Deflate = deflateSync as Deflate): Uint8Array {
+  const compressed = new Uint8Array(deflate(emitPayload(entries), { level: 6 }));
   const full = new Uint8Array(MAGIC.length + compressed.length);
   full.set(stringToBytes(MAGIC));
   full.set(compressed, MAGIC.length);

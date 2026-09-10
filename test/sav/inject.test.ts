@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import { GAME_NAME_CHARS, GAME_NAME_MAX, InjectRefused, injectRecord, localStamp } from "../../src/sav/inject";
-import { parseSaveFile } from "../../src/sav/savefile";
+import { emitBlob, emitPayload, parseSaveFile } from "../../src/sav/savefile";
 import { haveSaves, loadAllSaves } from "./helpers";
 
 const d = haveSaves ? describe : describe.skip;
@@ -70,5 +70,35 @@ describe("timestamps", () => {
     // The bug this replaces: toISOString() is UTC, so it disagrees whenever the
     // machine is not on UTC -- which is every game-written row beside it.
     expect(localStamp(at).length).toBe(16);
+  });
+});
+
+// `[D]` The browser bundle aliases `node:zlib` to fflate (`zlib-browser.ts`), so
+// the stream a player writes is not the stream any other test here exercises.
+// This asserts the only property that matters: whatever fflate emits, a zlib
+// decompressor reads back as the payload we handed it. Love2D decompresses with
+// `love.data.decompress("string","zlib",...)` (`save_manager.lua:609`), which
+// like Node's accepts any conformant stream regardless of who wrote it.
+// `EX-1.ORD-FFLATE.sav` is the end-to-end half of the same claim.
+d("fflate, the compressor that actually ships", () => {
+  it("round-trips every corpus record through the browser's compressor", async () => {
+    const { zlibSync } = await import("fflate");
+    const { inflateSync } = await import("node:zlib");
+    const fflate = (data: Uint8Array, opts: { level: number }): Uint8Array => zlibSync(data, { level: opts.level as 6 });
+
+    let checked = 0;
+    for (const { towerId, bytes, file } of loadAllSaves()) {
+      for (const rec of file.records) {
+        const blob = emitBlob(rec.entries, fflate);
+        expect(Buffer.from(blob.subarray(0, 8)).toString("latin1"), `${towerId}/${rec.name} magic`).toBe("TOSSAVE\0");
+        // A zlib wrapper, not raw DEFLATE -- fflate's own `deflateSync` would
+        // emit the latter and the game would refuse it with no clue why.
+        expect(blob[8]! & 0x0f, `${towerId}/${rec.name} CMF`).toBe(8);
+        const back = new Uint8Array(inflateSync(Buffer.from(blob.subarray(8))));
+        expect(Buffer.from(back).equals(Buffer.from(emitPayload(rec.entries))), `${towerId}/${rec.name}`).toBe(true);
+        checked++;
+      }
+    }
+    expect(checked).toBe(326);
   });
 });

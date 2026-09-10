@@ -12,7 +12,7 @@
 // Pure: bytes in, bytes out. No filesystem access (D7).
 
 import { SavFormatError, emitTop, parseTop, stringToBytes, type LuaTable } from "./buffer";
-import { emitBlob, type Entry } from "./savefile";
+import { emitBlob, type Deflate, type Entry } from "./savefile";
 
 /** Refused before anything is written. Never thrown after a partial change. */
 export class InjectRefused extends Error {
@@ -49,7 +49,13 @@ export function localStamp(at = new Date()): string {
  * existing one. `[F]` The save menu sorts by name (`reload_saves`), so file
  * order is ours to choose and never reaches the player.
  */
-export function injectRecord(savBytes: Uint8Array, name: string, entries: Entry[], time = localStamp()): Uint8Array {
+export function injectRecord(
+  savBytes: Uint8Array,
+  name: string,
+  entries: Entry[],
+  time = localStamp(),
+  deflate?: Deflate,
+): Uint8Array {
   const top = parseTop(savBytes);
   if (!(top instanceof Map)) throw new SavFormatError("top level is not a table");
   if (top.has(name)) {
@@ -57,7 +63,7 @@ export function injectRecord(savBytes: Uint8Array, name: string, entries: Entry[
   }
   const inner: LuaTable = new Map();
   inner.set("time", stringToBytes(time));
-  inner.set("data", emitBlob(entries));
+  inner.set("data", emitBlob(entries, deflate));
   (top as LuaTable).set(name, inner);
   return emitTop(top);
 }

@@ -1,6 +1,7 @@
 # EX-1.ORD-COLON — does the game accept a name its keyboard cannot type?
 
-`[O]` **Not yet run.** Built 2026-09-09 by `tools/sav/make-probe.ts`.
+`[F]` **Run 2026-09-09 by iestyn: all six checks pass.** Results below. Built
+by `tools/sav/make-probe.ts`, which must keep reproducing these exact bytes.
 
 ## What it is
 
@@ -40,5 +41,23 @@ a variant under an original's name and a real save is one mistake from gone.
 
 ## Result
 
-`[O]` Unfilled. Record what happened here, with a screenshot reference, and
-turn the `[O]` above into `[F]`.
+`[F]` iestyn, 2026-09-09. **The colon is safe, and `ORD:` is settled as the
+export prefix.**
+1. the two injected saves open fine
+2. confirmed
+3. they sort to the bottom; my original saves start with AUTOSAVE or numbers
+4. the 24-char name perfectly fits the name-edit box
+5. both ORD saves load and play, though they are empty (zero actions)
+6. delete functions fine (and persists across steam cloud backup/restore)
+
+
+`[F]` **5 is the expected answer, not a defect.** Both probes carry
+`AUTOSAVE_EXIT`'s route, which is genuinely 1 entry — the `2S+1` rule with
+S = 0, a start square and no actions. Nothing was lost in the injection. It
+does mean this file never exercised a substantial payload, which is what
+`EX-1.ORD-FFLATE.sav` is for.
+
+`[F]` **3 also answers a question we had not asked**: `ORD:` rows sort to the
+bottom, because `:` is 0x3A and every existing name starts with a digit or an
+uppercase letter. So injected routes gather in one place in the menu rather
+than scattering through it.
