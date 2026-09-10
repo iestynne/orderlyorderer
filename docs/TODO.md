@@ -139,6 +139,28 @@ stored answer a question it was not the answer to.
     right one; the click lands offset by the delta between the newly clicked
     action and the previously clicked one.
 
+## A10. `session-export-sav-injection` — open, and the branch's own
+
+Delete this section when the branch merges.
+
+1. `[O]` **Nobody has run the injector.** Every failure path is tested against
+   a fake folder (`test/sav/savefolder.test.ts`); the real one has not been
+   touched. D24a applies and has not been used.
+2. `[O]` **`showDirectoryPicker` may refuse `%APPDATA%`.** Chromium blocks
+   some folders outright and the blocklist cannot be read from here. If it
+   refuses, injection cannot reach the savestates folder from a browser at all
+   and only the download route survives. **One click settles it**; nothing
+   below matters until it does.
+3. `[O]` **`EX-1.ORD-FFLATE.sav` is unrun.** Whether Love2D loads a stream
+   fflate compressed. Proved from this side over 326 records; the game has not
+   been asked. The export path is unproven end to end until it is.
+4. `[O]` **`UI.md` is at 249 lines**, past D31's 150 and past the 185 that was
+   ratified as a deliberate overage. The export screen added to it. The split
+   §A.1a and the segment-editing spec owe is now overdue rather than pending.
+5. `[O]` **The dev server base path is new** (`tools/worktree.ts`). The shots
+   harness walks ports at this worktree's own path now, which is a strict
+   improvement, but no golden has been shot since the change.
+
 ## A8. Two doc/code disagreements, found 2026-09-04
 
 `[F]` Both caught by hand while compressing `UI.md`; neither by any test, and
@@ -212,6 +234,19 @@ leaves to design rather than answers. Neither blocks the editor as it stands.
   stores the payload hash of the record it came from, so a match is clean and a
   mismatch means the player has played on and the metadata must be re-anchored
   by prefix alignment.
+- **`[O]` Think the `.sav`/`.ord` pairing through once more, before anything
+  leans on `.ord` files.** `[I]` iestyn, 2026-09-09. Now that export injects
+  into the player's real save (`SAVE_FORMAT.md` §8), the two formats meet in a
+  way D35 did not anticipate. The idea to weigh: **store a copy of the original
+  `.sav` inside the `.ord`**, so a route can be compared against other `.sav`
+  files and restored in a pinch. `[D]` **Not decided, and there is a known
+  hazard**: two `.ord` files made on different days from different generations
+  of the same master `.sav` would each carry a stale copy, so exporting "all
+  routes" from either would publish out-of-date versions of every route but the
+  edited one. That hazard is what moved export to injection instead. Whether an
+  embedded copy still earns its place for *comparison and rescue* — never as a
+  source to write back from — is the open question.
+
 - **Autosave behaviour for the working store.** It writes on every edit today,
   which is what DESIGN §2.2 asks for and may be more than is wanted on a long
   route. Also unanswered: whether to request `navigator.storage.persist()`.

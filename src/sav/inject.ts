@@ -67,3 +67,22 @@ export function injectRecord(
   (top as LuaTable).set(name, inner);
   return emitTop(top);
 }
+
+/**
+ * `ORD:`-prefixed, inside the game's 24, and not a name `taken` already holds.
+ *
+ * `[F]` The prefix is settled: `EX-1.ORD-COLON` proved the game displays, sorts,
+ * loads and deletes a colon it cannot type, so `ORD:` is a namespace no
+ * hand-played save can enter. `[D]` A collision can therefore only be with an
+ * earlier export, and a counter is enough to break it.
+ */
+export function ordName(base: string, taken: ReadonlySet<string>): string {
+  const clean = [...base].filter((c) => GAME_NAME_CHARS.test(c)).join("").trim();
+  const fit = (suffix: string): string => `ORD:${clean.slice(0, GAME_NAME_MAX - 4 - suffix.length).trim()}${suffix}`;
+  if (!taken.has(fit(""))) return fit("");
+  for (let n = 2; n < 1000; n++) {
+    const candidate = fit(` ${n}`);
+    if (!taken.has(candidate)) return candidate;
+  }
+  throw new InjectRefused(`no free name under "ORD:${clean}"; delete some in the game's savestate menu`);
+}

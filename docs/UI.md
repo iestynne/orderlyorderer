@@ -29,6 +29,26 @@ name — editable there — save `.ord`, export `.sav`, and a **screenshot** but
 writing the exact 1× frame to a PNG. Going back returns to the record list
 rather than the file picker.
 
+**Export opens a screen, not a file dialog.** It is the only action here that
+writes a file the player cannot regenerate, so it states that in the largest
+type on the page and carries the protocol iestyn arrived at by hand: sync, main
+menu, take your own dated copy of the folder, inject, confirm in the game, exit,
+let Steam Cloud have it. A checkbox naming the two preconditions gates the
+inject button; the download route beside it is never gated.
+
+**Injecting adds one record and proves it.** The player grants the savestates
+folder once; the app copies `<tower>.sav` to `<tower>.<timestamp>.orderly-bak`,
+reads that copy back to check it, writes, then re-reads the save from disk and
+checks every original record is present and unchanged with exactly one added.
+A failure there restores the file from the bytes it started with and says so.
+**No backup is ever deleted.** Where the folder picker does not exist — Firefox,
+Safari — the button explains and the download route still works.
+
+**Injected routes are named `ORD:`.** The game's own keyboard cannot type a
+colon (`SAVE_FORMAT.md` §8), so nothing the player made can collide; a clash
+with an earlier export takes a counter. They sort to the bottom of the game's
+save list.
+
 **Exporting names its price.** A route may spend gems the player has not got —
 that is deliberate (D46) — so the game will refuse to load it until they have.
 The export notice says how many and that the refusal is the gem gate rather than

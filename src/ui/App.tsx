@@ -18,6 +18,9 @@ import { knownTowerIds, loadSheet, loadTower, manifest, towerIdFromFilename } fr
 import { blankSummaries, fillSummaries, type Summary } from "./records";
 import { RouteSession } from "./session";
 import { Scrubber, type ScrubberSettings } from "./scrubber";
+import { ExportDialog, type ExportChoice } from "./ExportDialog";
+import { localStamp, ordName } from "../sav/inject";
+import { injectIntoSave, pickSaveFolder } from "../store/savefolder";
 
 const NOTICE =
   "Unofficial. Orderlyorderer is a fan-made planning tool for Towers of Scale. " +
@@ -58,6 +61,8 @@ export default function App(): React.ReactElement {
   const [tower, setTower] = useState<TowerJSON | null>(null);
   const [records, setRecords] = useState<Summary[] | null>(null);
   const [session, setSession] = useState<RouteSession | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [pendingBytes, setPendingBytes] = useState<Uint8Array | null>(null);
   const [pendingOrd, setPendingOrd] = useState<OrdFile | null>(null);
   const [restorable, setRestorable] = useState<Session | null>(null);
@@ -288,34 +293,64 @@ export default function App(): React.ReactElement {
     setRevision((r) => r + 1);
   }, [session]);
 
-  const exportSav = useCallback(() => {
+  /** The record name this route would take, given what the target file holds. */
+  const exportName = useMemo(
+    () => (session ? ordName(session.displayName, new Set()) : ""),
+    [session, revision],
+  );
+
+  const downloadSav = useCallback(() => {
     if (!session) return;
-    try {
-      const payload = session.toSaveRecord();
-      // Shape B, `{ time, data }` -- the shape the game writes today.
-      // SAVE_FORMAT §2's bare blob is an older form it has never migrated, and
-      // an export is not the place to hand it something it stopped producing.
-      const bytes = emitSaveFile({
-        records: [{
-          name: session.displayName,
-          time: new Date().toISOString().slice(0, 16).replace("T", " "),
-          keyOrder: ["time", "data"],
-          entries: decodeEntries(payload),
-        }],
-      });
-      download(`${session.route.tower}.orderlyorderer.${stamp()}.sav`, bytes, "application/octet-stream");
-      // D46: the app never refuses a gem spend, so the game may refuse the load; say so.
-      const gems = session.gemsRequired;
-      setNotice(
-        (gems > 0
-          ? `This route spends ${gems} gems. If you have fewer, the game will refuse to load it — ` +
-            "that is the gem gate, not a fault in the export. "
-          : "") + "Exported. It is a new file, never an overwrite: move it into place yourself.",
+    const payload = session.toSaveRecord();
+    // Shape B, `{ time, data }` -- the shape the game writes today.
+    // SAVE_FORMAT §2's bare blob is an older form it has never migrated, and
+    // an export is not the place to hand it something it stopped producing.
+    const bytes = emitSaveFile({
+      records: [{ name: exportName, time: localStamp(), keyOrder: ["time", "data"], entries: decodeEntries(payload) }],
+    });
+    download(`${session.route.tower}.orderlyorderer.${stamp()}.sav`, bytes, "application/octet-stream");
+    setNotice(
+      `Downloaded a new one-record file named ${exportName}. It is not your save file: move it into place yourself, ` +
+        "and remember the game reads only <tower>.sav.",
+    );
+  }, [session, exportName]);
+
+  /**
+   * `[D]` The folder is picked at export time, never remembered by us. Chromium
+   * remembers it behind the `id`, which is the same convenience without this app
+   * holding a handle to a folder full of files it did not write.
+   */
+  const injectSav = useCallback(async () => {
+    if (!session) return;
+    const dir = await pickSaveFolder();
+    if (dir === null) {
+      setError(
+        "No folder was picked. If the picker never appeared, this browser has no File System Access API — " +
+          "Chrome or Edge do; Firefox and Safari do not. Use “download a copy instead”.",
       );
-    } catch (e) {
-      setError(String(e));
+      return;
     }
-  }, [session]);
+    const out = await injectIntoSave(dir, session.route.tower, exportName, decodeEntries(session.toSaveRecord()));
+    setNotice(
+      `Wrote ${out.name} into ${session.route.tower}.sav — now ${out.records} records, ${out.bytesBefore} → ${out.bytesAfter} bytes. ` +
+        `Your file was copied to ${out.backup} first, and read back afterwards to check every other record is untouched. ` +
+        "Load the tower in the game now and confirm it before you play on.",
+    );
+  }, [session, exportName]);
+
+  const onExportChoice = useCallback(
+    (c: ExportChoice) => {
+      setBusy(true);
+      setError(null);
+      void (c === "inject" ? injectSav() : Promise.resolve(downloadSav()))
+        .catch((e: Error) => setError(String(e)))
+        .finally(() => {
+          setBusy(false);
+          setExporting(false);
+        });
+    },
+    [injectSav, downloadSav],
+  );
 
   if (session && sheet) {
     const s = scrubberRef.current;
@@ -338,12 +373,27 @@ export default function App(): React.ReactElement {
           <button onClick={() => s?.redo()} disabled={!session.canRedo} title="Put it back (Y)">redo</button>
           <span className="sep" />
           <button onClick={saveOrd} className={dirty ? "urgent" : ""}>{dirty ? "save .ord *" : "save .ord"}</button>
-          <button onClick={exportSav} disabled={session.evaluation.mainline.error !== undefined} title="Write a new .sav; never an overwrite">
+          <button
+            onClick={() => setExporting(true)}
+            disabled={session.evaluation.mainline.error !== undefined}
+            title="Add this route to your save file, or download a copy"
+          >
             export .sav
           </button>
           <button onClick={() => s?.saveCapture()} title="Save this frame as a PNG (S)">screenshot</button>
           {dirty && <span className="unsaved">UNSAVED CHANGES</span>}
         </div>
+        {exporting && (
+          <ExportDialog
+            towerId={session.route.tower}
+            recordName={exportName}
+            gems={session.gemsRequired}
+            canInject={"showDirectoryPicker" in window}
+            busy={busy}
+            onChoose={onExportChoice}
+            onCancel={() => setExporting(false)}
+          />
+        )}
         {notice && <p className="toast" onClick={() => setNotice(null)}>{notice}</p>}
         {error && <p className="toast error" onClick={() => setError(null)}>{error}</p>}
       </div>

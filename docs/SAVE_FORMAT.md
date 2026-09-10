@@ -378,3 +378,61 @@ connection, and one full tower completion as an end-to-end check.
    recorded, the checkbox setting is route metadata and must travel with shared
    routes.
 6. Is there a definitive list of state-changing tiles?
+
+## 8. Writing into the player's own file
+
+`[D]` Export **injects**: the player's `.sav` gains one record and keeps every
+other byte. `src/sav/inject.ts` works on the top-level table and never decodes a
+record it did not author — the alternative, `parseSaveFile` then `emitSaveFile`,
+rewrote **9 823 of EX-1's 10 031 bytes** because Node's zlib reproduces only 82
+of the game's 326 streams (§6).
+
+`[F]` Measured over all 14 corpus saves: byte 0 unchanged, byte 1 (the record
+count) changed, bytes 2..EOF present verbatim at their own offsets, the new
+record appended. `test/sav/inject.test.ts`.
+
+### The game's name rules
+
+`[F]` `save_manager.lua:327-352`. At most **24** characters, from exactly:
+
+```
+A-Z a-z 0-9 space ! # $ % & ' ( ) + - @ [ ] ^ _ ` { } ~ .
+```
+
+`[F]` **No colon**, so `ORD:` is a namespace the game's own keyboard cannot
+enter. Verified in game (`data/saves/tests/EX-1.ORD-COLON.md`, 2026-09-09): a
+colon displays, sorts, loads and deletes normally, and because `:` is 0x3A —
+above `9`, below `A` — injected rows gather at the bottom of the save menu.
+
+`[F]` **Timestamps are local.** `save_manager.lua:575` is `os.date` with no `!`.
+
+`[F]` **No record cap exists.** 1-6 holds 48, which is how many that file has.
+
+### The game keeps its own backup, and we must not touch it
+
+`[F]` Before every write the game copies `<tower>.sav` to `<tower>.sav.bak`
+(`save_manager.lua:457`); on load, if the main file will not decode, it falls
+back to that copy and sets the corrupt one aside as `.err` (`:131-155`). So the
+player already has one generation of recovery, and **an injector that writes
+`.bak` destroys it**. Ours is `<tower>.<local timestamp>.orderly-bak`.
+
+### Steam Cloud
+
+`[F]` iestyn's experiments, 2026-09-09, on `%APPDATA%/LOVE/towers_of_scale/`:
+
+| Test | Result |
+|---|---|
+| Delete a `.sav.bak` with the game off, relaunch | not restored |
+| Add `test.txt` while running, exit, delete it, relaunch | not restored |
+| Rename a `.txt` to `.sav`, exit, delete it, relaunch | **restored** |
+| Delete a `.sav`, relaunch | restored, byte-identical |
+| Add a folder | converted to a 1-byte `.sav` of the same name |
+
+`[D]` So the sync is by `*.sav` pattern, not by folder. **A backup must not end
+in `.sav`** or it becomes cloud collateral and propagates to the player's other
+devices. `[O]` Confirmation with the developer is pending; the behaviour above
+is observed, not documented.
+
+`[I]` iestyn plays on two devices, so the export screen carries the protocol
+(`src/ui/ExportDialog.tsx`): sync, main menu, own backup, inject, verify in
+game, exit, let the cloud take it.

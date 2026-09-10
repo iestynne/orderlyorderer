@@ -11,9 +11,12 @@
 // byte-exact function -- into an async one, rippling through every caller for
 // no gain the user can see. fflate is ~3 KB, dependency-free and synchronous.
 //
-// `[F]` Only `inflateSync` is on the app's path. `deflateSync` is here for
-// completeness; writing saves is out of scope for slice 1 and is not
-// byte-exact from TypeScript anyway (B1, SPEC-006 §6).
+// `[F]` **Both are on the app's path now.** Export writes into the player's own
+// `.sav` (`store/savefolder.ts`), so `deflateSync` here — fflate's `zlibSync` —
+// is the compressor that produces every stream a player ships to the game. Not
+// fflate's own `deflateSync`, which emits raw DEFLATE with no zlib header; the
+// game decompresses with `love.data.decompress("string","zlib",...)` and would
+// refuse that with no clue why. `test/sav/inject.test.ts` pins the header.
 
 import { unzlibSync, zlibSync } from "fflate";
 
