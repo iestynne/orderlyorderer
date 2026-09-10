@@ -72,6 +72,21 @@ export function emitPayload(entries: Entry[]): Uint8Array {
   return emitTop(LuaArray.from(entries.map((e) => LuaArray.from(e as LuaValue[]))));
 }
 
+/**
+ * A record's `data` value: the magic, then the zlib stream over the payload.
+ *
+ * `[F]` Level 6 with the default strategy reproduces 82 of the game's 326
+ * streams and not the other 244 (SPEC-006 §6). That is the whole reason
+ * `inject.ts` never rebuilds a record it did not author.
+ */
+export function emitBlob(entries: Entry[]): Uint8Array {
+  const compressed = new Uint8Array(deflateSync(emitPayload(entries), { level: 6 }));
+  const full = new Uint8Array(MAGIC.length + compressed.length);
+  full.set(stringToBytes(MAGIC));
+  full.set(compressed, MAGIC.length);
+  return full;
+}
+
 export function parseSaveFile(bytes: Uint8Array): SaveFile {
   const top = parseTop(bytes);
   if (!(top instanceof Map)) throw new SavFormatError("top level is not a table");
@@ -110,11 +125,7 @@ export function parseSaveFile(bytes: Uint8Array): SaveFile {
 export function emitSaveFile(file: SaveFile): Uint8Array {
   const top: LuaTable = new Map();
   for (const rec of file.records) {
-    const compressed = new Uint8Array(deflateSync(emitPayload(rec.entries), { level: 6 }));
-    const full = new Uint8Array(8 + compressed.length);
-    full.set(stringToBytes(MAGIC));
-    full.set(compressed, 8);
-
+    const full = emitBlob(rec.entries);
     if (rec.keyOrder === null) {
       top.set(rec.name, full);
       continue;
