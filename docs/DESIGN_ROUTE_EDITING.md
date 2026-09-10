@@ -118,17 +118,20 @@ changes are not. `[I]` iestyn will refine this from real use.
 
 ### 2.4 Export
 
-`[D]` **Export never overwrites a record.** It writes into the player's own
-`<tower>.sav`, which gains one `ORD:`-named record and keeps every other byte
-(`SAVE_FORMAT.md` §8). A download of a fresh, uniquely-named one-record file is
-still offered beside it.
+`[D]` **Export never overwrites anything at all.** It writes a folder of its
+own, holding a copy of every save the player gave it, one of which has gained an
+`ORD:`-named record and kept every other byte (`SAVE_FORMAT.md` §8). Moving
+that into place is the player's, in Explorer, because Windows will not let a
+browser near the folder the game reads. A download of a fresh, uniquely-named
+one-record file is still offered beside it.
 
-`[D]` **There is a full-screen acknowledgement gate, and this reverses the
-earlier decision.** That decision — removing the destructive operation beats
-warning about it — was sound while export only ever wrote a new file. It does
-not survive writing into a file the player cannot regenerate: the operation
-cannot be removed, so the choice is between warning and not warning. `[I]`
-iestyn, 2026-09-09, asked for the warning and supplied the protocol on it.
+`[D]` **There is a full-screen gate, and it is instruction before it is
+warning.** The earlier decision — removing the destructive operation beats
+warning about it — still holds, and the destructive step *has* been removed: the
+app cannot reach a save file. What is left is a hand-off, and the player has to
+have made `tos_backups` before the folder dialog opens or there is nothing to
+select. `[I]` iestyn, 2026-09-09 and 2026-09-10, asked for the warning and
+supplied the protocol on it.
 
 `[D]` The gate is kept from becoming wallpaper by what is behind it rather than
 by its wording: a checkbox naming two preconditions the player must actually

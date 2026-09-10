@@ -20,7 +20,7 @@ import { RouteSession } from "./session";
 import { Scrubber, type ScrubberSettings } from "./scrubber";
 import { ExportDialog, type ExportChoice } from "./ExportDialog";
 import { localStamp, ordName } from "../sav/inject";
-import { injectIntoSave, pickSaveFolder } from "../store/savefolder";
+import { canPickFolder, exportInto, listBackups, pickBackupRoot, type Backup } from "../store/savefolder";
 
 const NOTICE =
   "Unofficial. Orderlyorderer is a fan-made planning tool for Towers of Scale. " +
@@ -51,11 +51,20 @@ function download(name: string, bytes: string | Uint8Array, type: string): void 
   URL.revokeObjectURL(url);
 }
 
+/**
+ * `[D]` **An `.ord` and any `.sav` beside it share a stem**, differing only by
+ * the timestamp and the extension. `[I]` iestyn: named differently they cannot
+ * be correlated at all, and the pair is what the player has to reason about.
+ */
+function stem(tower: string, name: string): string {
+  return `${tower}-${name}`.replace(/[/\\:*?"<>|]/g, "_");
+}
+
 /** `[D]` The download route never overwrites, so every file it writes carries
- * the moment it was written. The injecting route stamps its backup instead
- * (`store/savefolder.ts`), in local time, because a person reads that one. */
-function stamp(): string {
-  return new Date().toISOString().replace(/[-:]/g, "").replace(/\..*/, "");
+ * the moment it was written — local, because a person reads it. */
+function stamp(at = new Date()): string {
+  const p = (n: number): string => String(n).padStart(2, "0");
+  return `${at.getFullYear()}${p(at.getMonth() + 1)}${p(at.getDate())}-${p(at.getHours())}${p(at.getMinutes())}`;
 }
 
 export default function App(): React.ReactElement {
@@ -65,6 +74,8 @@ export default function App(): React.ReactElement {
   const [session, setSession] = useState<RouteSession | null>(null);
   const [exporting, setExporting] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [backups, setBackups] = useState<readonly Backup[] | null>(null);
+  const rootRef = useRef<FileSystemDirectoryHandle | null>(null);
   const [pendingBytes, setPendingBytes] = useState<Uint8Array | null>(null);
   const [pendingOrd, setPendingOrd] = useState<OrdFile | null>(null);
   const [restorable, setRestorable] = useState<Session | null>(null);
@@ -290,13 +301,14 @@ export default function App(): React.ReactElement {
 
   const saveOrd = useCallback(() => {
     if (!session) return;
-    download(`${session.route.tower}-${session.displayName}.ord`.replace(/[/\\:*?"<>|]/g, "_"), session.toOrd(), "application/json");
+    download(`${stem(session.route.tower, session.displayName)}.ord`, session.toOrd(), "application/json");
     session.markSaved();
     setRevision((r) => r + 1);
   }, [session]);
 
-  /** The record name this route would take, given what the target file holds. */
+  /** The record name this route would take, before the target file is known. */
   const exportName = useMemo(
+    // `revision` is the trigger: renaming does not change the session's identity.
     () => (session ? ordName(session.displayName, new Set()) : ""),
     [session, revision],
   );
@@ -310,49 +322,74 @@ export default function App(): React.ReactElement {
     const bytes = emitSaveFile({
       records: [{ name: exportName, time: localStamp(), keyOrder: ["time", "data"], entries: decodeEntries(payload) }],
     });
-    download(`${session.route.tower}.orderlyorderer.${stamp()}.sav`, bytes, "application/octet-stream");
+    download(`${stem(session.route.tower, session.displayName)}.${stamp()}.sav`, bytes, "application/octet-stream");
     setNotice(
-      `Downloaded a new one-record file named ${exportName}. It is not your save file: move it into place yourself, ` +
-        "and remember the game reads only <tower>.sav.",
+      `Downloaded one record, ${exportName}, in a file of its own. It is not your save file and does not hold ` +
+        "your other routes, so putting it in place would replace them. Prefer the folder route if you can.",
     );
   }, [session, exportName]);
 
   /**
-   * `[D]` The folder is picked at export time, never remembered by us. Chromium
-   * remembers it behind the `id`, which is the same convenience without this app
-   * holding a handle to a folder full of files it did not write.
+   * `[D]` The container is picked at export time and never remembered by us.
+   * Chromium remembers it behind the `id`, which is the same convenience
+   * without this app holding a handle to a folder of the player's files.
    */
-  const injectSav = useCallback(async () => {
-    if (!session) return;
-    const dir = await pickSaveFolder();
-    if (dir === null) {
+  const pickFolder = useCallback(async () => {
+    const root = await pickBackupRoot();
+    if (root === null) {
       setError(
         "No folder was picked. If the picker never appeared, this browser has no File System Access API — " +
-          "Chrome or Edge do; Firefox and Safari do not. Use “download a copy instead”.",
+          "Chrome and Edge do; Firefox and Safari do not.",
       );
       return;
     }
-    const out = await injectIntoSave(dir, session.route.tower, exportName, decodeEntries(session.toSaveRecord()));
-    setNotice(
-      `Wrote ${out.name} into ${session.route.tower}.sav — now ${out.records} records, ${out.bytesBefore} → ${out.bytesAfter} bytes. ` +
-        `Your file was copied to ${out.backup} first, and read back afterwards to check every other record is untouched. ` +
-        "Load the tower in the game now and confirm it before you play on.",
-    );
-  }, [session, exportName]);
+    rootRef.current = root;
+    setBackups(await listBackups(root));
+  }, []);
+
+  const runExport = useCallback(
+    (backup: Backup) => {
+      const root = rootRef.current;
+      if (!session || !root) return;
+      setBusy(true);
+      setError(null);
+      void exportInto(root, backup, session.route.tower, session.displayName, decodeEntries(session.toSaveRecord()))
+        .then((out) => {
+          setNotice(
+            `Wrote ${out.folder} beside ${out.from}: ${out.copied} saves, with ${out.name} added to ` +
+              `${session.route.tower}.sav — now ${out.records} records, ${out.bytesBefore} → ${out.bytesAfter} bytes. ` +
+              `Every other record was read back from disk and is unchanged. Now copy the contents of ${out.folder} ` +
+              "into your savestates folder, following the steps you were just shown.",
+          );
+          setExporting(false);
+          setBackups(null);
+        })
+        .catch((e: Error) => setError(String(e)))
+        .finally(() => setBusy(false));
+    },
+    [session],
+  );
 
   const onExportChoice = useCallback(
     (c: ExportChoice) => {
-      setBusy(true);
       setError(null);
-      void (c === "inject" ? injectSav() : Promise.resolve(downloadSav()))
+      if (c === "download") {
+        downloadSav();
+        setExporting(false);
+        return;
+      }
+      setBusy(true);
+      void pickFolder()
         .catch((e: Error) => setError(String(e)))
-        .finally(() => {
-          setBusy(false);
-          setExporting(false);
-        });
+        .finally(() => setBusy(false));
     },
-    [injectSav, downloadSav],
+    [downloadSav, pickFolder],
   );
+
+  const closeExport = useCallback(() => {
+    setExporting(false);
+    setBackups(null);
+  }, []);
 
   if (session && sheet) {
     const s = scrubberRef.current;
@@ -390,10 +427,12 @@ export default function App(): React.ReactElement {
             towerId={session.route.tower}
             recordName={exportName}
             gems={session.gemsRequired}
-            canInject={"showDirectoryPicker" in window}
+            canPick={canPickFolder()}
             busy={busy}
+            backups={backups}
             onChoose={onExportChoice}
-            onCancel={() => setExporting(false)}
+            onExport={runExport}
+            onCancel={closeExport}
           />
         )}
         {notice && <p className="toast" onClick={() => setNotice(null)}>{notice}</p>}

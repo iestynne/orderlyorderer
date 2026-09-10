@@ -413,8 +413,35 @@ above `9`, below `A` — injected rows gather at the bottom of the save menu.
 `[F]` Before every write the game copies `<tower>.sav` to `<tower>.sav.bak`
 (`save_manager.lua:457`); on load, if the main file will not decode, it falls
 back to that copy and sets the corrupt one aside as `.err` (`:131-155`). So the
-player already has one generation of recovery, and **an injector that writes
-`.bak` destroys it**. Ours is `<tower>.<local timestamp>.orderly-bak`.
+player already has one generation of recovery, and **anything that writes
+`.bak` destroys it**. Nothing here writes into that folder at all, so the rule
+costs us nothing — but it is the reason a backup must never be named for the
+file it protects.
+
+### The browser cannot reach the save folder
+
+`[F]` **Chromium refuses `%APPDATA%`**: "can't open this folder because it
+contains system files". Verified by iestyn, 2026-09-09. There is no browser
+route to `%APPDATA%/LOVE/towers_of_scale/savestates/`, so the app never opens
+the file the game reads.
+
+`[D]` Export therefore writes only into folders it created, inside a
+`tos_backups` folder the player makes and picks:
+
+```
+tos_backups/
+  savestates_2026-09-10/      the player's own copy, made in Explorer
+  savestates_ORD_EXPORT/      ours: every .sav, one with the route added
+```
+
+`[D]` The export folder is a **sibling** of the copy, never inside it — the API
+cannot reach a picked folder's parent, which is why the player picks the
+container; and a directory inside `savestates` becomes a 1-byte `.sav` once
+Steam Cloud sees it, so a nested one would plant a junk save on the next
+restore. `[D]` A copy whose folder name holds no date is **refused**: it is the
+only thing that tells a backup from a second copy of what is about to change.
+`[I]` iestyn: the filesystem is more reliable than any code either of us would
+write for this, and a copy he performs is one he can see.
 
 ### Steam Cloud
 

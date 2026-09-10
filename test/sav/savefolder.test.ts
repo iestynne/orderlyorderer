@@ -1,88 +1,123 @@
-// The export flow's failure paths, driven against an in-memory folder.
+// The export flow, driven against an in-memory folder tree.
 //
-// `[D]` A fake directory rather than a browser: what is worth testing here is
-// what happens when the write goes wrong, and a real folder cannot be made to
-// go wrong on demand. SPEC-009's harness covers the parts that need a browser.
+// `[D]` A fake tree rather than a browser: what is worth testing is the
+// refusals, and a real folder cannot be made to be wrong on demand. SPEC-009's
+// harness covers what needs a browser.
+//
+// `[F]` Nothing here can damage a save. The app cannot reach the savestates
+// folder at all (Chromium refuses `%APPDATA%`), so every file it opens for
+// writing is one it just created.
 
 import { describe, expect, it } from "vitest";
 import { ordName } from "../../src/sav/inject";
 import { parseSaveFile } from "../../src/sav/savefile";
-import { BACKUP_EXT, ExportFailed, backupName, injectIntoSave } from "../../src/store/savefolder";
+import { EXPORT_DIR, ExportFailed, STAMPED, exportInto, listBackups } from "../../src/store/savefolder";
 import { haveSaves, loadAllSaves } from "./helpers";
 
-/** A folder that can be told to corrupt one named file as it is written. */
-function fakeDir(seed: Record<string, Uint8Array>, corrupt?: (name: string, bytes: Uint8Array) => Uint8Array) {
-  const files = new Map<string, Uint8Array>(Object.entries(seed));
-  const handle = {
+/** A directory tree of `Uint8Array` leaves, shaped like the real handles. */
+function fakeTree(seed: Record<string, Record<string, Uint8Array>>) {
+  const dirs = new Map<string, Map<string, Uint8Array>>(
+    Object.entries(seed).map(([d, files]) => [d, new Map(Object.entries(files))]),
+  );
+  const dirHandle = (self: string): unknown => ({
+    entries: async function* () {
+      if (self === "") {
+        for (const name of dirs.keys()) yield [name, { kind: "directory", ...(dirHandle(name) as object) }];
+      } else {
+        for (const name of dirs.get(self)!.keys()) yield [name, { kind: "file" }];
+      }
+    },
+    getDirectoryHandle: (name: string, opts?: { create?: boolean }) => {
+      if (!dirs.has(name)) {
+        if (opts?.create !== true) return Promise.reject(new Error(`no such directory ${name}`));
+        dirs.set(name, new Map());
+      }
+      return Promise.resolve(dirHandle(name));
+    },
     getFileHandle: (name: string, opts?: { create?: boolean }) => {
+      const files = dirs.get(self)!;
       if (!files.has(name) && opts?.create !== true) return Promise.reject(new Error(`no such file ${name}`));
       return Promise.resolve({
         getFile: () => Promise.resolve({ arrayBuffer: () => Promise.resolve(files.get(name)!.slice().buffer) }),
         createWritable: () =>
           Promise.resolve({
             write: (b: ArrayBuffer) => {
-              files.set(name, corrupt ? corrupt(name, new Uint8Array(b)) : new Uint8Array(b));
+              files.set(name, new Uint8Array(b));
               return Promise.resolve();
             },
             close: () => Promise.resolve(),
           }),
       });
     },
-  };
-  return { handle: handle as unknown as FileSystemDirectoryHandle, files };
+  });
+  return { root: dirHandle("") as FileSystemDirectoryHandle, dirs };
 }
 
 const d = haveSaves ? describe : describe.skip;
 
-d("injectIntoSave", () => {
-  const seed = (): Record<string, Uint8Array> => {
-    const { towerId, bytes } = loadAllSaves().find((s) => s.towerId === "EX-1")!;
-    return { [`${towerId}.sav`]: bytes };
+d("exportInto", () => {
+  const corpus = (): Record<string, Uint8Array> => {
+    const out: Record<string, Uint8Array> = {};
+    for (const { towerId, bytes } of loadAllSaves().slice(0, 3)) out[`${towerId}.sav`] = bytes;
+    return out;
   };
+  const towers = (): string[] => loadAllSaves().slice(0, 3).map((s) => s.towerId);
 
-  it("writes the backup before it touches the save, and both survive", async () => {
-    const { handle, files } = fakeDir(seed());
-    const before = files.get("EX-1.sav")!.slice();
-    const out = await injectIntoSave(handle, "EX-1", "test", [[1, 5, 5]]);
+  it("copies every save into a new folder, with the route added to one", async () => {
+    const { root, dirs } = fakeTree({ "savestates_2026-09-10": corpus() });
+    const [backup] = await listBackups(root);
+    const target = towers()[0]!;
+    const out = await exportInto(root, backup!, target, "my route", [[1, 5, 5]]);
 
-    expect(out.records).toBe(11);
-    expect(out.backup.endsWith(`.${BACKUP_EXT}`)).toBe(true);
-    expect(Buffer.from(files.get(out.backup)!).equals(Buffer.from(before))).toBe(true);
-    expect(out.name).toBe("ORD:test");
-    expect(parseSaveFile(files.get("EX-1.sav")!).records.at(-1)!.name).toBe("ORD:test");
+    expect(out.folder).toBe(EXPORT_DIR);
+    expect(out.copied).toBe(towers().length);
+    expect(out.name).toBe("ORD:my route");
+
+    const written = dirs.get(EXPORT_DIR)!;
+    expect([...written.keys()].sort()).toEqual(towers().map((t) => `${t}.sav`).sort());
+    // Untouched towers are byte-identical; the target gained exactly one record.
+    for (const t of towers().slice(1)) {
+      expect(Buffer.from(written.get(`${t}.sav`)!).equals(Buffer.from(corpus()[`${t}.sav`]!)), t).toBe(true);
+    }
+    const re = parseSaveFile(written.get(`${target}.sav`)!);
+    expect(re.records.length).toBe(parseSaveFile(corpus()[`${target}.sav`]!).records.length + 1);
+    expect(re.records.at(-1)!.name).toBe("ORD:my route");
   });
 
-  it("puts the file back and keeps the backup when the readback disagrees", async () => {
-    // Corrupt the save as it is written -- the shape of a half-completed write.
-    let first = true;
-    const { handle, files } = fakeDir(seed(), (name, bytes) => {
-      if (name !== "EX-1.sav" || !first) return bytes;
-      first = false;
-      return bytes.subarray(0, bytes.length - 200);
-    });
-    const before = files.get("EX-1.sav")!.slice();
-
-    await expect(injectIntoSave(handle, "EX-1", "test", [[1, 5, 5]])).rejects.toThrow(ExportFailed);
-    expect(Buffer.from(files.get("EX-1.sav")!).equals(Buffer.from(before)), "restored").toBe(true);
-    expect([...files.keys()].some((k) => k.endsWith(BACKUP_EXT)), "backup kept").toBe(true);
+  it("refuses a backup folder with no date in its name, and writes nothing", async () => {
+    const { root, dirs } = fakeTree({ savestates_copy: corpus() });
+    const [backup] = await listBackups(root);
+    expect(backup!.stamped).toBe(false);
+    await expect(exportInto(root, backup!, towers()[0]!, "r", [[1, 5, 5]])).rejects.toThrow(ExportFailed);
+    expect(dirs.has(EXPORT_DIR)).toBe(false);
   });
 
-  it("steps around a name the file already holds rather than replacing it", async () => {
-    const { handle, files } = fakeDir(seed());
-    const first = await injectIntoSave(handle, "EX-1", "test", [[1, 5, 5]]);
-    const second = await injectIntoSave(handle, "EX-1", "test", [[1, 5, 5]]);
-    expect([first.name, second.name]).toEqual(["ORD:test", "ORD:test 2"]);
-    const names = parseSaveFile(files.get("EX-1.sav")!).records.map((r) => r.name);
-    expect(names.filter((n) => n.startsWith("ORD:"))).toEqual(["ORD:test", "ORD:test 2"]);
+  it("refuses when a previous export was never moved into place", async () => {
+    const { root } = fakeTree({ "savestates_2026-09-10": corpus(), [EXPORT_DIR]: corpus() });
+    const backup = (await listBackups(root)).find((b) => b.name !== EXPORT_DIR)!;
+    await expect(exportInto(root, backup, towers()[0]!, "r", [[1, 5, 5]])).rejects.toThrow(/already there/);
+  });
+
+  it("refuses a backup that does not hold the tower being exported", async () => {
+    const { root } = fakeTree({ "savestates_2026-09-10": { "EX-2.sav": corpus()[`${towers()[0]!}.sav`]! } });
+    const [backup] = await listBackups(root);
+    await expect(exportInto(root, backup!, "2-5", "r", [[1, 5, 5]])).rejects.toThrow(/holds no 2-5\.sav/);
+  });
+
+  it("lists the export folder as a candidate never, and empty folders never", async () => {
+    const { root } = fakeTree({ "savestates_2026-09-10": corpus(), [EXPORT_DIR]: corpus(), empty: {} });
+    expect((await listBackups(root)).map((b) => b.name)).toEqual(["savestates_2026-09-10"]);
   });
 });
 
 describe("names", () => {
-  it("backups are neither *.sav nor the game's own .bak", () => {
-    const n = backupName("2-5", new Date(2026, 8, 9, 18, 30, 5));
-    expect(n).toBe("2-5.2026-09-09T183005.orderly-bak");
-    expect(n.endsWith(".sav"), "Steam syncs *.sav and would carry this to other devices").toBe(false);
-    expect(n.endsWith(".sav.bak"), "save_manager.lua:457 owns that name").toBe(false);
+  it("wants a date in a backup folder name, in the shapes a person writes one", () => {
+    for (const ok of ["savestates_2026-09-10", "savestates 20260910", "backup.2026.09.10", "sav_20260910T2314"]) {
+      expect(STAMPED.test(ok), ok).toBe(true);
+    }
+    for (const no of ["savestates", "savestates_copy", "backup", "saves v2"]) {
+      expect(STAMPED.test(no), no).toBe(false);
+    }
   });
 
   it("fits ORD: names into the game's 24 and breaks collisions with a counter", () => {

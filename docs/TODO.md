@@ -146,23 +146,25 @@ Delete this section when the branch merges.
 1. `[O]` **Nobody has run the injector.** Every failure path is tested against
    a fake folder (`test/sav/savefolder.test.ts`); the real one has not been
    touched. D24a applies and has not been used.
-2. `[O]` **`showDirectoryPicker` may refuse `%APPDATA%`.** Chromium blocks
-   some folders outright and the blocklist cannot be read from here. If it
-   refuses, injection cannot reach the savestates folder from a browser at all
-   and only the download route survives. **One click settles it**; nothing
-   below matters until it does.
-3. `[O]` **`EX-1.ORD-FFLATE.sav` is unrun.** Whether Love2D loads a stream
-   fflate compressed. Proved from this side over 326 records; the game has not
-   been asked. The export path is unproven end to end until it is.
-4. `[O]` **`UI.md` is at 249 lines**, past D31's 150 and past the 185 that was
+2. `[F]` **Answered: Chromium refuses `%APPDATA%`**, so there is no browser
+   route to the savestates folder. Export writes into a `tos_backups` folder
+   the player makes instead (`SAVE_FORMAT.md` §8). Not a limitation to work
+   around — the app can no longer damage a save, because it never opens one.
+3. `[F]` **Answered: the game loads an fflate stream**, replays all 657 entries
+   and rewinds through them (`EX-1.ORD-FFLATE.md`). B1 no longer blocks writing
+   saves from TypeScript.
+3a. `[O]` **The export language wants a pass.** `[I]` iestyn, 2026-09-10, likes
+   the screen and wants to tweak the wording for clarity. His edit, not ours.
+4. `[O]` **`UI.md` is at 258 lines**, past D31's 150 and past the 185 that was
    ratified as a deliberate overage. The export screen added to it. The split
    §A.1a and the segment-editing spec owe is now overdue rather than pending.
-5. `[O]` **SPEC-008 §7 now describes behaviour the code no longer has.** It
-   says "every write is a fresh, uniquely named file"; export injects into the
-   player's own `.sav`. Specs are frozen once tests exist against them
-   (`CLAUDE.md`), so this is **not** a doc to quietly fix — it needs iestyn's
-   call between an amendment note in SPEC-008 and a SPEC-011 for export. The
-   live docs (DESIGN §2.4, UI.md, SAVE_FORMAT §8) are already corrected.
+5. `[D]` **Export moves out of SPEC-008 into `SPEC-013-export.md`.** iestyn,
+   2026-09-10: it is a separate topic and has become non-trivial, so SPEC-008
+   §7 shrinks to a reference. **13, not 11 or 12** — another task holds those.
+   `[O]` Not written. SPEC-008 §7 still says "every write is a fresh, uniquely
+   named file", which the code no longer does; specs are frozen once tests
+   exist against them, so it waits for the new spec rather than being edited.
+   The live docs (DESIGN §2.4, UI.md, SAVE_FORMAT §8) are already correct.
 6. `[O]` **The dev server base path is new** (`tools/worktree.ts`). The shots
    harness walks ports at this worktree's own path now, which is a strict
    improvement, but no golden has been shot since the change.

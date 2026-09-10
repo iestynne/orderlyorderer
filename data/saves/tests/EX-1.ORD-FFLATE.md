@@ -46,3 +46,6 @@ that file up first. **Never rename this file to `EX-1.sav` in place.**
 `[O]` Unfilled. If this passes, the browser export path is proved end to end and
 B1 stops being a blocker for writing saves; if it fails, 2D cannot ship from a
 browser at all and the finding is worth more than the feature.
+1. yep
+2. yep, and I can rewind it all the way back to the start (I guess that doesnt tell us anything extra...)
+3. yep

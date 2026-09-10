@@ -36,13 +36,21 @@ menu, take your own dated copy of the folder, inject, confirm in the game, exit,
 let Steam Cloud have it. A checkbox naming the two preconditions gates the
 inject button; the download route beside it is never gated.
 
-**Injecting adds one record and proves it.** The player grants the savestates
-folder once; the app copies `<tower>.sav` to `<tower>.<timestamp>.orderly-bak`,
-reads that copy back to check it, writes, then re-reads the save from disk and
-checks every original record is present and unchanged with exactly one added.
-A failure there restores the file from the bytes it started with and says so.
-**No backup is ever deleted.** Where the folder picker does not exist — Firefox,
-Safari — the button explains and the download route still works.
+**The app never touches the game's save folder** — Windows will not let it
+(`SAVE_FORMAT.md` §8). The player copies their savestates folder into a
+`tos_backups` folder of their own, dates the copy's name, and picks the
+container; the app lists what it found, refuses any copy without a date in its
+name, and writes a sibling `savestates_ORD_EXPORT` holding every save
+byte-for-byte with one record added to one of them. It then reads that file back
+from disk and checks every original record is present and unchanged. Moving the
+result into place is the player's, in Explorer.
+
+**So the first screen is preparation, not warning.** A player who meets the OS
+folder dialog without having made `tos_backups` has nothing to select, and the
+unstamped copies are listed and disabled rather than hidden, so the date rule is
+visible where it applies. Where the folder picker does not exist — Firefox,
+Safari — the button explains and the download route still works, at the cost of
+being one record on its own rather than a whole folder.
 
 **Injected routes are named `ORD:`.** The game's own keyboard cannot type a
 colon (`SAVE_FORMAT.md` §8), so nothing the player made can collide; a clash

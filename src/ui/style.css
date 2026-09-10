@@ -352,3 +352,31 @@ code {
 
 .export .towers { justify-content: flex-start; }
 .export button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.export h2 {
+  margin: 18px 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* The backup list. `[D]` An unstamped folder is shown and disabled rather than
+   hidden, so the rule is visible where it is being applied. */
+.backups {
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.backups li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.backups button { flex: none; }
+.backups span { color: var(--dim); }
+.backups button:disabled { opacity: 0.4; cursor: not-allowed; }
