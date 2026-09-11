@@ -408,15 +408,19 @@ export default function App(): React.ReactElement {
             title="The route's name, as it will be saved"
             spellCheck={false}
             // `[F]` Password managers offer to fill this one because it is the
-            // only bare text input in the app: unlabelled, unnamed, and beside
-            // buttons, which is the shape their heuristics look for. `name`
-            // gives it an identity that is plainly not a credential, and the
-            // three opt-outs cover the browser and the two managers that ignore
-            // `autocomplete="off"`.
-            name="route-name"
+            // app's only bare text input: unlabelled and beside buttons, which
+            // is the shape their heuristics look for. `[F]` **It must not carry
+            // a `name`** — an earlier attempt at this used `name="route-name"`
+            // and made it worse, because `name` is itself a token Chrome's
+            // autofill matches on. `[D]` So: no `name`, an explicit label for
+            // the accessibility tree instead, and an opt-out apiece for the
+            // four managers, none of which honours `autocomplete="off"` alone.
+            aria-label="Route name"
             autoComplete="off"
             data-1p-ignore
             data-lpignore="true"
+            data-bwignore
+            data-form-type="other"
           />
           <button onClick={() => s?.undo()} disabled={!session.canUndo} title="Take back the last insertion (Z)">undo</button>
           <button onClick={() => s?.redo()} disabled={!session.canRedo} title="Put it back (Y)">redo</button>

@@ -172,6 +172,23 @@ Delete this section when the branch merges.
    the app would emit the bytes as pasteable text, probably with a text
    diagnostic (record names, entry counts, payload hashes, the parse error)
    above them so the common cases are readable without decoding anything.
+3d. `[O]` **A gem count that did not update, seen once and not reproduced.**
+   `[I]` iestyn, 2026-09-11, on 2-1 `"C 70.27M win"`: disabled actions 620-630,
+   moved the current action to the end, and the **player status** area still
+   showed the old gem total. Retesting the same steps later, it was correct.
+   `[F]` **The model is not at fault** — headless, `gemsRequired` and the
+   player at the final stop both go 230 to 225, and per-stop the change appears
+   from stop 619 on, exactly where those gates are. So it is in the scrubber's
+   re-derive or repaint, or it did not happen. `[O]` Possibly path-dependent;
+   iestyn is watching for it. Do not close this by failing to reproduce it once.
+3e. `[D]` **Tower JSON moves into the bundle too, and out of the repo.**
+   `[I]` iestyn, 2026-09-11, "for safety", following makiki's preference for
+   compiling map data in rather than publishing it (D14b-1). The text form is
+   kept as **gitignored build output** so it is still there to debug against.
+   `[O]` **Not done, and not this branch's to do**: `data/towers/` is read by
+   `test/sav/helpers.ts` and by every session's tests, and the concurrent
+   spec-gold-analysis task has major changes coming. Doing it here would
+   conflict for no reason. It is its own task, after this merges.
 4. `[O]` **`UI.md` is at 258 lines**, past D31's 150 and past the 185 that was
    ratified as a deliberate overage. The export screen added to it. The split
    §A.1a and the segment-editing spec owe is now overdue rather than pending.
