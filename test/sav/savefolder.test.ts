@@ -188,4 +188,22 @@ describe("names", () => {
     // A colon cannot come from a route name, so it cannot be doubled.
     expect(ordName("ORD:already", new Set())).toBe("ORD:ORDalready");
   });
+
+  it("shortens the name to make room for the counter, never the counter", () => {
+    // The game truncates nothing -- it simply stops accepting input at 24 -- so
+    // a name that would overflow has to be cut here, and the counter is the part
+    // that must survive: it is what stops the export replacing an earlier one.
+    const long = "98.3M win H [A] full clear";
+    const taken = new Set<string>();
+    for (let i = 0; i < 12; i++) {
+      const n = ordName(long, taken);
+      expect(n.length, n).toBeLessThanOrEqual(24);
+      expect(taken.has(n), n).toBe(false);
+      taken.add(n);
+    }
+    expect([...taken][0]).toBe("ORD:98.3M win H [A] full");
+    expect([...taken][1]).toBe("ORD:98.3M win H [A] fu 2");
+    // Two digits eat one more character of the name rather than overflowing.
+    expect([...taken][9]).toBe("ORD:98.3M win H [A] f 10");
+  });
 });
