@@ -206,4 +206,18 @@ describe("names", () => {
     // Two digits eat one more character of the name rather than overflowing.
     expect([...taken][9]).toBe("ORD:98.3M win H [A] f 10");
   });
+
+  it("survives a name that already ends in the counter it is about to append", () => {
+    // 20 characters ending " 2", so the un-suffixed fit keeps the "2" and the
+    // n=2 candidate is character-for-character the name already taken. The
+    // membership test is what saves it: that candidate is skipped, not returned.
+    const base = "abcdefghijklmnopqr 2";
+    const first = ordName(base, new Set());
+    expect(first).toBe("ORD:abcdefghijklmnopqr 2");
+    expect(ordName(base, new Set([first]))).toBe("ORD:abcdefghijklmnopqr 3");
+
+    const taken = new Set<string>();
+    for (let i = 0; i < 5; i++) taken.add(ordName(base, taken));
+    expect(taken.size, "five exports, five distinct names").toBe(5);
+  });
 });

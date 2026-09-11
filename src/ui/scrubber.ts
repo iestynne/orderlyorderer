@@ -77,6 +77,25 @@ export interface ScrubberSettings extends ScreenSettings {
 }
 
 /** Cells an action walks over without removing, so the floor bitmap still shows them. */
+/**
+ * Whether a keystroke belongs to something other than the scrubber.
+ *
+ * `[F]` The shortcuts are single keys on `window`, so without this they fire
+ * while the player is typing: arrows and Home/End moved the timeline instead of
+ * the caret, and `s`, `z` and `y` ran capture, undo and redo mid-word in the
+ * route-name field. `[D]` A key aimed at a text field, or at anything inside an
+ * open dialog, is never aimed at the scrubber — including when nothing in that
+ * dialog has focus yet and the target is still `<body>`.
+ */
+function elsewhere(e: KeyboardEvent): boolean {
+  // Duck-typed rather than `instanceof HTMLElement`: this module is driven
+  // headless by its own tests and by SPEC-009's harness, where that global is
+  // not necessarily the one the node came from.
+  const t = e.target as { tagName?: string; isContentEditable?: boolean } | null;
+  if (t != null && (t.isContentEditable === true || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName ?? ""))) return true;
+  return document.querySelector("[role='dialog']") !== null;
+}
+
 function survivesEntry(cell: Cell): boolean {
   return isEntity(cell) && SURVIVING.has(cell.type);
 }
@@ -1114,6 +1133,7 @@ export class Scrubber {
     }, { signal, passive: false });
 
     window.addEventListener("keydown", (e) => {
+      if (elsewhere(e)) return;
       const step = e.shiftKey ? 10 : 1;
       if (e.key === "ArrowRight") this.seek(this.stop + step);
       else if (e.key === "ArrowLeft") this.seek(this.stop - step);

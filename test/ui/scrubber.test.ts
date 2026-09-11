@@ -62,11 +62,14 @@ function fakeCanvas() {
   });
 }
 
+let dialog: object | null = null;
+
 function mount(): { win: FakeTarget; canvas: FakeTarget; scrubber: Scrubber; settings: ScrubberSettings[] } {
   const win = Object.assign(fakeTarget(), { devicePixelRatio: 1, innerWidth: 1920, innerHeight: 1080 });
   const g = globalThis as Record<string, unknown>;
   g["window"] = win;
-  g["document"] = { createElement: () => fakeCanvas() };
+  // `dialog` is what the fake DOM is asked for: null unless a test says otherwise.
+  g["document"] = { createElement: () => fakeCanvas(), querySelector: () => dialog };
   g["cancelAnimationFrame"] = () => undefined;
   g["requestAnimationFrame"] = () => 1;
 
@@ -85,6 +88,38 @@ function mount(): { win: FakeTarget; canvas: FakeTarget; scrubber: Scrubber; set
 afterEach(() => {
   const g = globalThis as Record<string, unknown>;
   for (const k of ["window", "document", "cancelAnimationFrame", "requestAnimationFrame"]) delete g[k];
+  dialog = null;
+});
+
+describe("Scrubber shortcuts yield to whoever the key was for", () => {
+  // `[F]` The shortcuts are single keys on `window`. Before this, typing in the
+  // route-name field scrubbed the timeline with the arrows and ran capture,
+  // undo and redo on `s`, `z` and `y`. `0` stands in for all of them: it is
+  // the one whose effect is observable without a record loaded.
+  const press = (target: unknown): object => ({ key: "0", shiftKey: false, target, preventDefault: () => undefined });
+
+  it("acts on a key from the page itself", () => {
+    const { win, settings } = mount();
+    win.dispatch("keydown", press({ tagName: "BODY" }));
+    expect(settings.length).toBe(1);
+  });
+
+  it("ignores one typed into a field", () => {
+    const { win, settings } = mount();
+    for (const t of [{ tagName: "INPUT" }, { tagName: "TEXTAREA" }, { tagName: "SELECT" }, { tagName: "DIV", isContentEditable: true }]) {
+      win.dispatch("keydown", press(t));
+    }
+    expect(settings.length, "nothing typed into a field reaches the scrubber").toBe(0);
+  });
+
+  it("ignores one aimed anywhere while a dialog is open", () => {
+    const { win, settings } = mount();
+    // Even with the target still on <body>, which is where it sits when the
+    // dialog has just opened and nothing inside it has focus yet.
+    dialog = {};
+    win.dispatch("keydown", press({ tagName: "BODY" }));
+    expect(settings.length).toBe(0);
+  });
 });
 
 describe("Scrubber.destroy", () => {
