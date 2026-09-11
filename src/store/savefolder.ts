@@ -6,25 +6,28 @@
 // iestyn, 2026-09-09.
 //
 // `[D]` So the app writes only into folders it created, and the player copies
-// files with Explorer — copies, never moves: the source is the reference they
-// fall back to. `[I]` iestyn: filesystem operations are more reliable than any
-// code either of us would write for this, and a copy he performs is one he can
-// see. That removes the backup, the verify-and-restore and the
-// writing-into-someone-else's-file, and what is left cannot damage a save
-// because it never opens one for writing.
+// files across themselves — copies, never moves: the source is the reference
+// they fall back to. No instruction here names a platform; the game ships for
+// one, but nothing in this module depends on which file manager the player has.
+//
+// `[I]` iestyn: filesystem operations are more reliable than any code either of
+// us would write for this, and a copy he performs is one he can see. That
+// removes the backup, the verify-and-restore and the writing-into-someone-
+// else's-file, and what is left cannot damage a save because it never opens one
+// for writing.
 //
 // The shape:
 //
 //   tos_backups/                          the player picks this
-//     savestates_2026-09-10/              their own copy, made in Explorer
-//     savestates_ORD_EXPORT_2026-09-10/   ours, named for the copy it came from
+//     savestates-2026-09-10/              their own copy, made by hand
+//     savestates-2026-09-10-ORD_EXPORT/   ours, named for the copy it came from
 //
 // `[D]` The export folder is a **sibling** of the snapshot, never inside it. The
 // API cannot reach a picked folder's parent, which is why the player picks the
 // container rather than the copy — and `[F]` a directory inside `savestates`
 // becomes a 1-byte `.sav` of the same name once Steam Cloud sees it
-// (`SAVE_FORMAT.md` §8), so a nested export folder would plant a junk save on
-// the next restore.
+// (`SAVE_FORMAT.md` §8) — Steam Cloud corrupts any folder placed in there — so
+// a nested export folder would plant a broken save on the next restore.
 //
 // `[D]` **Only the towers actually exported are copied in.** Every file in the
 // export folder is then one the player deliberately put there, so copying the
@@ -39,14 +42,22 @@
 import { InjectRefused, injectRecord, ordName } from "../sav/inject";
 import { parseSaveFile, type Entry } from "../sav/savefile";
 
-const PREFIX = "savestates_ORD_EXPORT";
+/** `[I]` A suffix, not a prefix, so a snapshot and its export sort together. */
+const SUFFIX = "-ORD_EXPORT";
 
 /**
  * `[D]` A date in the snapshot's folder name is required, not suggested. It is
  * the whole difference between a backup and a second copy of the thing about to
  * change, and the player is the only one who can tell them apart later.
+ *
+ * `[F]` Both orders, because there is no universal one: a four-digit year with
+ * two shorter groups after it, or two shorter groups before it, separated by
+ * any single non-digit or by nothing. `2026-09-10`, `10-09-2026`, `09/10/2026`
+ * and `20260910` all pass; a bare `2026` does not, since a year is not a date.
+ * `[D]` It is only ever about being identifiable later — the *ordering* comes
+ * from the files' own timestamps (`Backup.modified`), never from the name.
  */
-export const STAMPED = /\d{4}.?\d{2}.?\d{2}|\d{8,}/;
+export const STAMPED = /\d{4}\D?\d{1,2}\D?\d{1,2}|\d{1,2}\D?\d{1,2}\D?\d{4}/;
 
 /**
  * `[D]` The export folder is **named for the snapshot it was built from**, so
@@ -54,19 +65,34 @@ export const STAMPED = /\d{4}.?\d{2}.?\d{2}|\d{8,}/;
  * starts a new export folder rather than quietly joining an old one. `[I]`
  * iestyn: it also pushes towards taking snapshots often, which is the protocol.
  */
-export function exportDirFor(snapshot: string): string {
-  const tail = snapshot.replace(/^savestates[-_. ]*/i, "");
-  return `${PREFIX}_${tail === "" ? snapshot : tail}`;
-}
+export const exportDirFor = (snapshot: string): string => `${snapshot}${SUFFIX}`;
 
 export interface Backup {
   name: string;
   handle: FileSystemDirectoryHandle;
-  /** Tower ids, from `<id>.sav`. Sorted. */
+  /** Tower ids, from `<id>.sav`. Sorted; empty for a folder holding none. */
   towers: string[];
   stamped: boolean;
-  /** The most recent dated snapshot here. A newer one means the game has run. */
+  /**
+   * When this snapshot's newest save was last written, or `null` if it holds
+   * none. `[D]` The authority on which copy is most recent — a folder *name*
+   * cannot be, since `10-09-2026` and `2026-09-10` sort differently and mean
+   * the same day. The name rule stays, because it is what makes a backup
+   * identifiable to the player months later; it just is not the clock.
+   */
+  modified: number | null;
+  /** Holds the most recently written save here. A newer one means the game ran. */
   newest: boolean;
+}
+
+export interface Container {
+  backups: Backup[];
+  /**
+   * The picked folder holds `.sav` files itself, so it is a snapshot rather
+   * than the folder snapshots live in. `[I]` iestyn walked into this on the
+   * first run, and the message he got was about the folder being empty.
+   */
+  isSnapshot: boolean;
 }
 
 export interface Exported {
@@ -121,6 +147,25 @@ async function savesIn(dir: FileSystemDirectoryHandle): Promise<string[]> {
   return out.sort();
 }
 
+/**
+ * When the newest `.sav` in here was last written.
+ *
+ * `[O]` Costs one `getFile` per save — metadata, not a read — so a container of
+ * 100 snapshots is ~1 400 of them, on a list the player opens by hand. Not
+ * measured on a real folder that size. If it ever bites, the lever is statting
+ * one save per folder rather than all of them: the whole point is ranking
+ * folders against each other, and within a snapshot they were all written at
+ * once.
+ */
+async function newestSaveIn(dir: FileSystemDirectoryHandle, towers: string[]): Promise<number | null> {
+  let at: number | null = null;
+  for (const id of towers) {
+    const { lastModified } = await (await as(dir).getFileHandle(`${id}.sav`)).getFile();
+    if (at === null || lastModified > at) at = lastModified;
+  }
+  return at;
+}
+
 async function read(dir: FileSystemDirectoryHandle, name: string): Promise<Uint8Array> {
   return new Uint8Array(await (await (await as(dir).getFileHandle(name)).getFile()).arrayBuffer());
 }
@@ -139,32 +184,34 @@ async function subdir(root: FileSystemDirectoryHandle, name: string): Promise<Fi
 }
 
 /**
- * Every subfolder of the container that holds `.sav` files and is not one of
- * ours, each flagged for whether its name carries a date and whether it is the
- * most recent that does.
+ * What is in the picked folder: every subfolder that is not one of our own
+ * exports, and whether the player picked a snapshot by mistake.
  *
- * `[D]` Undated candidates are listed rather than hidden, so the rule can be
- * shown to the player rather than only enforced against them.
+ * `[D]` **Every candidate is listed, including the empty and the undated.** A
+ * folder missing from the list explains nothing; a folder present with the
+ * reason beside it explains itself. `[I]` iestyn: the rules should guide
+ * without being frustrating or misleading, and a silent omission is both.
  */
-export async function listBackups(root: FileSystemDirectoryHandle): Promise<Backup[]> {
-  const out: Omit<Backup, "newest">[] = [];
+export async function readContainer(root: FileSystemDirectoryHandle): Promise<Container> {
+  const backups: Omit<Backup, "newest">[] = [];
+  let isSnapshot = false;
   for await (const [name, h] of as(root).entries()) {
-    if (h.kind !== "directory" || name.startsWith(PREFIX)) continue;
+    if (h.kind === "file") {
+      isSnapshot ||= name.endsWith(".sav");
+      continue;
+    }
+    if (name.endsWith(SUFFIX)) continue;
     const handle = h as unknown as FileSystemDirectoryHandle;
     const towers = await savesIn(handle);
-    if (towers.length > 0) out.push({ name, handle, towers, stamped: STAMPED.test(name) });
+    backups.push({ name, handle, towers, stamped: STAMPED.test(name), modified: await newestSaveIn(handle, towers) });
   }
-  out.sort((a, b) => a.name.localeCompare(b.name));
-  // `[F]` Dated names sort chronologically, which is the point of asking for a
-  // date: the last stamped one is the most recent snapshot taken.
-  const latest = out.filter((b) => b.stamped).at(-1)?.name;
-  return out.map((b) => ({ ...b, newest: b.name === latest }));
-}
-
-/** What is already in the export folder for this snapshot, or `null`. */
-export async function exportedSoFar(root: FileSystemDirectoryHandle, snapshot: string): Promise<string[] | null> {
-  const dir = await subdir(root, exportDirFor(snapshot));
-  return dir === null ? null : savesIn(dir);
+  // `[D]` Newest first, which is the one the player almost always wants, with
+  // the saveless folders last. `[F]` Compared by code unit rather than
+  // `localeCompare`: the tie-break has to be the same everywhere, and a locale
+  // that sorts `-` and `_` differently would otherwise reorder the list.
+  backups.sort((a, b) => (b.modified ?? -1) - (a.modified ?? -1) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  const latest = backups[0]?.modified ?? null;
+  return { isSnapshot, backups: backups.map((b) => ({ ...b, newest: b.modified !== null && b.modified === latest })) };
 }
 
 /**

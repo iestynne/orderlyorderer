@@ -391,3 +391,11 @@ code {
   background: rgba(255, 180, 84, 0.08);
   line-height: 1.45;
 }
+
+/* `[D]` The latest snapshot is marked rather than the others disabled: the
+   ranking is a fact about file times, but which copy the player wants is not
+   ours to decide. */
+.backups .latest {
+  color: #ffd479;
+  letter-spacing: 0.04em;
+}

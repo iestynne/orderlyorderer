@@ -164,6 +164,15 @@ Delete this section when the branch merges.
    they last played. The newest-snapshot flag is a hint, not a guard.
    `[I]` iestyn: he will use it himself first; anticipating how others will
    want to use it is a fool's errand short of handing it out and asking them.
+3c. `[O]` **How should a player send iestyn a `.sav` that misbehaved?** The
+   restore instructions ask for one and name no channel. `[I]` iestyn,
+   2026-09-10, is wary: a friend of his was recently socially engineered on
+   Discord into running a file from someone posing as a contact. The shape
+   worth considering is not a file at all — the app can already parse a `.sav`,
+   so it could emit a **text** diagnostic (record names, entry counts, payload
+   hashes, the parse error) that diagnoses most failures and cannot be
+   double-clicked. Raw bytes only when that is not enough, and as pasteable
+   text rather than an attachment. Not designed, not built.
 4. `[O]` **`UI.md` is at 258 lines**, past D31's 150 and past the 185 that was
    ratified as a deliberate overage. The export screen added to it. The split
    §A.1a and the segment-editing spec owe is now overdue rather than pending.

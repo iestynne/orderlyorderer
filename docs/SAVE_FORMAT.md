@@ -429,10 +429,13 @@ the file the game reads.
 `tos_backups` folder the player makes and picks:
 
 ```
-tos_backups/
-  savestates_2026-09-10/              the player's own copy, made in Explorer
-  savestates_ORD_EXPORT_2026-09-10/   ours, named for the copy it came from
+tos_backups/                            the player picks this
+  savestates-2026-09-10/                their own copy, made by hand
+  savestates-2026-09-10-ORD_EXPORT/     ours, named for the copy it came from
 ```
+
+`[D]` **`-ORD_EXPORT` is a suffix**, so a snapshot and its export sort together
+wherever the player is looking at them.
 
 `[D]` **The export folder is named for the snapshot it was built from**, so a
 new snapshot starts a new export folder rather than quietly joining an old one,
@@ -453,9 +456,14 @@ asking them.
 `[D]` The export folder is a **sibling** of the copy, never inside it — the API
 cannot reach a picked folder's parent, which is why the player picks the
 container; and a directory inside `savestates` becomes a 1-byte `.sav` once
-Steam Cloud sees it, so a nested one would plant a junk save on the next
-restore. `[D]` A copy whose folder name holds no date is **refused**: it is the
-only thing that tells a backup from a second copy of what is about to change.
+Steam Cloud sees it — it corrupts any folder placed in there — so a nested one
+would plant a broken save on the next restore. `[D]` A copy whose folder name holds no date is **refused**: it is the only
+thing that tells a backup from a second copy of what is about to change. Both
+date orders are accepted — `2026-09-10` and `10-09-2026` — because there is no
+universal one, and a rule that demanded one would be the frustrating-and-
+misleading kind. `[D]` **Which copy is most recent is read from the saves' own
+`lastModified`, never from the folder name**: the name rule is about being
+identifiable months later, and the two jobs are not the same one.
 `[I]` iestyn: the filesystem is more reliable than any code either of us would
 write for this, and a copy he performs is one he can see.
 

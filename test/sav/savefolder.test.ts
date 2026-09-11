@@ -1,21 +1,25 @@
 // The export flow, driven against an in-memory folder tree.
 //
 // `[D]` A fake tree rather than a browser: what is worth testing is the
-// refusals, and a real folder cannot be made to be wrong on demand. SPEC-009's
-// harness covers what needs a browser.
+// refusals and the ranking, and a real folder cannot be made to be wrong on
+// demand. SPEC-009's harness covers what needs a browser.
 //
-// `[F]` Nothing here can damage a save. The app cannot reach the savestates
+// `[F]` Nothing here can damage a save. The app cannot reach the game's save
 // folder at all (Chromium refuses `%APPDATA%`), so every file it opens for
 // writing is one it just created.
 
 import { describe, expect, it } from "vitest";
 import { InjectRefused, injectRecord, ordName } from "../../src/sav/inject";
 import { parseSaveFile } from "../../src/sav/savefile";
-import { ExportFailed, STAMPED, exportDirFor, exportInto, exportedSoFar, listBackups } from "../../src/store/savefolder";
+import { ExportFailed, STAMPED, exportDirFor, exportInto, readContainer } from "../../src/store/savefolder";
 import { haveSaves, loadAllSaves } from "./helpers";
 
-/** A directory tree of `Uint8Array` leaves, shaped like the real handles. */
-function fakeTree(seed: Record<string, Record<string, Uint8Array>>) {
+/**
+ * A directory tree of `Uint8Array` leaves, shaped like the real handles.
+ * `mtimes` gives each folder's files one `lastModified`, which is what the
+ * newest-snapshot ranking reads.
+ */
+function fakeTree(seed: Record<string, Record<string, Uint8Array>>, mtimes: Record<string, number> = {}) {
   const dirs = new Map<string, Map<string, Uint8Array>>(
     Object.entries(seed).map(([d, files]) => [d, new Map(Object.entries(files))]),
   );
@@ -34,15 +38,15 @@ function fakeTree(seed: Record<string, Record<string, Uint8Array>>) {
       }
       return Promise.resolve(dirHandle(name));
     },
-    removeEntry: (name: string) => {
-      dirs.get(self)!.delete(name);
-      return Promise.resolve();
-    },
     getFileHandle: (name: string, opts?: { create?: boolean }) => {
       const files = dirs.get(self)!;
       if (!files.has(name) && opts?.create !== true) return Promise.reject(new Error(`no such file ${name}`));
       return Promise.resolve({
-        getFile: () => Promise.resolve({ arrayBuffer: () => Promise.resolve(files.get(name)!.slice().buffer) }),
+        getFile: () =>
+          Promise.resolve({
+            lastModified: mtimes[self] ?? 0,
+            arrayBuffer: () => Promise.resolve(files.get(name)!.slice().buffer),
+          }),
         createWritable: () =>
           Promise.resolve({
             write: (b: ArrayBuffer) => {
@@ -57,22 +61,33 @@ function fakeTree(seed: Record<string, Record<string, Uint8Array>>) {
   return { root: dirHandle("") as FileSystemDirectoryHandle, dirs };
 }
 
+/** A folder holding files directly — a snapshot, not a container. */
+function fakeSnapshotHandle(names: string[]): FileSystemDirectoryHandle {
+  return {
+    entries: async function* () {
+      for (const name of names) yield [name, { kind: "file" }];
+    },
+  } as unknown as FileSystemDirectoryHandle;
+}
+
 const d = haveSaves ? describe : describe.skip;
 
 d("exportInto", () => {
   const all = (): { id: string; bytes: Uint8Array }[] =>
-    loadAllSaves().slice(0, 3).map((s2) => ({ id: s2.towerId, bytes: s2.bytes }));
-  const snapshot = (): Record<string, Uint8Array> =>
-    Object.fromEntries(all().map((t) => [`${t.id}.sav`, t.bytes]));
-  const DIR = exportDirFor("savestates_2026-09-10");
+    loadAllSaves().slice(0, 3).map((s) => ({ id: s.towerId, bytes: s.bytes }));
+  const snapshot = (): Record<string, Uint8Array> => Object.fromEntries(all().map((t) => [`${t.id}.sav`, t.bytes]));
+  const SNAP = "savestates-2026-09-10";
+  const DIR = exportDirFor(SNAP);
+  const pick = async (root: FileSystemDirectoryHandle, name = SNAP) =>
+    (await readContainer(root)).backups.find((b) => b.name === name)!;
 
   it("brings in only the tower being exported, and names the folder for its source", async () => {
-    const { root, dirs } = fakeTree({ "savestates_2026-09-10": snapshot() });
-    const [backup] = await listBackups(root);
+    const { root, dirs } = fakeTree({ [SNAP]: snapshot() });
     const target = all()[0]!;
-    const out = await exportInto(root, backup!, target.id, "my route", [[1, 5, 5]]);
+    const out = await exportInto(root, await pick(root), target.id, "my route", [[1, 5, 5]]);
 
     expect(out.folder).toBe(DIR);
+    expect(DIR.endsWith("-ORD_EXPORT"), "a suffix, so the pair sorts together").toBe(true);
     expect(out.name).toBe("ORD:my route");
     expect(out.accumulated).toBe(false);
     // Only the exported tower is there: copying this folder across cannot roll
@@ -85,13 +100,12 @@ d("exportInto", () => {
   });
 
   it("gathers later routes into the same file rather than rebuilding from the snapshot", async () => {
-    const { root, dirs } = fakeTree({ "savestates_2026-09-10": snapshot() });
-    const [backup] = await listBackups(root);
+    const { root, dirs } = fakeTree({ [SNAP]: snapshot() });
     const target = all()[0]!;
     const base = parseSaveFile(target.bytes).records.length;
 
-    const first = await exportInto(root, backup!, target.id, "one", [[1, 5, 5]]);
-    const second = await exportInto(root, backup!, target.id, "two", [[1, 6, 6]]);
+    const first = await exportInto(root, await pick(root), target.id, "one", [[1, 5, 5]]);
+    const second = await exportInto(root, await pick(root), target.id, "two", [[1, 6, 6]]);
     expect([first.accumulated, second.accumulated]).toEqual([false, true]);
     expect(second.records).toBe(base + 2);
 
@@ -100,10 +114,9 @@ d("exportInto", () => {
   });
 
   it("adds a second tower beside the first without disturbing it", async () => {
-    const { root, dirs } = fakeTree({ "savestates_2026-09-10": snapshot() });
-    const [backup] = await listBackups(root);
-    await exportInto(root, backup!, all()[0]!.id, "one", [[1, 5, 5]]);
-    const out = await exportInto(root, backup!, all()[1]!.id, "two", [[1, 5, 5]]);
+    const { root, dirs } = fakeTree({ [SNAP]: snapshot() });
+    await exportInto(root, await pick(root), all()[0]!.id, "one", [[1, 5, 5]]);
+    const out = await exportInto(root, await pick(root), all()[1]!.id, "two", [[1, 5, 5]]);
 
     expect(out.accumulated).toBe(false);
     expect(out.towers).toEqual([all()[0]!.id, all()[1]!.id].sort());
@@ -111,16 +124,15 @@ d("exportInto", () => {
   });
 
   it("steps around its own earlier export, and cannot collide with the game's", async () => {
-    const { root } = fakeTree({ "savestates_2026-09-10": snapshot() });
-    const [backup] = await listBackups(root);
+    const { root } = fakeTree({ [SNAP]: snapshot() });
     const id = all()[0]!.id;
-    expect((await exportInto(root, backup!, id, "dup", [[1, 5, 5]])).name).toBe("ORD:dup");
-    expect((await exportInto(root, backup!, id, "dup", [[1, 5, 5]])).name).toBe("ORD:dup 2");
+    expect((await exportInto(root, await pick(root), id, "dup", [[1, 5, 5]])).name).toBe("ORD:dup");
+    expect((await exportInto(root, await pick(root), id, "dup", [[1, 5, 5]])).name).toBe("ORD:dup 2");
 
     // Asking for a name the game already wrote does not replace it: the ORD:
     // prefix puts the result in a namespace the game's keyboard cannot reach.
     const taken = parseSaveFile(all()[0]!.bytes).records[0]!.name;
-    const out = await exportInto(root, backup!, id, taken, [[1, 5, 5]]);
+    const out = await exportInto(root, await pick(root), id, taken, [[1, 5, 5]]);
     expect(out.name).not.toBe(taken);
     expect(out.name.startsWith("ORD:")).toBe(true);
   });
@@ -136,47 +148,80 @@ d("exportInto", () => {
 
   it("refuses a snapshot with no date in its name, and writes nothing", async () => {
     const { root, dirs } = fakeTree({ savestates_copy: snapshot() });
-    const [backup] = await listBackups(root);
-    expect(backup!.stamped).toBe(false);
-    await expect(exportInto(root, backup!, all()[0]!.id, "r", [[1, 5, 5]])).rejects.toThrow(ExportFailed);
+    const backup = await pick(root, "savestates_copy");
+    expect(backup.stamped).toBe(false);
+    await expect(exportInto(root, backup, all()[0]!.id, "r", [[1, 5, 5]])).rejects.toThrow(ExportFailed);
     expect(dirs.has(exportDirFor("savestates_copy"))).toBe(false);
   });
 
   it("refuses a snapshot that does not hold the tower being exported", async () => {
-    const { root } = fakeTree({ "savestates_2026-09-10": { "EX-2.sav": all()[0]!.bytes } });
-    const [backup] = await listBackups(root);
-    await expect(exportInto(root, backup!, "2-5", "r", [[1, 5, 5]])).rejects.toThrow(/holds no 2-5.sav/);
+    const { root } = fakeTree({ [SNAP]: { "EX-2.sav": all()[0]!.bytes } });
+    await expect(exportInto(root, await pick(root), "2-5", "r", [[1, 5, 5]])).rejects.toThrow(/holds no 2-5\.sav/);
+  });
+});
+
+d("readContainer", () => {
+  const all = () => loadAllSaves().slice(0, 3);
+  const snapshot = (): Record<string, Uint8Array> =>
+    Object.fromEntries(all().map((t) => [`${t.towerId}.sav`, t.bytes]));
+
+  it("ranks newest by when the saves were written, not by what the folder is called", async () => {
+    // Two conventions for the same day, sorting opposite ways by name. The
+    // clock is the file, so a naming convention cannot mislead the ranking.
+    const { root } = fakeTree(
+      { "savestates-10-09-2026": snapshot(), "savestates-2026-09-08": snapshot() },
+      { "savestates-10-09-2026": 2_000, "savestates-2026-09-08": 1_000 },
+    );
+    const { backups } = await readContainer(root);
+    // Newest first, so the ranking is also the order.
+    expect(backups.map((b) => b.name)).toEqual(["savestates-10-09-2026", "savestates-2026-09-08"]);
+    expect(backups.map((b) => b.newest)).toEqual([true, false]);
+    expect(backups.map((b) => b.modified)).toEqual([2_000, 1_000]);
   });
 
-  it("flags only the most recent dated snapshot as newest, and never lists its own folders", async () => {
+  it("lists the empty and the undated too, rather than hiding them", async () => {
+    // `[I]` A folder missing from the list explains nothing; a folder present
+    // with the reason beside it explains itself.
     const { root } = fakeTree({
-      "savestates_2026-09-08": snapshot(),
-      "savestates_2026-09-10": snapshot(),
+      "savestates-2026-09-10": snapshot(),
       savestates_undated: snapshot(),
-      [DIR]: snapshot(),
       empty: {},
+      [exportDirFor("savestates-2026-09-10")]: snapshot(),
     });
-    const found = await listBackups(root);
-    expect(found.map((b) => b.name)).toEqual(["savestates_2026-09-08", "savestates_2026-09-10", "savestates_undated"]);
-    expect(found.map((b) => b.newest)).toEqual([false, true, false]);
+    const { backups } = await readContainer(root);
+    // Saveless folders sort last; the rest tie on mtime here and fall back to
+    // the name, by code unit so the order is the same on every machine.
+    expect(backups.map((b) => b.name), "our own export folder is never a candidate").toEqual([
+      "savestates-2026-09-10",
+      "savestates_undated",
+      "empty",
+    ]);
+    expect(backups.map((b) => b.stamped)).toEqual([true, false, false]);
+    expect(backups.map((b) => b.towers.length > 0)).toEqual([true, true, false]);
+    expect(backups.map((b) => b.modified)).toEqual([0, 0, null]);
   });
 
-  it("reports what a snapshot has already had exported", async () => {
-    const { root } = fakeTree({ "savestates_2026-09-10": snapshot() });
-    expect(await exportedSoFar(root, "savestates_2026-09-10")).toBeNull();
-    const [backup] = await listBackups(root);
-    await exportInto(root, backup!, all()[0]!.id, "r", [[1, 5, 5]]);
-    expect(await exportedSoFar(root, "savestates_2026-09-10")).toEqual([all()[0]!.id]);
+  it("knows a snapshot was picked where the container should have been", async () => {
+    // What iestyn hit on the first run: picking the dated copy, and being told
+    // there was nothing in it.
+    expect((await readContainer(fakeSnapshotHandle(["1-1.sav", "2-5.sav"]))).isSnapshot).toBe(true);
+    expect((await readContainer(fakeSnapshotHandle(["notes.txt"]))).isSnapshot).toBe(false);
+    expect((await readContainer(fakeTree({ "savestates-2026-09-10": snapshot() }).root)).isSnapshot).toBe(false);
   });
 });
 
 describe("names", () => {
   it("wants a date in a backup folder name, in the shapes a person writes one", () => {
-    for (const ok of ["savestates_2026-09-10", "savestates 20260910", "backup.2026.09.10", "sav_20260910T2314"]) {
-      expect(STAMPED.test(ok), ok).toBe(true);
-    }
-    for (const no of ["savestates", "savestates_copy", "backup", "saves v2"]) {
-      expect(STAMPED.test(no), no).toBe(false);
+    // `[I]` iestyn: the UK and US orders are inverted, so demanding one would
+    // be exactly the frustrating-and-misleading rule this is meant not to be.
+    const ok = [
+      "savestates-2026-09-10", "savestates 20260910", "backup.2026.09.10", "sav_20260910T2314",
+      "savestates-10-09-2026", "savestates 09/10/2026", "saves-1-9-2026",
+    ];
+    for (const n of ok) expect(STAMPED.test(n), n).toBe(true);
+    // A year on its own is not a date, and neither is a version number.
+    for (const n of ["savestates", "savestates_copy", "backup", "saves v2", "savestates 2026"]) {
+      expect(STAMPED.test(n), n).toBe(false);
     }
   });
 
@@ -190,8 +235,8 @@ describe("names", () => {
   });
 
   it("shortens the name to make room for the counter, never the counter", () => {
-    // The game truncates nothing -- it simply stops accepting input at 24 -- so
-    // a name that would overflow has to be cut here, and the counter is the part
+    // The game truncates nothing — it simply stops accepting input at 24 — so a
+    // name that would overflow has to be cut here, and the counter is the part
     // that must survive: it is what stops the export replacing an earlier one.
     const long = "98.3M win H [A] full clear";
     const taken = new Set<string>();

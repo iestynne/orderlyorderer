@@ -20,7 +20,7 @@ import { RouteSession } from "./session";
 import { Scrubber, type ScrubberSettings } from "./scrubber";
 import { ExportDialog, type ExportChoice } from "./ExportDialog";
 import { localStamp, ordName } from "../sav/inject";
-import { canPickFolder, exportInto, listBackups, pickBackupRoot, type Backup } from "../store/savefolder";
+import { canPickFolder, exportInto, pickBackupRoot, readContainer, type Backup, type Exported } from "../store/savefolder";
 
 const NOTICE =
   "Unofficial. Orderlyorderer is a fan-made planning tool for Towers of Scale. " +
@@ -75,6 +75,8 @@ export default function App(): React.ReactElement {
   const [exporting, setExporting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [backups, setBackups] = useState<readonly Backup[] | null>(null);
+  const [isSnapshot, setIsSnapshot] = useState(false);
+  const [exported, setExported] = useState<Exported | null>(null);
   const rootRef = useRef<FileSystemDirectoryHandle | null>(null);
   const [pendingBytes, setPendingBytes] = useState<Uint8Array | null>(null);
   const [pendingOrd, setPendingOrd] = useState<OrdFile | null>(null);
@@ -344,7 +346,9 @@ export default function App(): React.ReactElement {
       return;
     }
     rootRef.current = root;
-    setBackups(await listBackups(root));
+    const { backups: found, isSnapshot: snap } = await readContainer(root);
+    setIsSnapshot(snap);
+    setBackups(found);
   }, []);
 
   const runExport = useCallback(
@@ -354,16 +358,7 @@ export default function App(): React.ReactElement {
       setBusy(true);
       setError(null);
       void exportInto(root, backup, session.route.tower, session.displayName, decodeEntries(session.toSaveRecord()))
-        .then((out) => {
-          setNotice(
-            `${out.name} ${out.accumulated ? "joined" : "starts"} ${out.folder}/${session.route.tower}.sav — ` +
-              `${out.records} records now, and every other one was read back from disk unchanged. ` +
-              `The folder holds ${out.towers.join(", ")}. Copy its contents into your savestates folder, ` +
-              "following the steps you were just shown.",
-          );
-          setExporting(false);
-          setBackups(null);
-        })
+        .then(setExported)
         .catch((e: Error) => setError(String(e)))
         .finally(() => setBusy(false));
     },
@@ -389,6 +384,8 @@ export default function App(): React.ReactElement {
   const closeExport = useCallback(() => {
     setExporting(false);
     setBackups(null);
+    setIsSnapshot(false);
+    setExported(null);
   }, []);
 
   if (session && sheet) {
@@ -430,6 +427,8 @@ export default function App(): React.ReactElement {
             canPick={canPickFolder()}
             busy={busy}
             backups={backups}
+            isSnapshot={isSnapshot}
+            done={exported}
             onChoose={onExportChoice}
             onExport={runExport}
             onCancel={closeExport}
