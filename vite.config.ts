@@ -10,14 +10,17 @@ import { basePath } from "./tools/worktree";
 // The `.sav` codec is SPEC-006's, written for Node and byte-exact against the
 // shipped saves. It is frozen, so the browser build aliases node:zlib to a
 // synchronous shim rather than reshaping it. See src/sav/zlib-browser.ts.
-export default defineConfig({
-  // `[F]` The URL path names the worktree, so a tab says which session drew it.
-  // An absolute asset path must go through `import.meta.env.BASE_URL` to survive
-  // it (src/ui/dev.ts).
-  base: basePath(),
+export default defineConfig(({ command }) => ({
+  // `[F]` In dev the URL path names the worktree, so a tab says which session
+  // drew it. A build has no worktree to speak of and is served from wherever it
+  // is deployed, so it takes `BASE_PATH` — `/orderlyorderer/` for a GitHub
+  // Pages project site — and `/` when nothing says otherwise. An absolute asset
+  // path must go through `import.meta.env.BASE_URL` to survive either
+  // (src/ui/dev.ts).
+  base: process.env["BASE_PATH"] ?? (command === "serve" ? basePath() : "/"),
   plugins: [react()],
   resolve: {
     alias: [{ find: /^node:zlib$/, replacement: fileURLToPath(new URL("./src/sav/zlib-browser.ts", import.meta.url)) }],
   },
   build: { assetsInlineLimit: 1024 * 1024, target: "es2022" },
-});
+}));

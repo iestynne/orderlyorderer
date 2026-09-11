@@ -150,12 +150,16 @@ async function savesIn(dir: FileSystemDirectoryHandle): Promise<string[]> {
 /**
  * When the newest `.sav` in here was last written.
  *
- * `[O]` Costs one `getFile` per save — metadata, not a read — so a container of
- * 100 snapshots is ~1 400 of them, on a list the player opens by hand. Not
- * measured on a real folder that size. If it ever bites, the lever is statting
- * one save per folder rather than all of them: the whole point is ranking
- * folders against each other, and within a snapshot they were all written at
- * once.
+ * `[F]` **All of them, not one.** The game rewrites a `.sav` only when the
+ * player enters and leaves that tower, so the saves in a snapshot carry
+ * scattered times and the newest is the only one that says when the snapshot
+ * stopped being current. `[I]` iestyn, 2026-09-11, correcting exactly the
+ * shortcut this comment used to propose.
+ *
+ * `[O]` One `getFile` per save — metadata, not a read — so 100 snapshots is
+ * ~1 400 of them, on a list the player opens by hand. Never measured at that
+ * size. `[D]` Deferred until it shows up in practice (iestyn); the shortcut
+ * above is not the lever, because it is wrong.
  */
 async function newestSaveIn(dir: FileSystemDirectoryHandle, towers: string[]): Promise<number | null> {
   let at: number | null = null;

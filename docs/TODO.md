@@ -164,15 +164,14 @@ Delete this section when the branch merges.
    they last played. The newest-snapshot flag is a hint, not a guard.
    `[I]` iestyn: he will use it himself first; anticipating how others will
    want to use it is a fool's errand short of handing it out and asking them.
-3c. `[O]` **How should a player send iestyn a `.sav` that misbehaved?** The
-   restore instructions ask for one and name no channel. `[I]` iestyn,
-   2026-09-10, is wary: a friend of his was recently socially engineered on
-   Discord into running a file from someone posing as a contact. The shape
-   worth considering is not a file at all — the app can already parse a `.sav`,
-   so it could emit a **text** diagnostic (record names, entry counts, payload
-   hashes, the parse error) that diagnoses most failures and cannot be
-   double-clicked. Raw bytes only when that is not enough, and as pasteable
-   text rather than an attachment. Not designed, not built.
+3c. `[D]` **A misbehaving `.sav` goes to iestyn through a paste service, not
+   as a file.** iestyn, 2026-09-11: pastebin is convenient and safe, and
+   **raw bytes are essential** — a novel failure is exactly the one a summary
+   would not describe. `[I]` The shape matters because a file that runs is what
+   social engineering needs; a paste cannot be double-clicked. `[O]` Not built:
+   the app would emit the bytes as pasteable text, probably with a text
+   diagnostic (record names, entry counts, payload hashes, the parse error)
+   above them so the common cases are readable without decoding anything.
 4. `[O]` **`UI.md` is at 258 lines**, past D31's 150 and past the 185 that was
    ratified as a deliberate overage. The export screen added to it. The split
    §A.1a and the segment-editing spec owe is now overdue rather than pending.
@@ -186,6 +185,15 @@ Delete this section when the branch merges.
 6. `[O]` **The dev server base path is new** (`tools/worktree.ts`). The shots
    harness walks ports at this worktree's own path now, which is a strict
    improvement, but no golden has been shot since the change.
+7. `[O]` **Hosting the built app publicly is blocked on the developer.** The
+   bundle inlines the sprite atlas (`src/ui/assets.ts`, D14b-1), so deploying
+   it *is* redistributing the game's art, which D14b forbids. The source repo
+   is already safe to publish — `build/` and `../local/` are gitignored and
+   derived artifacts are ours (D14b) — so GitHub is fine for **sharing the
+   code**, and GitHub Pages is not, until makiki says so. §D already holds both
+   questions; sending him the repo is the moment to ask. `[F]` `vite.config.ts`
+   now takes `BASE_PATH` for a build, so a Pages project site would work the
+   day it is allowed.
 
 ## A8. Two doc/code disagreements, found 2026-09-04
 
