@@ -185,15 +185,14 @@ Delete this section when the branch merges.
 6. `[O]` **The dev server base path is new** (`tools/worktree.ts`). The shots
    harness walks ports at this worktree's own path now, which is a strict
    improvement, but no golden has been shot since the change.
-7. `[O]` **Hosting the built app publicly is blocked on the developer.** The
-   bundle inlines the sprite atlas (`src/ui/assets.ts`, D14b-1), so deploying
-   it *is* redistributing the game's art, which D14b forbids. The source repo
-   is already safe to publish — `build/` and `../local/` are gitignored and
-   derived artifacts are ours (D14b) — so GitHub is fine for **sharing the
-   code**, and GitHub Pages is not, until makiki says so. §D already holds both
-   questions; sending him the repo is the moment to ask. `[F]` `vite.config.ts`
-   now takes `BASE_PATH` for a build, so a Pages project site would work the
-   day it is allowed.
+7. `[F]` **Hosting the built app is permitted.** makiki, 2026-09-11:
+   *"Compiling assets (map data and sprites) into the app bundle to avoid
+   putting them in the public repo is probably a good idea simply to make
+   handling the license document way easier."* Bundling is the arrangement he
+   prefers, not a workaround, so the deployed bundle is inside the permission
+   and the raw assets stay out of the repo (D14b-1). `[F]` `vite.config.ts`
+   takes `BASE_PATH`, so a Pages project site needs `BASE_PATH=/<repo>/` at
+   build time. `[O]` Not deployed yet, and no Pages workflow written.
 
 ## A8. Two doc/code disagreements, found 2026-09-04
 
@@ -349,16 +348,16 @@ their answers are in `GAME_MECHANICS.md` where game rules live (D33).
 
 ## D. Ask the developer
 
-- **Agree the wording of the "unofficial" notice.** He asked for one and wants
-  to research it; a draft is in `DECISIONS.md` D14b-1 to react to.
-- **Confirm that publishing tower JSON is fine.** A text dump of every level,
-  derived from `res/maps/*` — equivalent to what any player sees in game and
-  carrying no secret, but it is his level design in machine-readable form, so
-  worth asking as a courtesy. **This gates `data/towers/`, already committed**:
-  the one item here with a live consequence.
-- **Would a public repo containing the sprite files be acceptable**, or should
-  assets stay outside it with the build pulling from them? The second is the
-  safe default and is what we do regardless.
+- `[F]` **The "unofficial" notice is agreed**, 2026-09-11, in his own words —
+  D14b-1 holds it verbatim and `src/ui/App.tsx` uses it unaltered.
+- `[F]` **Bundling map data and sprites into the app is his preference**, and
+  keeping them out of the public repo is the point of it (D14b-1, §A10.7). So
+  the sprite-repo question is answered: assets stay out, the bundle carries
+  them, and the built app may be deployed.
+- `[O]` **Tower JSON is not explicitly covered.** His answer names "map data"
+  as something to compile into the bundle; `data/towers/` is committed as text
+  instead. That may be exactly what he was addressing, or it may not — worth one
+  direct question, since it is the one item here with a live consequence.
 - Minor: `entitydef.orb_change.compendium_header` reads "Warp orb", duplicating
   `orb_warp`. Looks like a copy-paste slip.
 

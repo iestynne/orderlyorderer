@@ -251,18 +251,27 @@ What follows:
 - **Do not commit raw game assets to a public repository.** A public repo
   publishes them outside the tool, which is the boundary the permission draws.
   Keep them in a local, gitignored asset directory and have the build pull from
-  it; deploy the built bundle. If a public repo containing sprites would be more
-  convenient, ask first — do not assume.
+  it; deploy the built bundle.
+- `[F]` **The developer has since endorsed exactly that**, 2026-09-11:
+  *"Compiling assets (map data and sprites) into the app bundle to avoid putting
+  them in the public repo is probably a good idea simply to make handling the
+  license document way easier."* So bundling is not a tolerated workaround, it
+  is the arrangement he prefers — **and deploying the built app is therefore
+  permitted**, which is what the rest of this decision was waiting on.
 - The renderer stays behind an interface anyway, so a placeholder set can be
   swapped in for development and for anyone building from source without the
   game.
 
-Proposed notice wording, to be checked with the developer rather than treated as
-settled — neither party here is a lawyer:
+`[F]` **The notice, in the developer's own words**, 2026-09-11 — he took the
+draft and modified it, so this is his wording and not ours:
 
 > Orderlyorderer is an unofficial fan-made tool for Towers of Scale. It is not
-> affiliated with or endorsed by the developer of Towers of Scale. Game sprites
-> and fonts are used with permission and remain the property of their creator.
+> affiliated with the developer of Towers of Scale. Game sprites are used with
+> permission and remain the property of their creator.
+
+`[D]` Used verbatim (`src/ui/App.tsx`, `NOTICE`). It is shorter than the draft
+in two ways that are his to make, not ours to reinstate: no "or endorsed by",
+and fonts are not named.
 
 **D14d. Two trees. The git repository root is `git/`; everything not for
 publication lives in a sibling `local/`.**

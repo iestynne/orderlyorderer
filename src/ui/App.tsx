@@ -22,9 +22,12 @@ import { ExportDialog, type ExportChoice } from "./ExportDialog";
 import { localStamp, ordName } from "../sav/inject";
 import { canPickFolder, exportInto, pickBackupRoot, readContainer, type Backup, type Exported } from "../store/savefolder";
 
+// `[F]` The developer's own wording, 2026-09-11 (D14b-1). Verbatim: he edited
+// our draft down, and the edits are his to make.
 const NOTICE =
-  "Unofficial. Orderlyorderer is a fan-made planning tool for Towers of Scale. " +
-  "It is not made by, endorsed by or affiliated with the game's developer.";
+  "Orderlyorderer is an unofficial fan-made tool for Towers of Scale. It is not affiliated with " +
+  "the developer of Towers of Scale. Game sprites are used with permission and remain the property " +
+  "of their creator.";
 const SAVE_HINT = "%APPDATA%\\LOVE\\towers_of_scale\\";
 const HYGIENE =
   "Your routes live in .ord files that you save and keep. The working store in this browser is " +
@@ -404,6 +407,16 @@ export default function App(): React.ReactElement {
             }}
             title="The route's name, as it will be saved"
             spellCheck={false}
+            // `[F]` Password managers offer to fill this one because it is the
+            // only bare text input in the app: unlabelled, unnamed, and beside
+            // buttons, which is the shape their heuristics look for. `name`
+            // gives it an identity that is plainly not a credential, and the
+            // three opt-outs cover the browser and the two managers that ignore
+            // `autocomplete="off"`.
+            name="route-name"
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
           />
           <button onClick={() => s?.undo()} disabled={!session.canUndo} title="Take back the last insertion (Z)">undo</button>
           <button onClick={() => s?.redo()} disabled={!session.canRedo} title="Put it back (Y)">redo</button>
