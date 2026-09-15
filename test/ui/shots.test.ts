@@ -219,7 +219,12 @@ describe("SPEC-009 §5 — the browser", () => {
     await server.listen();
     const addr = server.httpServer?.address();
     if (addr === null || addr === undefined || typeof addr === "string") throw new Error("no dev server address");
-    base = `http://127.0.0.1:${addr.port}`;
+    // `[F]` Including the config's own base. This server is built from
+    // `vite.config.ts`, which serves each worktree at `/<WTTN>/`
+    // (`tools/worktree.ts`), so an origin-only base asks for paths that are not
+    // there — which is exactly how case 4 failed when the browser was first
+    // installed and these tests stopped being skipped.
+    base = `http://127.0.0.1:${addr.port}${server.config.base.replace(/\/$/, "")}`;
   }, 120_000);
 
   afterAll(async () => {
@@ -261,10 +266,13 @@ describe("SPEC-009 §5 — the browser", () => {
     try {
       await h.page.goto(`${base}/`, { waitUntil: "domcontentloaded" });
       const before = h.aborts.length;
-      const status = await h.page.evaluate(async () => {
-        const r = await fetch("/data/saves/tests/1-5.INSUFFICIENT-POWER.sav");
+      // `[F]` Through the app's own base, not the origin root: each worktree
+      // serves at `/<WTTN>/` (`tools/worktree.ts`), so an absolute path is a
+      // 404 — the same trap `src/ui/dev.ts` avoids with `import.meta.env.BASE_URL`.
+      const status = await h.page.evaluate(async (at: string) => {
+        const r = await fetch(`${at}/data/saves/tests/1-5.INSUFFICIENT-POWER.sav`);
         return r.status;
-      });
+      }, base);
       expect(status).toBe(200);
       expect(h.aborts.length).toBe(before);
     } finally {

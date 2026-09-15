@@ -19,6 +19,7 @@ import { blankSummaries, fillSummaries, type Summary } from "./records";
 import { RouteSession } from "./session";
 import { Scrubber, type ScrubberSettings } from "./scrubber";
 import { ExportDialog, type ExportChoice } from "./ExportDialog";
+import { EXPORT } from "./text";
 import { localStamp, ordName } from "../sav/inject";
 import { canPickFolder, exportInto, pickBackupRoot, readContainer, type Backup, type Exported } from "../store/savefolder";
 
@@ -328,10 +329,7 @@ export default function App(): React.ReactElement {
       records: [{ name: exportName, time: localStamp(), keyOrder: ["time", "data"], entries: decodeEntries(payload) }],
     });
     download(`${stem(session.route.tower, session.displayName)}.${stamp()}.sav`, bytes, "application/octet-stream");
-    setNotice(
-      `Downloaded one record, ${exportName}, in a file of its own. It is not your save file and does not hold ` +
-        "your other routes, so putting it in place would replace them. Prefer the folder route if you can.",
-    );
+    setNotice(EXPORT.downloaded(exportName));
   }, [session, exportName]);
 
   /**
@@ -342,10 +340,7 @@ export default function App(): React.ReactElement {
   const pickFolder = useCallback(async () => {
     const root = await pickBackupRoot();
     if (root === null) {
-      setError(
-        "No folder was picked. If the picker never appeared, this browser has no File System Access API — " +
-          "Chrome and Edge do; Firefox and Safari do not.",
-      );
+      setError(EXPORT.noFolderPicked);
       return;
     }
     rootRef.current = root;

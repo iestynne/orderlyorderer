@@ -24,8 +24,22 @@ import { sitePath } from "../worktree";
 export const SHOTS_DIR = "build/shots";
 export const GOLDEN_DIR = "test/ui/golden";
 
+/**
+ * `SHOTS_URL` with this worktree's base path supplied if it names only an
+ * origin. `[F]` Without this, a bare `http://localhost:5175` left over in a
+ * shell sends the harness to a path that serves no app, and the failure reads
+ * as "that server is not a dev build" rather than "you are pointing at the
+ * wrong path".
+ */
+function envUrl(): string | undefined {
+  const raw = process.env["SHOTS_URL"];
+  if (raw === undefined) return undefined;
+  const trimmed = raw.replace(/\/$/, "");
+  return new URL(trimmed).pathname === "/" ? `${trimmed}${sitePath()}` : trimmed;
+}
+
 /** Where the dev server is. Loopback only — there is nowhere else to point it. */
-export const BASE_URL = process.env["SHOTS_URL"] ?? `http://localhost:5173${sitePath()}`;
+export const BASE_URL = envUrl() ?? `http://localhost:5173${sitePath()}`;
 
 /** The ports Vite walks when 5173 is taken — one per worktree, in practice. */
 const PORTS = [5173, 5174, 5175, 5176, 5177, 5178, 5179, 5180];
@@ -38,7 +52,7 @@ const PORTS = [5173, 5174, 5175, 5176, 5177, 5178, 5179, 5180];
  * not `fetch`.
  */
 export async function resolveBaseUrl(page: Page): Promise<string> {
-  const env = process.env["SHOTS_URL"];
+  const env = envUrl();
   const candidates = env !== undefined ? [env] : PORTS.map((p) => `http://localhost:${p}${sitePath()}`);
   for (const url of candidates) {
     try {

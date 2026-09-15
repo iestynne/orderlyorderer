@@ -153,8 +153,13 @@ Delete this section when the branch merges.
 3. `[F]` **Answered: the game loads an fflate stream**, replays all 657 entries
    and rewinds through them (`EX-1.ORD-FFLATE.md`). B1 no longer blocks writing
    saves from TypeScript.
-3a. `[O]` **The export language wants a pass.** `[I]` iestyn, 2026-09-10, likes
-   the screen and wants to tweak the wording for clarity. His edit, not ours.
+3a. `[O]` **The export language wants a pass — the words are all in
+   `src/ui/text.ts`.** `[I]` iestyn, 2026-09-14, and it is his edit, not ours:
+   item 6 of his test list ("picking the copy instead of the container") is the
+   one he named as needing clarifying. `[D]` **Named keys, not numbered
+   chunks**: with one language, numbering buys only a silent indirection, while
+   a key is type-checked and greppable. Interpolated lines are functions, so
+   rewording cannot drop the folder name a line was carrying.
 3b. `[D]` **Several routes gather in one export folder**, named for the
    snapshot it came from, holding only the towers exported. Settled with iestyn
    2026-09-10, along with what was deliberately *not* built: no staleness
