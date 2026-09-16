@@ -812,3 +812,25 @@ refusal looks exactly like an export bug in this app. Two places say it: the
 export notice names the number, and a route whose gem cost was changed here
 takes `"<N> gems"` as its name, so the requirement is legible in the game's own
 save list. `RouteSession.gemsRequired` and `displayName`.
+
+**D47. The site is built here and pushed as a bundle. There is no CI.**
+`[F]` A GitHub Actions runner cannot build this app: `build-atlas` and
+`parse-towers` read `../local/game/`, which is outside the repository by
+construction (D14d) and must never be on a runner (D14b). Committing the atlas
+to make CI possible is the thing D14b forbids, so the choice is forced —
+**build locally, publish the output.**
+
+`[D]` So `npm run deploy` (`tools/deploy.ts`) builds with `BASE_PATH=/<repo>/`
+and force-pushes `dist/` as a single commit on an orphan `gh-pages` branch,
+which Pages serves. Orphan and forced, so the branch holds exactly one copy of
+the bundle and no history of superseded ones.
+
+`[F]` **No raw asset reaches the branch.** The atlas is inlined as a data URI
+and the tower JSON is compiled into chunks (SPEC-007 §6.1), so `dist/` is 20
+files of HTML, CSS and JS plus a `.nojekyll`, and nothing else — which is the
+arrangement the developer prefers, not a workaround for it (D14b-1).
+
+`[D]` Deploying is **iestyn's command, not the agent's**: with
+`npm run shots:install` it is one of the two things in this repository that
+reach the network (CLAUDE.md). `--no-push` builds the branch and stops, which
+is as far as a session may take it.

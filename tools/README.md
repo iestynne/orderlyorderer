@@ -2,14 +2,17 @@
 
 Standalone build-time and reverse-engineering utilities. Nothing here is a
 runtime dependency of the app: tools read the game archive in `../local/`,
-which git cannot see (D14d), and write derived data into `data/`. The app and
-the simulator depend only on that derived data, never on a tool (D14e).
+which git cannot see (D14d), and write derived data into `build/`
+(`tools/paths.ts`), which is gitignored. The app and the simulator depend only
+on that derived data, never on a tool (D14e). `deploy.ts` is the exception — it
+is not a build input but the publishing step.
 
 Run every tool from the repository root.
 
 | Tool | Language | What it does |
 |---|---|---|
-| [`maps/`](maps/README.md) | TypeScript | Parses `res/maps/*` into committed tower JSON. See its README. |
+| [`maps/`](maps/README.md) | TypeScript | Parses `res/maps/*` into the tower JSON in `build/`. See its README. |
+| `deploy.ts` | TypeScript | `npm run deploy` — builds the site and pushes it to `gh-pages` (D47). Only iestyn runs it; it reaches the network. |
 | `luajit_buffer.py` | Python 3 | Reads and writes `.sav` files: the LuaJIT `string.buffer` codec plus the Towers of Scale container. |
 
 ## `luajit_buffer.py`

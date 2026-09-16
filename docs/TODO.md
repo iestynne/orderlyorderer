@@ -9,7 +9,7 @@ here, not archived. The answers live in `GAME_MECHANICS.md` and the specs.
 
 ## A. Next action
 
-**SPEC-007, SPEC-008 and SPEC-009 are built** — 351 tests green (`STATUS.md`). The
+**SPEC-007, SPEC-008 and SPEC-009 are built** — 383 tests green (`STATUS.md`). The
 scrubber has had four rounds of visual review and its performance faults are
 fixed and confirmed by eye (§A5). The **editing UI has now had six rounds**,
 and everything all six found is fixed in code. **None of round six is
@@ -38,6 +38,8 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
    predicate; what is left is a search over it.
 3. **The two open pieces of editing UX** — §A6.
 3f. **Publish, and get it to makiki** — worktree topic name `pages-deploy`.
+   **Built, short of the push** (D47, `SETUP.md` §8); the five steps left are
+   iestyn's, because they need the network and a browser.
    See §A11 for the whole task.
 3ga. `[O]` **Two frozen specs name `data/towers/v0.7-455/`**, which is not
    where the tower JSON lives any more (`build/towers/`): SPEC-002 in its scope
@@ -140,41 +142,35 @@ state. So this is time-sensitive in a way the rest of the list is not.
 bundle over published as files (D14b-1), and his notice wording is already in
 the app verbatim. Nothing here needs asking again.
 
-`[F]` **The repo exists and is pushed**: `git@github.com:iestynne/orderlyorderer.git`,
-`origin/main` well behind local `main` as of 2026-09-15. `[O]` Whether it is
-public was not verified — Pages on a private repo needs a paid plan.
+`[F]` **The mechanism is built and tested short of the push** — branch
+`session-pages-deploy`. `npm run deploy` builds with the right base and commits
+`dist/` to an orphan `gh-pages` branch; `--no-push` stops there. The `[O]` that
+blocked the shape is resolved and recorded as **D47**: no runner can build this,
+so there is no workflow. `SETUP.md` §8 is the procedure.
 
-### What Pages is
+**What is left is iestyn's, all of it — the network and a browser (CLAUDE.md):**
 
-GitHub serves a static site from a repository, at
-`https://<user>.github.io/<repo>/`. An Actions workflow builds on push and
-publishes the output; there is no server, which suits an app that has none.
-`[F]` The sub-path is why `vite.config.ts` takes `BASE_PATH` — a build
-defaults to `/` and a project site needs `/<repo>/`, or every asset 404s.
+1. **Push `main`.** Safe as it stands: `build/` and `../local/` are gitignored.
+2. **Make the repository public** — Pages on a private repo needs a paid plan.
+   `[O]` Whether it is already public was never verified.
+3. **`npm run deploy`**, then **Settings → Pages → deploy from branch
+   `gh-pages`, `/ (root)`**. The branch has to exist before the setting takes.
+4. **Open the URL and look.** `[F]` A wrong base shows as a **black canvas**,
+   not an error (SPEC-007 §6.1) — so a page that draws at all is the check. The
+   base is derived from the remote and is covered by `test/tools/deploy.test.ts`,
+   but nothing local can prove what GitHub serves.
+5. **Send makiki the URL**, and ask the one open question: his answer named
+   *map data* as something to bundle — done (§A.3h) — so what is left is only
+   whether the **committed save corpus** is also fine by him.
 
-### The task
+`[O]` **`SPEC-009` §2 and its §1 table call `shots:install` "the one command that
+reaches the network".** There are two now (CLAUDE.md, D47). The spec is frozen,
+so this is recorded rather than edited — an amendment note, like §A.3ga.
 
-1. Push `main`. It is safe as it stands: `build/` and `../local/` are
-   gitignored, and derived artifacts are ours to publish (D14b).
-2. A workflow that runs `npm ci`, `npm run build-atlas`, `npm run parse-towers`,
-   `npm run build` with
-   `BASE_PATH=/<repo>/`, and deploys `dist/`. `[O]` **`build-atlas` and `parse-towers` both need
-   the game archive**, which is in `../local/` and will never be on a runner
-   (D14b, D29). So either the build runs locally and only `dist/` is pushed,
-   or the atlas is committed — which D14b forbids. **Resolve this first; it
-   decides the shape of everything else.**
-3. Check the deployed page actually loads: the atlas is inlined, so a wrong
-   `BASE_PATH` shows as a black canvas rather than an error (SPEC-007 §6.1).
-4. Send makiki the URL, and ask the one open question: his answer named *map
-   data* as something to bundle — done for the tower JSON (§A.3h), so the
-   question is now only whether the committed save corpus is also fine by him.
-
-### Two things to decide while there
-
-- `[F]` **Both settled, 2026-09-15.** The tower JSON is built rather than
-  committed (§A.3h, done); the save corpus stays committed on purpose, because
-  it is useful example data, and `helpers.ts` no longer claims otherwise.
-
+`[O]` **Deploying `main` is not deploying this branch.** Step 3 publishes
+whatever is checked out. If iestyn wants makiki to see the MVP as it is now,
+deploy before merging anything else, or merge this branch first — it changes no
+app code.
 ## A7. The editing UI, by eye — thirteen fixed, none confirmed
 
 `[I]` iestyn, six rounds of looking at it. Merged to `main` 2026-09-04 with

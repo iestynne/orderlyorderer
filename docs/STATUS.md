@@ -107,8 +107,8 @@ Plus four hand-played experiments (C1-C4) predicted independently by the sim
 
 ## The app exists
 
-`SPEC-007`, `SPEC-008` and `SPEC-009` are built. **379 tests pass**, none
-skipped.
+`SPEC-007`, `SPEC-008` and `SPEC-009` are built. **383 tests pass** — 375 without
+`.browsers/`, where SPEC-009 skips the eight shot cases it cannot run (§2).
 
 - **Stage 1, `Cursor`** — `src/sim/cursor.ts`, pure, 122 lines. Every named
   value in the contract reproduced first time, corpus maxima 1 773 stops and

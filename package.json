@@ -15,7 +15,8 @@
     "shots": "tsx tools/shots/run.ts",
     "shots:install": "tsx tools/shots/install.ts",
     "crop": "tsx tools/shots/crop.ts",
-    "bless": "tsx tools/shots/bless.ts"
+    "bless": "tsx tools/shots/bless.ts",
+    "deploy": "tsx tools/deploy.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

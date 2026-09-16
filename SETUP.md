@@ -46,7 +46,8 @@ git commit -m "Bootstrap: reverse-engineering docs, savegame codec, fixtures"
 
 ## 4. Push to GitHub
 
-Private for now — it will go public when there is an app worth showing.
+Private to begin with. It goes public when there is an app worth showing, which
+is what §8 needs.
 
 With the GitHub CLI, which handles auth and creation together:
 
@@ -97,3 +98,30 @@ git log --oneline        # history
 git diff                 # uncommitted changes
 git restore <file>       # discard changes to a file
 ```
+
+## 8. Publish to GitHub Pages
+
+The build needs the game archive, so nothing can build this on a runner and
+there is no Actions workflow (D47). The site is built here and the bundle is
+pushed to an orphan `gh-pages` branch; `dist/` holds no raw game asset, only
+HTML, CSS and JS with the art inlined.
+
+One-time, in the repository's GitHub settings:
+
+1. **Make the repository public.** Pages on a private repository needs a paid
+   plan. §4's "private for now" ends here.
+2. **Settings → Pages → Build and deployment → Deploy from a branch**, branch
+   `gh-pages`, folder `/ (root)`. The branch must exist first, so run the
+   deploy once before setting this.
+
+Then, whenever there is something to show:
+
+```bash
+git push                 # main, so the source matches what is served
+npm run deploy           # build + force-push gh-pages
+npm run deploy -- --no-push   # or: build it and stop, to look at first
+```
+
+The site is `https://<user>.github.io/<repo>/`. The sub-path is derived from
+the remote, never typed: a wrong one 404s every asset and shows as a **black
+canvas**, not an error (SPEC-007 §6.1).

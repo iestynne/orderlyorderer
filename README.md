@@ -37,7 +37,8 @@ npm run parse-towers    # res/maps -> build/towers/
 npm run dev             # or: npm run build
 ```
 
-Everything is static — there is no backend, and nothing reaches the network.
+The app is static: no backend, and nothing it does reaches the network.
+Publishing it does — `SETUP.md` §8.
 
 ## Exporting a route into your game
 
