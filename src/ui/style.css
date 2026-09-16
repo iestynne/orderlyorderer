@@ -399,3 +399,15 @@ code {
   color: #ffd479;
   letter-spacing: 0.04em;
 }
+
+/* `[D]` A newline in a `text.ts` string is a line break on screen. `pre-line`
+   keeps the source wrapping free — runs of spaces and the indentation of a
+   continued line still collapse — so only a deliberate \n shows. */
+.export .lede,
+.export .hint,
+.export .warn,
+.protocol li strong,
+.protocol li span,
+.export details li {
+  white-space: pre-line;
+}

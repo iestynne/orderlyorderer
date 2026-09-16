@@ -46,6 +46,14 @@ import { parseSaveFile, type Entry } from "../sav/savefile";
 const SUFFIX = "-ORD_EXPORT";
 
 /**
+ * Anything we wrote, by any naming we have used. `[F]` Matched loosely rather
+ * than by `SUFFIX`: an earlier build named these `savestates_ORD_EXPORT_<stamp>`
+ * and those folders are still sitting in real `tos_backups` directories, where
+ * offering one as a source would build an export out of an export.
+ */
+const OURS = /ORD_EXPORT/;
+
+/**
  * `[D]` A date in the snapshot's folder name is required, not suggested. It is
  * the whole difference between a backup and a second copy of the thing about to
  * change, and the player is the only one who can tell them apart later.
@@ -204,7 +212,7 @@ export async function readContainer(root: FileSystemDirectoryHandle): Promise<Co
       isSnapshot ||= name.endsWith(".sav");
       continue;
     }
-    if (name.endsWith(SUFFIX)) continue;
+    if (OURS.test(name)) continue;
     const handle = h as unknown as FileSystemDirectoryHandle;
     const towers = await savesIn(handle);
     backups.push({ name, handle, towers, stamped: STAMPED.test(name), modified: await newestSaveIn(handle, towers) });

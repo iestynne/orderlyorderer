@@ -77,12 +77,12 @@ export const EXPORT = {
   whyEmpty: "no .sav files in it",
   whyUndated: "no date in the name, so nothing will identify it later",
   whyNoTower: (tower: string): string => `no ${tower}.sav in it`,
-  gathers: `The export lands in a folder named for whichever backup you choose — ${EG} gives ${EG_OUT}. Export again from the same backup and the routes gather there, which is safe — but only until you run the game again.`,
+  gathers: `The export lands in a folder named for whichever backup you choose: **${EG}** gives **${EG_OUT}**. Export again from the same backup and the routes gather there, which is safe — but only until you run the game again (at which point your backups will be out of date).`,
 
   // --- stage 3, written ---------------------------------------------------
   deployHeading: "Now do this",
   wrote: (name: string, joined: boolean, file: string, records: number, towers: string): string =>
-    `${name} ${joined ? "joined" : "starts"} ${file}, which now holds ${records} routes. ` +
+    `**${name}** ${joined ? "joined" : "was exported to"} **${file}**, which now holds ${records} routes. ` +
     `Every other route was read back from disk and is unchanged. The folder holds ${towers}.`,
   done: "done",
   /**

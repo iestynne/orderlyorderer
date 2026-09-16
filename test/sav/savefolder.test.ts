@@ -187,6 +187,10 @@ d("readContainer", () => {
       savestates_undated: snapshot(),
       empty: {},
       [exportDirFor("savestates-2026-09-10")]: snapshot(),
+      // An export folder from the older naming, still sitting in real
+      // tos_backups directories. Offering one would build an export from an
+      // export.
+      "savestates_ORD_EXPORT_2026-09-08": snapshot(),
     });
     const { backups } = await readContainer(root);
     // Saveless folders sort last; the rest tie on mtime here and fall back to
