@@ -122,7 +122,8 @@ need not be a strip at all.
 
 `[D]` **`UI.md` stays over D31's 150 on purpose — 258 now, not 185.** The
 export screen added to it, so the split is overdue rather than pending. iestyn, 2026-09-04:
-§6 will split when the **segment-editing spec** is written — that code stays
+§6 will split when **`SPEC-011`** is built — the segment-editing spec, written
+2026-09-09 and not yet implemented; that code stays
 but is not under test now and will be iterated heavily in its own task — and
 an over-long doc is the reminder that the split is owed. `STATUS.md` and this
 file are over too, with §A7 and §A8 living here until the branch merges.
