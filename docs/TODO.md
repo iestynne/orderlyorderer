@@ -147,11 +147,22 @@ branch is two spec documents, one canonical doc, D47, and a six-line change to
    expected values come from a hand-authored 2-1 document, and iestyn cannot
    author one until the editing surface exists. Named, not specified, and
    correctly so — inventing the numbers would be inventing the route.
-3. `[O]` **The solver was prototyped, not built.** A dense simplex written in a
-   scratchpad produced SPEC-012 §9's worked example and found two real faults —
-   the missing epoch exclusivity (§5.2) and the missing epoch dual (§5.1).
-   Nothing of it is in `src/`; the numbers in §9 and §11 are reproducible but
-   are not currently reproduced by anything in the tree.
+3. `[O]` **The solver was prototyped, not built, and §9 is not a fixture.** A
+   dense simplex written in a session scratchpad produced SPEC-012 §9's worked
+   example, and earned its keep: it found the missing epoch exclusivity (§5.2)
+   and the missing epoch dual (§5.1), both now decisions. But that scratchpad is
+   gone and **nothing in the tree computes those numbers.**
+
+   `[D]` So **treat §9 as a worked example to reproduce, not expected values to
+   match.** Build the solver, run it on those inputs, and if it disagrees, the
+   **spec is the suspect first**, not the code. The distinction matters because
+   every other named case in §11 is the opposite — the tower census figures come
+   from committed tooling and are re-derivable with `npm run parse-towers`, so
+   those *are* fixtures. `[F]` §7's `375 – 1500` interval has the same
+   provenance as §9 and the same status.
+
+   `[D]` The prototype was deliberately not kept: it is ~80 lines that §11 says
+   belong in `src/analysis/`, and carrying it would mean writing it twice.
 4. `[F]` **SPEC-012's named cases were measured before tower JSON moved.** They
    came from the then-committed `data/towers/v0.7-455/2-1.json`; the same
    figures now need `npm run parse-towers` first (`tools/paths.ts`). The values
