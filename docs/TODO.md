@@ -37,6 +37,48 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
 2. **Floor entry thresholds — the *number*.** Skippable segments are the
    predicate; what is left is a search over it.
 3. **The two open pieces of editing UX** — §A6.
+3f. **Publish, and get it to makiki.** `[F]` Permitted: he prefers assets
+   compiled into the bundle rather than published as files (D14b-1), and the
+   notice is agreed in his own words. `[O]` Not done — no GitHub repo pushed,
+   no Pages workflow. A Pages project site needs `BASE_PATH=/<repo>/` at build
+   time (`vite.config.ts`); the source repo is safe as it stands, since
+   `build/` and `../local/` are gitignored. `[O]` One question still for him:
+   his answer names *map data* as something to bundle, and `data/towers/` is
+   committed as text instead — see 3h.
+3g. `[D]` **Export gets its own spec, `SPEC-013-export.md`.** iestyn,
+   2026-09-10: a separate topic, and non-trivial now, so SPEC-008 §7 shrinks to
+   a reference. **13, not 11 or 12** — another task holds those. `[O]` Not
+   written, and SPEC-008 §7 still says "every write is a fresh, uniquely named
+   file", which the code no longer does. Specs are frozen once tests exist, so
+   it waits for the new spec rather than being edited. The live docs
+   (DESIGN §2.4, `UI.md`, `SAVE_FORMAT.md` §8) are already correct.
+3h. `[D]` **Tower JSON moves into the bundle, and out of the repo.** iestyn,
+   2026-09-11, "for safety", following makiki's preference for compiling map
+   data in. The text form stays as **gitignored build output** so it is still
+   there to debug against. `[O]` Its own task: `data/towers/` is read by
+   `test/sav/helpers.ts` and every session's tests.
+3i. `[D]` **A misbehaving `.sav` reaches iestyn through a paste service, not
+   as a file.** 2026-09-11: pastebin is convenient and safe, and **raw bytes
+   are essential** — a novel failure is the one a summary would not describe.
+   `[I]` A file that runs is what social engineering needs; a paste cannot be
+   double-clicked. `[O]` Not built: the app would emit the bytes as pasteable
+   text, with a diagnostic (record names, entry counts, payload hashes, the
+   parse error) above them so common cases read without decoding anything.
+3j. `[O]` **A gem count that did not update, seen once and not reproduced.**
+   `[I]` iestyn, 2026-09-11, on 2-1 `"C 70.27M win"`: disabled actions 620-630,
+   moved the current action to the end, and the **player status** still showed
+   the old total. The same steps were correct on a retest. `[F]` **The model is
+   not at fault** — headless, `gemsRequired` and the player at the final stop
+   both go 230 to 225, changing from stop 619, exactly where those gates are.
+   So it is the scrubber's re-derive or repaint, or it did not happen.
+   `[O]` Possibly path-dependent. **Do not close this by failing to reproduce
+   it once.**
+3k. `[O]` **The export protocol's own weak point.** Nothing stops a player
+   exporting against a snapshot taken before they last played; the
+   newest-snapshot flag is a hint, not a guard. `[D]` Deliberate — the app
+   cannot see the game's save folder, so any check would prove less than it
+   implied. `[I]` iestyn: he will use it himself first, because anticipating
+   how others will want it is a fool's errand short of asking them.
 4. **Look for restated rules elsewhere** — D33 forbids the pattern, and
    SPEC-002/005/006 have not been checked.
 5. **Fix the perf harness, then read the baseline** — SPEC-007 §7, oracle 2,
@@ -75,7 +117,8 @@ bottom because of what is in it, and it stops at the left panel now so it no
 longer eats the slider's height — but move its contents somewhere better and it
 need not be a strip at all.
 
-`[D]` **`UI.md` stays over D31's 150 on purpose, at 185.** iestyn, 2026-09-04:
+`[D]` **`UI.md` stays over D31's 150 on purpose — 258 now, not 185.** The
+export screen added to it, so the split is overdue rather than pending. iestyn, 2026-09-04:
 §6 will split when the **segment-editing spec** is written — that code stays
 but is not under test now and will be iterated heavily in its own task — and
 an over-long doc is the reminder that the split is owed. `STATUS.md` and this
@@ -138,83 +181,6 @@ stored answer a question it was not the answer to.
 13. **Clicking in the action list selects the wrong row.** Hover brightens the
     right one; the click lands offset by the delta between the newly clicked
     action and the previously clicked one.
-
-## A10. `session-export-sav-injection` — open, and the branch's own
-
-Delete this section when the branch merges.
-
-1. `[O]` **Nobody has run the injector.** Every failure path is tested against
-   a fake folder (`test/sav/savefolder.test.ts`); the real one has not been
-   touched. D24a applies and has not been used.
-2. `[F]` **Answered: Chromium refuses `%APPDATA%`**, so there is no browser
-   route to the savestates folder. Export writes into a `tos_backups` folder
-   the player makes instead (`SAVE_FORMAT.md` §8). Not a limitation to work
-   around — the app can no longer damage a save, because it never opens one.
-3. `[F]` **Answered: the game loads an fflate stream**, replays all 657 entries
-   and rewinds through them (`EX-1.ORD-FFLATE.md`). B1 no longer blocks writing
-   saves from TypeScript.
-3a. `[O]` **The export language wants a pass — the words are all in
-   `src/ui/text.ts`.** `[I]` iestyn, 2026-09-14, and it is his edit, not ours:
-   item 6 of his test list ("picking the copy instead of the container") is the
-   one he named as needing clarifying. `[D]` **Named keys, not numbered
-   chunks**: with one language, numbering buys only a silent indirection, while
-   a key is type-checked and greppable. Interpolated lines are functions, so
-   rewording cannot drop the folder name a line was carrying.
-3b. `[D]` **Several routes gather in one export folder**, named for the
-   snapshot it came from, holding only the towers exported. Settled with iestyn
-   2026-09-10, along with what was deliberately *not* built: no staleness
-   detection, because the app cannot see the master folder and any check would
-   prove less than it implied. `[O]` What is left is the protocol's own weak
-   point — nothing stops a player exporting against a snapshot taken before
-   they last played. The newest-snapshot flag is a hint, not a guard.
-   `[I]` iestyn: he will use it himself first; anticipating how others will
-   want to use it is a fool's errand short of handing it out and asking them.
-3c. `[D]` **A misbehaving `.sav` goes to iestyn through a paste service, not
-   as a file.** iestyn, 2026-09-11: pastebin is convenient and safe, and
-   **raw bytes are essential** — a novel failure is exactly the one a summary
-   would not describe. `[I]` The shape matters because a file that runs is what
-   social engineering needs; a paste cannot be double-clicked. `[O]` Not built:
-   the app would emit the bytes as pasteable text, probably with a text
-   diagnostic (record names, entry counts, payload hashes, the parse error)
-   above them so the common cases are readable without decoding anything.
-3d. `[O]` **A gem count that did not update, seen once and not reproduced.**
-   `[I]` iestyn, 2026-09-11, on 2-1 `"C 70.27M win"`: disabled actions 620-630,
-   moved the current action to the end, and the **player status** area still
-   showed the old gem total. Retesting the same steps later, it was correct.
-   `[F]` **The model is not at fault** — headless, `gemsRequired` and the
-   player at the final stop both go 230 to 225, and per-stop the change appears
-   from stop 619 on, exactly where those gates are. So it is in the scrubber's
-   re-derive or repaint, or it did not happen. `[O]` Possibly path-dependent;
-   iestyn is watching for it. Do not close this by failing to reproduce it once.
-3e. `[D]` **Tower JSON moves into the bundle too, and out of the repo.**
-   `[I]` iestyn, 2026-09-11, "for safety", following makiki's preference for
-   compiling map data in rather than publishing it (D14b-1). The text form is
-   kept as **gitignored build output** so it is still there to debug against.
-   `[O]` **Not done, and not this branch's to do**: `data/towers/` is read by
-   `test/sav/helpers.ts` and by every session's tests, and the concurrent
-   spec-gold-analysis task has major changes coming. Doing it here would
-   conflict for no reason. It is its own task, after this merges.
-4. `[O]` **`UI.md` is at 258 lines**, past D31's 150 and past the 185 that was
-   ratified as a deliberate overage. The export screen added to it. The split
-   §A.1a and the segment-editing spec owe is now overdue rather than pending.
-5. `[D]` **Export moves out of SPEC-008 into `SPEC-013-export.md`.** iestyn,
-   2026-09-10: it is a separate topic and has become non-trivial, so SPEC-008
-   §7 shrinks to a reference. **13, not 11 or 12** — another task holds those.
-   `[O]` Not written. SPEC-008 §7 still says "every write is a fresh, uniquely
-   named file", which the code no longer does; specs are frozen once tests
-   exist against them, so it waits for the new spec rather than being edited.
-   The live docs (DESIGN §2.4, UI.md, SAVE_FORMAT §8) are already correct.
-6. `[O]` **The dev server base path is new** (`tools/worktree.ts`). The shots
-   harness walks ports at this worktree's own path now, which is a strict
-   improvement, but no golden has been shot since the change.
-7. `[F]` **Hosting the built app is permitted.** makiki, 2026-09-11:
-   *"Compiling assets (map data and sprites) into the app bundle to avoid
-   putting them in the public repo is probably a good idea simply to make
-   handling the license document way easier."* Bundling is the arrangement he
-   prefers, not a workaround, so the deployed bundle is inside the permission
-   and the raw assets stay out of the repo (D14b-1). `[F]` `vite.config.ts`
-   takes `BASE_PATH`, so a Pages project site needs `BASE_PATH=/<repo>/` at
-   build time. `[O]` Not deployed yet, and no Pages workflow written.
 
 ## A8. Two doc/code disagreements, found 2026-09-04
 

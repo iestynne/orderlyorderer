@@ -85,6 +85,7 @@ path (`TODO.md` §C).
 | SPEC-007 tower scrubber | **implemented**, all three stages. Stages 1-2 green against the contract; stage 3 awaits an eye (D24a). |
 | SPEC-008 route editing | **implemented**, draft 2. Three features, one machinery. Oracles 1-4 pass; the UI awaits an eye (D24a). |
 | SPEC-009 visual harness | **implemented**, draft 2. 19 scenarios, every golden blessed by eye, the whole contract green. `npm run shots` to check, `npm run bless` to review what moved. |
+| SPEC-013 export | **implemented, unspecced.** Export injects a route into a copy of the player's `.sav`; the spec is owed (`TODO.md` §A.3g). `SAVE_FORMAT.md` §8 holds the facts. |
 | SPEC-010 log oracle | **draft 1**, not started. Validates the simulator's event *ordering* against the game's own `log1.txt`. Manual pass through the game; everything either side scripted. |
 | SPEC-003 headless Lua harness | stub. **Do not build:** its gate required manual verification to have become the bottleneck, and the replay sweep is that oracle instead. |
 | SPEC-001 overlay detector | **cancelled**, in `specs/obsolete/`. Overlays are declared in the level data, not inferred. |
@@ -106,7 +107,8 @@ Plus four hand-played experiments (C1-C4) predicted independently by the sim
 
 ## The app exists
 
-`SPEC-007`, `SPEC-008` and `SPEC-009` are built. **351 tests pass.**
+`SPEC-007`, `SPEC-008` and `SPEC-009` are built. **379 tests pass**, none
+skipped.
 
 - **Stage 1, `Cursor`** — `src/sim/cursor.ts`, pure, 122 lines. Every named
   value in the contract reproduced first time, corpus maxima 1 773 stops and
@@ -128,6 +130,27 @@ Plus four hand-played experiments (C1-C4) predicted independently by the sim
 
 **The D32 reimplementation test ran** and found a real bug — in the docs, not
 the code (D33). Looking at the app then found nine more: D24a earns its keep.
+
+## Export works, end to end
+
+A route leaves this app as a record inside a **copy** of the player's own save,
+and the game loads it. `[F]` Verified in game by iestyn over 12 cases,
+2026-09-14.
+
+- `[F]` **The browser cannot reach the game's save folder** — Chromium refuses
+  `%APPDATA%` — so the app writes only into folders it made, inside a
+  `tos_backups` folder the player keeps, and the player copies the result
+  across. Nothing it opens for writing is a file it did not create.
+- `[F]` **Injection changes one byte and appends.** Across all 14 corpus saves:
+  byte 0 identical, byte 1 the record count, bytes 2..EOF verbatim at their own
+  offsets. Going through `parseSaveFile`/`emitSaveFile` instead rewrote 9 823 of
+  EX-1's 10 031 bytes, because Node's zlib reproduces only 82 of 326 streams.
+- `[F]` **The browser's compressor is proved** — fflate's stream loads in the
+  game, replays 657 entries and rewinds. B1 no longer blocks writing from TS.
+- `[F]` **`ORD:` is a namespace the game's keyboard cannot type**, so an export
+  can never overwrite a hand-played save. Verified in game.
+
+`SAVE_FORMAT.md` §8; the spec is owed (§A.3g).
 
 ## Next
 

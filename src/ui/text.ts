@@ -83,7 +83,7 @@ export const EXPORT = {
   deployHeading: "Now do this",
   wrote: (name: string, joined: boolean, file: string, records: number, towers: string): string =>
     `**${name}** ${joined ? "joined" : "was exported to"} **${file}**, which now holds ${records} routes. ` +
-    `Every other route was read back from disk and is unchanged. The folder holds ${towers}.`,
+    `Every other route was read back from disk and is unchanged.\nThe folder holds ${towers}.`,
   done: "done",
   /**
    * `[D]` The deploy steps take the export folder as an argument rather than
@@ -95,7 +95,7 @@ export const EXPORT = {
     ["Go to the main menu and stay there", "Not inside the tower you are about to change."],
     [
       `Copy the contents of ${out} into your savestates folder`,
-      "Copy the .sav files inside it — not the folder itself. Steam Cloud corrupts any folder placed in there.",
+      "Copy the .sav files inside it — not the folder itself.\nSteam Cloud corrupts any folder placed in there.",
     ],
     ["Check every route you had is still present", "In the game's savestate list, for that tower."],
     ["Load your best route", "It should play exactly as before."],
