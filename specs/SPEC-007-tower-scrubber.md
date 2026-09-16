@@ -1,5 +1,15 @@
 # SPEC: The Tower Scrubber
 
+> **Amendment, 2026-09-15 — the tower JSON path moved.** The two
+> `data/towers/v0.7-455/` references below (§4's `index.json` check, §8's
+> measurement) now read `build/towers/v0.7-455/`, written by
+> `npm run parse-towers`. `[F]` Tower JSON is derived, so it is built and
+> gitignored rather than committed; `tools/paths.ts` names the location once and
+> the code reads it. See SPEC-002's amendment for the reasoning.
+>
+> `[D]` **Amended, not rewritten** — this spec is frozen and no behaviour
+> changed. `TODO.md` §A.3ga is the record.
+
 Status: **draft 2 — ready for implementation**, 2026-08-31.
 Game source verified against: `v0.7-455` Lua dump.
 Depends on: SPEC-002 (tower JSON), SPEC-004 (simulation), SPEC-006 (`.sav` codec).

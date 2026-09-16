@@ -39,13 +39,13 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
 3. **The two open pieces of editing UX** — §A6.
 3f. **Publish, and get it to makiki** — worktree topic name `pages-deploy`.
    See §A11 for the whole task.
-3ga. `[O]` **Two frozen specs name `data/towers/v0.7-455/`**, which is not
-   where the tower JSON lives any more (`build/towers/`): SPEC-002 in its scope
-   line, §2 and its Verification Contract, and SPEC-007 §4 and §8. Specs are
-   frozen once tests exist against them, so this is recorded rather than edited
-   — like §A.3g it wants an amendment note or a redraft, not a quiet fix. `[F]`
-   Nothing is broken by it: `tools/paths.ts` is the single definition and the
-   tests all read it.
+3ga. `[F]` **Done, 2026-09-15: both frozen specs carry an amendment note.**
+   SPEC-002 and SPEC-007 named `data/towers/v0.7-455/`, which is not where the
+   tower JSON lives any more (`build/towers/`, `npm run parse-towers`). Each now
+   opens with a dated note redirecting every such reference, and **neither body
+   was edited** — they are frozen, tests exist against them, and no behaviour
+   changed, only where the output lands. `[F]` Nothing was ever broken by it:
+   `tools/paths.ts` is the single definition and the tests all read it.
 3g. `[D]` **Export gets its own spec, `SPEC-013-export.md`.** iestyn,
    2026-09-10: a separate topic, and non-trivial now, so SPEC-008 §7 shrinks to
    a reference. **13, not 11 or 12** — another task holds those. `[O]` Not
