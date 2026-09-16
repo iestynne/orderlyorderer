@@ -39,6 +39,13 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
 3. **The two open pieces of editing UX** — §A6.
 3f. **Publish, and get it to makiki** — worktree topic name `pages-deploy`.
    See §A11 for the whole task.
+3ga. `[O]` **Two frozen specs name `data/towers/v0.7-455/`**, which is not
+   where the tower JSON lives any more (`build/towers/`): SPEC-002 in its scope
+   line, §2 and its Verification Contract, and SPEC-007 §4 and §8. Specs are
+   frozen once tests exist against them, so this is recorded rather than edited
+   — like §A.3g it wants an amendment note or a redraft, not a quiet fix. `[F]`
+   Nothing is broken by it: `tools/paths.ts` is the single definition and the
+   tests all read it.
 3g. `[D]` **Export gets its own spec, `SPEC-013-export.md`.** iestyn,
    2026-09-10: a separate topic, and non-trivial now, so SPEC-008 §7 shrinks to
    a reference. **13, not 11 or 12** — another task holds those. `[O]` Not
@@ -193,7 +200,8 @@ defaults to `/` and a project site needs `/<repo>/`, or every asset 404s.
 3. Check the deployed page actually loads: the atlas is inlined, so a wrong
    `BASE_PATH` shows as a black canvas rather than an error (SPEC-007 §6.1).
 4. Send makiki the URL, and ask the one open question: his answer named *map
-   data* as something to bundle, and `data/towers/` is committed as text. §A.3h.
+   data* as something to bundle — done for the tower JSON (§A.3h), so the
+   question is now only whether the committed save corpus is also fine by him.
 
 ### Two things to decide while there
 
@@ -417,9 +425,10 @@ their answers are in `GAME_MECHANICS.md` where game rules live (D33).
   the sprite-repo question is answered: assets stay out, the bundle carries
   them, and the built app may be deployed.
 - `[O]` **Tower JSON is not explicitly covered.** His answer names "map data"
-  as something to compile into the bundle; `data/towers/` is committed as text
-  instead. That may be exactly what he was addressing, or it may not — worth one
-  direct question, since it is the one item here with a live consequence.
+  as something to compile into the bundle, which the tower JSON now is
+  (§A.3h). `[O]` What is left to ask is narrower: the **save corpus** is
+  committed on purpose as example data, and that is iestyn's own files rather
+  than makiki's, so it is a courtesy question rather than a permission one.
 - Minor: `entitydef.orb_change.compendium_header` reads "Warp orb", duplicating
   `orb_warp`. Looks like a copy-paste slip.
 

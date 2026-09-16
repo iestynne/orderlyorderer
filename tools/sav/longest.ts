@@ -8,8 +8,8 @@ import { parseSaveFile } from "../../src/sav/savefile";
 import { hasOrbMoves, routeFromRecord } from "../../src/sav/route";
 import { simulate } from "../../src/sim/simulate";
 import type { TowerJSON } from "../../tools/maps/types";
+import { TOWER_DIR } from "../paths";
 
-const TOWER_DIR = join(process.cwd(), "data", "towers", "v0.7-455");
 
 interface Row {
   towerId: string;

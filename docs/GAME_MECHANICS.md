@@ -489,7 +489,7 @@ not a subset relation.
 **Consequences for this tool:**
 
 1. A tower's initial state is a function of `(map file, unlock flags,
-   per-tower crown tier)`. `data/towers/` holds only the first.
+   per-tower crown tier)`. The tower JSON holds only the first.
 2. **A shared route must carry the account state it was built under**, or it may
    not reproduce. This is the concrete case `§9` warns about in the abstract.
 3. `[F]` **Existing routes survive the change.** The obvious worry — that
