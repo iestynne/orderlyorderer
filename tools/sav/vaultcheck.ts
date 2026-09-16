@@ -9,8 +9,8 @@ import { simulate } from "../../src/sim/simulate";
 import { coords } from "../../src/sim/grid";
 import { LEVEL_SCRIPTS } from "../../src/sim/levelScripts";
 import type { TowerJSON } from "../../tools/maps/types";
+import { TOWER_DIR } from "../paths";
 
-const TOWER_DIR = join(process.cwd(), "data", "towers", "v0.7-455");
 
 function main(): void {
   const dir = process.argv[2]!;

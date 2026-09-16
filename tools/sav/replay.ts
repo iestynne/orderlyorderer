@@ -10,8 +10,8 @@ import { hasOrbMoves, routeFromRecord } from "../../src/sav/route";
 import { simulate } from "../../src/sim/simulate";
 import { coords } from "../../src/sim/grid";
 import type { TowerJSON } from "../../tools/maps/types";
+import { TOWER_DIR } from "../paths";
 
-const TOWER_DIR = join(process.cwd(), "data", "towers", "v0.7-455");
 
 export function loadTower(id: string): TowerJSON {
   return JSON.parse(readFileSync(join(TOWER_DIR, `${id}.json`), "utf8")) as TowerJSON;

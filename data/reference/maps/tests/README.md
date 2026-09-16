@@ -10,7 +10,7 @@ Final-state map PNGs exported from the game, used by SPEC-005's golden oracle
 ```
 
 The test parses the filename to find its own inputs: the tower JSON in
-`data/towers/v0.7-455/`, and the named record inside
+`build/towers/v0.7-455/` (built, not committed), and the named record inside
 `data/saves/iestyn.2026.08.28/<tower-id>.sav`. Adding a fixture therefore needs
 no code change — drop the PNG in and the suite picks it up.
 

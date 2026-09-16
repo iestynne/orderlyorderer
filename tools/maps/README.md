@@ -15,7 +15,8 @@ output directory is version-stamped by path (D15).
 
 ```
 npm install
-npm run parse-maps -- ../local/game/v0.7-455 data/towers/v0.7-455
+npm run parse-towers        # the same, with the paths filled in
+npm run parse-maps -- ../local/game/v0.7-455 build/towers/v0.7-455
 ```
 
 Writes one `<tower_id>.json` per tower plus an `index.json`, and prints

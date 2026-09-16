@@ -11,10 +11,11 @@ import { parseSaveFile } from "../../src/sav/savefile";
 import { routeFromRecord } from "../../src/sav/route";
 import { simulate } from "../../src/sim/simulate";
 import type { TowerJSON } from "../../tools/maps/types";
+import { TOWER_DIR } from "../paths";
 
 function main(): void {
   const [pngPath, towerId, savPath, record] = process.argv.slice(2);
-  const tower = JSON.parse(readFileSync(join("data", "towers", "v0.7-455", `${towerId!}.json`), "utf8")) as TowerJSON;
+  const tower = JSON.parse(readFileSync(join(TOWER_DIR, `${towerId!}.json`), "utf8")) as TowerJSON;
   const png = decodePng(new Uint8Array(readFileSync(pngPath!)));
   const grid = panelGrid(png);
 
