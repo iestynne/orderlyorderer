@@ -102,7 +102,7 @@ git restore <file>       # discard changes to a file
 ## 8. Publish to GitHub Pages
 
 The build needs the game archive, so nothing can build this on a runner and
-there is no Actions workflow (D47). The site is built here and the bundle is
+there is no Actions workflow (D48). The site is built here and the bundle is
 pushed to an orphan `gh-pages` branch; `dist/` holds no raw game asset, only
 HTML, CSS and JS with the art inlined.
 

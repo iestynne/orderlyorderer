@@ -1,5 +1,19 @@
 # SPEC-002 — `res/maps/*` to tower JSON
 
+> **Amendment, 2026-09-15 — the output path moved.** Every
+> `data/towers/v0.7-455/` below now reads `build/towers/v0.7-455/`, and the
+> command is `npm run parse-towers`. `[F]` Tower JSON is **derived, so it is
+> built and gitignored, not committed** — `tools/paths.ts` is the one place the
+> location is named, and the tests read it rather than a literal. `[I]` iestyn,
+> following makiki's preference for compiling map data into the bundle rather
+> than publishing it as files (D14b-1); the parser stays in the repository so
+> anyone who owns the game can build their own copy.
+>
+> `[D]` **Amended, not rewritten.** This spec is frozen — tests exist against it
+> — and nothing about the parser's behaviour changed, only where its output
+> lands. `TODO.md` §A.3ga is the record. The body below is left as it was
+> written so the contract still reads as one piece.
+
 **Status:** ready to implement
 **Docs to load:** `STATUS.md`, `DECISIONS.md`. Load `GAME_MECHANICS.md` only for
 §3.5. Do **not** load `NOTES_map_extraction_deferred.md` or `SPRITES.json` — the image pipeline is

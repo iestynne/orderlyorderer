@@ -12,7 +12,7 @@ Run every tool from the repository root.
 | Tool | Language | What it does |
 |---|---|---|
 | [`maps/`](maps/README.md) | TypeScript | Parses `res/maps/*` into the tower JSON in `build/`. See its README. |
-| `deploy.ts` | TypeScript | `npm run deploy` — builds the site and pushes it to `gh-pages` (D47). Only iestyn runs it; it reaches the network. |
+| `deploy.ts` | TypeScript | `npm run deploy` — builds the site and pushes it to `gh-pages` (D48). Only iestyn runs it; it reaches the network. |
 | `luajit_buffer.py` | Python 3 | Reads and writes `.sav` files: the LuaJIT `string.buffer` codec plus the Towers of Scale container. |
 
 ## `luajit_buffer.py`

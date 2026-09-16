@@ -182,7 +182,7 @@ and ask.
   the network during a task. `.claude/settings.json` denies it; this is here so
   the rule is also stated where you will read it. Two commands in this repository
   reach the network — `npm run shots:install` (SPEC-009 §2) and `npm run deploy`
-  (D47) — and **only iestyn runs either**. A session may take deploy as far as
+  (D48) — and **only iestyn runs either**. A session may take deploy as far as
   `npm run deploy -- --no-push`, which builds and does not push.
 - **Never edit `LAUNCH_ARGS` in `tools/shots/browser.ts`.** It is the harness
   browser's confinement to localhost, and SPEC-009 §5 case 1 pins it against a

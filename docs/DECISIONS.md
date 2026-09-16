@@ -813,7 +813,39 @@ export notice names the number, and a route whose gem cost was changed here
 takes `"<N> gems"` as its name, so the requirement is legible in the game's own
 save list. `RouteSession.gemsRequired` and `displayName`.
 
-**D47. The site is built here and pushed as a bundle. There is no CI.**
+**D47. The worktree directory name decides the port, as it already decides the
+URL path.**
+`[F]` 2026-09-09: five Vite servers across parallel sessions, and one took a
+port another was already serving on. `[F]` **Every one of them bound `[::1]`
+only.** Vite's free-port probe and its bind can disagree across the two loopback
+stacks, so "5175 is free" and "5175 is in use" were both true at once.
+
+`[D]` **Binding `127.0.0.1` is the fix**, not the hash. With probe and bind on
+one stack Vite's own port walk stops stealing. `"localhost"` resolves to `[::1]`
+here, which is the stack the mismatch lives on. Loopback only either way
+(CLAUDE.md).
+
+`[D]` **The hash decides only where the walk starts**, so a session keeps the
+same port from one restart to the next instead of drifting up the range as
+neighbours come and go. `[D]` **`strictPort` is off, deliberately.** A hash
+cannot promise uniqueness: `[F]` `git-route-edit-implementation` and
+`git-export-sav-injection` collide at every span tried, including the
+`[5200, 7200)` shipped. Letting the walk resolve a collision costs one port;
+`strictPort` would have cost a failed start, which is worse than the problem.
+
+`[D]` `devPort()` sits in `tools/worktree.ts` beside `basePath()` because they
+answer one question — *which worktree is this* — from one string, the directory
+name. D11: a second module hashing a second identity would be two answers that
+can disagree.
+
+`[I]` `local/serve-main.cmd` launches a server on `main` at any time without a
+session. It lives in `local/` because that is not a git repository and the
+script is a convenience, not part of the tool; it refuses if `../git/` is not on
+`main` or has uncommitted changes, since that checkout is the merge target
+(CLAUDE.md Hard rules). `[D]` It hardcodes neither port nor path — Vite prints
+the URL, so the script cannot go stale when the hash changes.
+
+**D48. The site is built here and pushed as a bundle. There is no CI.**
 `[F]` A GitHub Actions runner cannot build this app: `build-atlas` and
 `parse-towers` read `../local/game/`, which is outside the repository by
 construction (D14d) and must never be on a runner (D14b). Committing the atlas

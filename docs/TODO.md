@@ -38,16 +38,16 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
    predicate; what is left is a search over it.
 3. **The two open pieces of editing UX** — §A6.
 3f. **Publish, and get it to makiki** — worktree topic name `pages-deploy`.
-   **Built, short of the push** (D47, `SETUP.md` §8); the five steps left are
+   **Built, short of the push** (D48, `SETUP.md` §8); the five steps left are
    iestyn's, because they need the network and a browser.
    See §A11 for the whole task.
-3ga. `[O]` **Two frozen specs name `data/towers/v0.7-455/`**, which is not
-   where the tower JSON lives any more (`build/towers/`): SPEC-002 in its scope
-   line, §2 and its Verification Contract, and SPEC-007 §4 and §8. Specs are
-   frozen once tests exist against them, so this is recorded rather than edited
-   — like §A.3g it wants an amendment note or a redraft, not a quiet fix. `[F]`
-   Nothing is broken by it: `tools/paths.ts` is the single definition and the
-   tests all read it.
+3ga. `[F]` **Done, 2026-09-15: both frozen specs carry an amendment note.**
+   SPEC-002 and SPEC-007 named `data/towers/v0.7-455/`, which is not where the
+   tower JSON lives any more (`build/towers/`, `npm run parse-towers`). Each now
+   opens with a dated note redirecting every such reference, and **neither body
+   was edited** — they are frozen, tests exist against them, and no behaviour
+   changed, only where the output lands. `[F]` Nothing was ever broken by it:
+   `tools/paths.ts` is the single definition and the tests all read it.
 3g. `[D]` **Export gets its own spec, `SPEC-013-export.md`.** iestyn,
    2026-09-10: a separate topic, and non-trivial now, so SPEC-008 §7 shrinks to
    a reference. **13, not 11 or 12** — another task holds those. `[O]` Not
@@ -124,13 +124,59 @@ need not be a strip at all.
 
 `[D]` **`UI.md` stays over D31's 150 on purpose — 258 now, not 185.** The
 export screen added to it, so the split is overdue rather than pending. iestyn, 2026-09-04:
-§6 will split when the **segment-editing spec** is written — that code stays
+§6 will split when **`SPEC-011`** is built — the segment-editing spec, written
+2026-09-09 and not yet implemented; that code stays
 but is not under test now and will be iterated heavily in its own task — and
 an over-long doc is the reminder that the split is owed. `STATUS.md` and this
 file are over too, with §A7 and §A8 living here until the branch merges.
 
 `[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
 own capture control: press `S` or the button, share the PNG.
+
+## A12. `spec-gold-analysis` — this branch's own
+
+`[D]` Delete this section when the branch merges. Nothing here is built: the
+branch is two spec documents, one canonical doc, D47, and a six-line change to
+`vite.config.ts`.
+
+1. **SPEC-011 and SPEC-012 have had no eye but iestyn's in chat.** SPEC-011 is
+   draft 1 and deliberately partial — §3 is a stub. SPEC-012 is **draft 2**, a
+   rewrite: draft 1 was written in linear-programming vocabulary and could not
+   be read, and two of its recommendations were wrong. `[F]` Getting its central
+   idea across took most of a session, which is the evidence for its §8.1 — the
+   bar chart exists because the number could not be explained.
+2. `[D]` **SPEC-011 oracle 1 stays unspecified until SPEC-011 is built.** Its
+   expected values come from a hand-authored 2-1 document, and iestyn cannot
+   author one until the editing surface exists. Named, not specified, and
+   correctly so — inventing the numbers would be inventing the route.
+3. `[O]` **The solver was prototyped, not built, and §9 is not a fixture.** A
+   dense simplex written in a session scratchpad produced SPEC-012 §9's worked
+   example, and earned its keep: it found the missing epoch exclusivity (§5.2)
+   and the missing epoch dual (§5.1), both now decisions. But that scratchpad is
+   gone and **nothing in the tree computes those numbers.**
+
+   `[D]` So **treat §9 as a worked example to reproduce, not expected values to
+   match.** Build the solver, run it on those inputs, and if it disagrees, the
+   **spec is the suspect first**, not the code. The distinction matters because
+   every other named case in §11 is the opposite — the tower census figures come
+   from committed tooling and are re-derivable with `npm run parse-towers`, so
+   those *are* fixtures. `[F]` §7's `375 – 1500` interval has the same
+   provenance as §9 and the same status.
+
+   `[D]` The prototype was deliberately not kept: it is ~80 lines that §11 says
+   belong in `src/analysis/`, and carrying it would mean writing it twice.
+4. `[F]` **SPEC-012's named cases were measured before tower JSON moved.** They
+   came from the then-committed `data/towers/v0.7-455/2-1.json`; the same
+   figures now need `npm run parse-towers` first (`tools/paths.ts`). The values
+   are unaffected — the parser is byte-exact — but a session that finds no file
+   should build one rather than doubt the numbers.
+5. `[O]` **`local/serve-main.cmd` is untested.** Written, never run — `../git/`
+   was clean and on `main`, so neither refusal path has fired. It lives outside
+   the repository, so it survived this branch's rebase and is not in the diff.
+6. `[O]` **SPEC-012 §8.1's multi-resource split is decided but untried** —
+   proportional to quantity x resource value, with bars hatched where another
+   resource blocks them. `[I]` iestyn will judge whether the hatching is needed
+   or is noise when he uses it.
 
 ## A11. `pages-deploy` — publish the app so makiki can open a URL
 
@@ -145,7 +191,7 @@ the app verbatim. Nothing here needs asking again.
 `[F]` **The mechanism is built and tested short of the push** — branch
 `session-pages-deploy`. `npm run deploy` builds with the right base and commits
 `dist/` to an orphan `gh-pages` branch; `--no-push` stops there. The `[O]` that
-blocked the shape is resolved and recorded as **D47**: no runner can build this,
+blocked the shape is resolved and recorded as **D48**: no runner can build this,
 so there is no workflow. `SETUP.md` §8 is the procedure.
 
 **What is left is iestyn's, all of it — the network and a browser (CLAUDE.md):**
@@ -164,13 +210,14 @@ so there is no workflow. `SETUP.md` §8 is the procedure.
    whether the **committed save corpus** is also fine by him.
 
 `[O]` **`SPEC-009` §2 and its §1 table call `shots:install` "the one command that
-reaches the network".** There are two now (CLAUDE.md, D47). The spec is frozen,
+reaches the network".** There are two now (CLAUDE.md, D48). The spec is frozen,
 so this is recorded rather than edited — an amendment note, like §A.3ga.
 
 `[O]` **Deploying `main` is not deploying this branch.** Step 3 publishes
 whatever is checked out. If iestyn wants makiki to see the MVP as it is now,
 deploy before merging anything else, or merge this branch first — it changes no
 app code.
+
 ## A7. The editing UI, by eye — thirteen fixed, none confirmed
 
 `[I]` iestyn, six rounds of looking at it. Merged to `main` 2026-09-04 with

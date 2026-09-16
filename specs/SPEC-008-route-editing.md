@@ -10,6 +10,13 @@ The second interactive slice: the player edits a route and sees where it breaks.
 Three features, one machinery — add and remove actions, skippable segments,
 parallel segments.
 
+`[D]` **This spec owns the structure; two others own what is done with it.**
+`SPEC-011` makes the segment operations reachable and decides how a segment is
+authored, named and badged; `SPEC-012` prices segments as trades, reading §3's
+selection policy directly as constraint rows. Neither restates anything here,
+and nothing here moves to them — the oracles below assert this structure, and a
+definition has one home (D33).
+
 `[D]` **This spec holds only what is numerically testable** — structures,
 interfaces, invariants, the Verification Contract. Rationale and behaviour are
 `docs/DESIGN_ROUTE_EDITING.md` and `docs/UI.md`, which are mutable (D30). The
@@ -389,6 +396,10 @@ removing actions is the feature that makes the app immediately useful, and the
 segment affordances are a second thing to learn on top of it; they come back
 when the first is understood.
 
+`[F]` **They come back in `SPEC-011`**, which turns the seven on and specifies
+the surface they need. No operation is added there: the nine were designed
+together, and the seventh was never missing — only unreachable.
+
 `[D]` **Undo covers the current run of insertions and nothing else.** `Z` takes
 back the last insertion and `Y` puts it back, mirroring the game's own undo and
 redo so that injecting a new stretch of route feels like playing one. The redo
@@ -496,6 +507,11 @@ From `docs/DESIGN_ROUTE_EDITING.md`:
 | §3.1 | The green/red timeline; the `+` badge on added actions; the *no entry* badge and start-location behaviour for disabled ones; three mutually-exclusive mode buttons; Z and Y single-stepping; click semantics in add and delete mode |
 | §4.3 | Segment selection; the bracket over the current segment; scrubbing a failed segment and clamping at its failing action; the failure overlay built from `SimError`'s code plus `have`/`need` |
 | §5 | Choosing between parallel segments by clicking, and what the inactive ones show |
+
+`[D]` **The last two rows are `SPEC-011`'s to land, not this spec's.** They
+describe the segment affordances, which are behind the flag §5 names, so
+`docs/UI.md` would be describing unbuilt behaviour if they went in now (D31).
+They stay listed here because this is where the migration list lives.
 
 `[O]` Three of these resolve only by building, and are built but not yet
 looked at (D24a) — whether the outline around actions reads well, whether it

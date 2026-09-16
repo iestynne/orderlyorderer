@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { basePath } from "./tools/worktree";
+import { basePath, devPort } from "./tools/worktree";
 
 // No backend (CLAUDE.md). build/ holds the game art and is gitignored; the
 // atlas is imported with ?inline so it lands in the bundle rather than being
@@ -22,5 +22,10 @@ export default defineConfig(({ command }) => ({
   resolve: {
     alias: [{ find: /^node:zlib$/, replacement: fileURLToPath(new URL("./src/sav/zlib-browser.ts", import.meta.url)) }],
   },
+  // One port per worktree, from the same name as the base path (D47). The host
+  // matters more than the port: on "localhost" — which resolves to `[::1]` here
+  // — Vite's probe and its bind can disagree, and it takes a neighbour's port.
+  // Loopback only either way, per CLAUDE.md.
+  server: { host: "127.0.0.1", port: devPort() },
   build: { assetsInlineLimit: 1024 * 1024, target: "es2022" },
 }));
