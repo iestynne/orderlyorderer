@@ -198,16 +198,18 @@ so there is no workflow. `SETUP.md` §8 is the procedure.
 
 1. **Push `main`.** Safe as it stands: `build/` and `../local/` are gitignored.
 2. **Make the repository public** — Pages on a private repo needs a paid plan.
-   `[O]` Whether it is already public was never verified.
+   `[F]` iestyn, 2026-09-15: it is private today, and going public is now safe
+   because the tower JSON was scrubbed out of the history.
 3. **`npm run deploy`**, then **Settings → Pages → deploy from branch
    `gh-pages`, `/ (root)`**. The branch has to exist before the setting takes.
 4. **Open the URL and look.** `[F]` A wrong base shows as a **black canvas**,
    not an error (SPEC-007 §6.1) — so a page that draws at all is the check. The
    base is derived from the remote and is covered by `test/tools/deploy.test.ts`,
    but nothing local can prove what GitHub serves.
-5. **Send makiki the URL**, and ask the one open question: his answer named
-   *map data* as something to bundle — done (§A.3h) — so what is left is only
-   whether the **committed save corpus** is also fine by him.
+5. **Send makiki the URL.** `[F]` iestyn, 2026-09-15: **nothing is left to ask.**
+   His answer named *map data*, which is built rather than committed (§A.3h).
+   The save corpus is not his to rule on — those files are iestyn's own play,
+   not the developer's assets, and D14b settled them already.
 
 `[O]` **`SPEC-009` §2 and its §1 table call `shots:install` "the one command that
 reaches the network".** There are two now (CLAUDE.md, D48). The spec is frozen,
