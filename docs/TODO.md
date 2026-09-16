@@ -38,8 +38,8 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
    predicate; what is left is a search over it.
 3. **The two open pieces of editing UX** — §A6.
 3f. **Publish, and get it to makiki** — worktree topic name `pages-deploy`.
-   **Built, short of the push** (D48, `SETUP.md` §8); the five steps left are
-   iestyn's, because they need the network and a browser.
+   **Merged to `main` 2026-09-15, short of the push** (D48, `SETUP.md` §8); the
+   five steps left are iestyn's, because they need the network and a browser.
    See §A11 for the whole task.
 3ga. `[F]` **Done, 2026-09-15: both frozen specs carry an amendment note.**
    SPEC-002 and SPEC-007 named `data/towers/v0.7-455/`, which is not where the
@@ -211,14 +211,16 @@ so there is no workflow. `SETUP.md` §8 is the procedure.
    The save corpus is not his to rule on — those files are iestyn's own play,
    not the developer's assets, and D14b settled them already.
 
-`[O]` **`SPEC-009` §2 and its §1 table call `shots:install` "the one command that
-reaches the network".** There are two now (CLAUDE.md, D48). The spec is frozen,
-so this is recorded rather than edited — an amendment note, like §A.3ga.
+`[F]` **Done, 2026-09-15: SPEC-009 carries an amendment note.** Its §1 table and
+§2 called `shots:install` "the one command that reaches the network"; there are
+two (`npm run deploy`, D48). The spec is frozen and tests exist against it, so
+the note redirects those lines and **the body was not edited** — like §A.3ga.
+`[F]` Nothing else in the tree still claims one: CLAUDE.md, `tools/deploy.ts`
+and D48 all name both.
 
-`[O]` **Deploying `main` is not deploying this branch.** Step 3 publishes
-whatever is checked out. If iestyn wants makiki to see the MVP as it is now,
-deploy before merging anything else, or merge this branch first — it changes no
-app code.
+`[F]` **Deploy from `main`.** Step 3 publishes whatever is checked out, so this
+branch merged first (2026-09-15, iestyn); it changes no app code. Whatever else
+lands on `main` before step 3 is what makiki sees.
 
 ## A7. The editing UI, by eye — thirteen fixed, none confirmed
 

@@ -1,5 +1,15 @@
 # SPEC: Visual Harness
 
+> **Amendment, 2026-09-15 — `shots:install` is no longer the only command
+> that reaches the network.** §1's table and §2 below call it "the one command
+> that reaches the network"; there are two. `npm run deploy` force-pushes the
+> built bundle to `gh-pages` (D48, `SETUP.md` §8). `[F]` Both are iestyn's
+> alone to run, which is the property those lines were asserting, and it
+> still holds.
+>
+> `[D]` **Amended, not rewritten** — this spec is frozen and nothing in the
+> harness changed. `TODO.md` §A11 is the record.
+
 Status: **implemented**, draft 2, 2026-09-06. 19 scenarios, every golden
 blessed by eye, the Verification Contract green in full. Draft 2 is what
 building it changed — each change is marked `[D] draft 2` where it lands.
