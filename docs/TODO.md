@@ -37,14 +37,8 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
 2. **Floor entry thresholds — the *number*.** Skippable segments are the
    predicate; what is left is a search over it.
 3. **The two open pieces of editing UX** — §A6.
-3f. **Publish, and get it to makiki.** `[F]` Permitted: he prefers assets
-   compiled into the bundle rather than published as files (D14b-1), and the
-   notice is agreed in his own words. `[O]` Not done — no GitHub repo pushed,
-   no Pages workflow. A Pages project site needs `BASE_PATH=/<repo>/` at build
-   time (`vite.config.ts`); the source repo is safe as it stands, since
-   `build/` and `../local/` are gitignored. `[O]` One question still for him:
-   his answer names *map data* as something to bundle, and `data/towers/` is
-   committed as text instead — see 3h.
+3f. **Publish, and get it to makiki** — worktree topic name `pages-deploy`.
+   See §A11 for the whole task.
 3g. `[D]` **Export gets its own spec, `SPEC-013-export.md`.** iestyn,
    2026-09-10: a separate topic, and non-trivial now, so SPEC-008 §7 shrinks to
    a reference. **13, not 11 or 12** — another task holds those. `[O]` Not
@@ -55,8 +49,10 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
 3h. `[D]` **Tower JSON moves into the bundle, and out of the repo.** iestyn,
    2026-09-11, "for safety", following makiki's preference for compiling map
    data in. The text form stays as **gitignored build output** so it is still
-   there to debug against. `[O]` Its own task: `data/towers/` is read by
-   `test/sav/helpers.ts` and every session's tests.
+   there to debug against. `[O]` Its own task, and it is **not done**: iestyn
+   believed on 2026-09-15 that it already was. `data/towers/v0.7-455/` is 17
+   files, 1.6 MB, committed and pushed. Only the *sprites* build from
+   `../local/`. See §A11.
 3i. `[D]` **A misbehaving `.sav` reaches iestyn through a paste service, not
    as a file.** 2026-09-11: pastebin is convenient and safe, and **raw bytes
    are essential** — a novel failure is the one a summary would not describe.
@@ -126,6 +122,54 @@ file are over too, with §A7 and §A8 living here until the branch merges.
 
 `[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
 own capture control: press `S` or the button, share the PNG.
+
+## A11. `pages-deploy` — publish the app so makiki can open a URL
+
+`[I]` iestyn, 2026-09-15: he wants makiki looking at the MVP **now**, before
+the spec-gold-analysis branch lands, because the UI is easier to judge in this
+state. So this is time-sensitive in a way the rest of the list is not.
+
+`[F]` **Permitted.** makiki, 2026-09-11, prefers assets compiled into the
+bundle over published as files (D14b-1), and his notice wording is already in
+the app verbatim. Nothing here needs asking again.
+
+`[F]` **The repo exists and is pushed**: `git@github.com:iestynne/orderlyorderer.git`,
+`origin/main` well behind local `main` as of 2026-09-15. `[O]` Whether it is
+public was not verified — Pages on a private repo needs a paid plan.
+
+### What Pages is
+
+GitHub serves a static site from a repository, at
+`https://<user>.github.io/<repo>/`. An Actions workflow builds on push and
+publishes the output; there is no server, which suits an app that has none.
+`[F]` The sub-path is why `vite.config.ts` takes `BASE_PATH` — a build
+defaults to `/` and a project site needs `/<repo>/`, or every asset 404s.
+
+### The task
+
+1. Push `main`. It is safe as it stands: `build/` and `../local/` are
+   gitignored, and derived artifacts are ours to publish (D14b).
+2. A workflow that runs `npm ci`, `npm run build-atlas`, `npm run build` with
+   `BASE_PATH=/<repo>/`, and deploys `dist/`. `[O]` **`build-atlas` needs the
+   game archive**, which is in `../local/` and will never be on a runner
+   (D14b, D29). So either the build runs locally and only `dist/` is pushed,
+   or the atlas is committed — which D14b forbids. **Resolve this first; it
+   decides the shape of everything else.**
+3. Check the deployed page actually loads: the atlas is inlined, so a wrong
+   `BASE_PATH` shows as a black canvas rather than an error (SPEC-007 §6.1).
+4. Send makiki the URL, and ask the one open question: his answer named *map
+   data* as something to bundle, and `data/towers/` is committed as text. §A.3h.
+
+### Two things to decide while there
+
+- `[O]` **`data/towers/`** — 1.6 MB of committed JSON that §A.3h says should
+  be gitignored build output instead. Doing it here is tempting and would
+  conflict with spec-gold-analysis; doing it after is safer.
+- `[O]` **`data/saves/` is 2.3 MB of iestyn's own savegames, committed and
+  public.** `[F]` `test/sav/helpers.ts` says they "live outside git (D14b)"
+  and skip when absent — the skip is real, the claim is not. Decide whether
+  publishing them is intended, and fix the comment either way. Not a licensing
+  question; they are his files.
 
 ## A7. The editing UI, by eye — thirteen fixed, none confirmed
 
