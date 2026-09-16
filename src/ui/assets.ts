@@ -7,8 +7,11 @@
 // from a web app is easier than unzipping the .love, and the exposure delta is
 // nil because anyone who wants the art already owns the game.
 //
-// build/ is produced by `npm run build-atlas` and is gitignored. Without it the
-// app does not build, which is D29: no placeholder tileset in slice 1.
+// build/ is produced by `npm run build-atlas` and `npm run parse-towers`, and
+// is gitignored. Without it the app does not build, which is D29: no placeholder
+// tileset in slice 1. `[D]` The tower JSON lives there too now rather than in
+// `data/` — derived from the archive, so built rather than committed
+// (`tools/paths.ts`).
 
 import atlasUrl from "../../build/atlas.png?inline";
 import manifestJson from "../../build/atlas.json";
@@ -17,7 +20,7 @@ import type { TowerJSON } from "../sim/types";
 
 export const manifest = manifestJson as unknown as AtlasManifest;
 
-const towerModules = import.meta.glob<{ default: TowerJSON }>("../../data/towers/v0.7-455/*.json");
+const towerModules = import.meta.glob<{ default: TowerJSON }>("../../build/towers/v0.7-455/*.json");
 
 export interface TowerIndexEntry {
   tower_id: string;

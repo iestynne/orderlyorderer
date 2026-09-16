@@ -12,3 +12,7 @@ build/
 
 # SPEC-009 §2: the harness browser. iestyn installs it; it is never committed.
 .browsers/
+
+# Tower JSON is derived from the game archive, so it is built, not committed
+# (tools/paths.ts). `npm run parse-towers` writes it into build/.
+data/towers/

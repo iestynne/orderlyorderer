@@ -12,8 +12,8 @@ import { CellState } from "../../src/sim/types";
 import { coords } from "../../src/sim/grid";
 import { Canvas, renderTower } from "./synth";
 import type { TowerJSON } from "../../tools/maps/types";
+import { TOWER_DIR } from "../../tools/paths";
 
-const TOWER_DIR = join(process.cwd(), "data", "towers", "v0.7-455");
 const tower = (id: string): TowerJSON => JSON.parse(readFileSync(join(TOWER_DIR, `${id}.json`), "utf8")) as TowerJSON;
 
 describe("PNG decoding (SPEC-005 §2)", () => {

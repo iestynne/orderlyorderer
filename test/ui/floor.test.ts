@@ -25,6 +25,7 @@ import {
 import { STACK_SHEAR } from "../../src/ui/render/right";
 import { W, type TowerJSON } from "../../src/sim/types";
 import type { AtlasManifest } from "../../tools/atlas/build";
+import { TOWER_DIR } from "../../tools/paths";
 
 /** `putImageData` needs the constructor; Node has no DOM. */
 beforeAll(() => {
@@ -80,7 +81,7 @@ function stubFactory(): { make: CanvasFactory; made: Array<{ w: number; h: numbe
 }
 
 const TOWER = JSON.parse(
-  readFileSync(join(process.cwd(), "data", "towers", "v0.7-455", "1-5.json"), "utf8"),
+  readFileSync(join(TOWER_DIR, "1-5.json"), "utf8"),
 ) as TowerJSON;
 
 describe("the box filter", () => {

@@ -1,7 +1,11 @@
-// Shared fixture for the save corpus. The saves are the player's own game data
-// and live outside git (D14b), so every test that needs them SKIPS rather than
-// fails when the directory is absent -- otherwise CI would look green while
-// testing nothing.
+// Shared fixture for the save corpus.
+//
+// `[F]` **The saves are committed**, unlike the tower JSON and the sprites.
+// `[I]` iestyn, 2026-09-15: they are his own files and they are useful example
+// data, so publishing them is the point rather than an oversight. `[D]` Tests
+// still SKIP rather than fail when they are absent, because `TOS_SAVE_DIR` can
+// point elsewhere and a clone may not have them -- and a suite that went green
+// while testing nothing would be worse than either.
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
@@ -9,8 +13,9 @@ import { parseSaveFile, type SaveFile } from "../../src/sav/savefile";
 import { parseScoreFile, type ScoreTable } from "../../src/sav/score";
 import type { TowerJSON } from "../../tools/maps/types";
 
-export const SAVE_DIR = process.env["TOS_SAVE_DIR"] ?? join(process.cwd(), "data", "saves", "iestyn.2026.08.28");
-export const TOWER_DIR = join(process.cwd(), "data", "towers", "v0.7-455");
+import { SAVE_DIR, TOWER_DIR } from "../../tools/paths";
+
+export { SAVE_DIR, TOWER_DIR };
 
 export const haveSaves = existsSync(SAVE_DIR);
 

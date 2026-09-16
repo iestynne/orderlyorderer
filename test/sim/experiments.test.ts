@@ -15,9 +15,9 @@ import { simulate } from "../../src/sim/simulate";
 import { coords, isEntity, towerCell } from "../../src/sim/grid";
 import type { Step } from "../../src/sim/types";
 import type { TowerJSON } from "../../tools/maps/types";
+import { TOWER_DIR } from "../../tools/paths";
 
 const TEST_SAVES = join(process.cwd(), "data", "saves", "tests");
-const TOWER_DIR = join(process.cwd(), "data", "towers", "v0.7-455");
 
 function load(sav: string, towerId: string, record: string): { tower: TowerJSON; rec: SaveRecord } {
   const tower = JSON.parse(readFileSync(join(TOWER_DIR, `${towerId}.json`), "utf8")) as TowerJSON;

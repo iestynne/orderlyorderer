@@ -19,7 +19,9 @@ Relative paths in this file resolve inside that worktree.
 docs/    canonical. Mutable, current state only. Code is derived from these.
 specs/   SPEC-NNN-slug.md. Frozen once tests exist against them.
 tools/   standalone utilities
-data/    captured game data. Immutable; version-stamped by path.
+data/    captured game data: the save corpus, committed on purpose. Tower
+         JSON is NOT here — it is derived, so it is built into `build/`
+         (`tools/paths.ts`). Immutable; version-stamped by path.
 src/ test/
 ```
 
@@ -55,6 +57,7 @@ git worktree add -b session-<WTTN> ../git-<WTTN> main
 cd ../git-<WTTN>
 npm ci --prefer-offline   # node_modules/ is gitignored; ~2s from a warm cache
 npm run build-atlas       # build/ is gitignored; typecheck fails without it
+npm run parse-towers      # the tower JSON, also built rather than committed
 ```
 
 If `../git-<WTTN>/` already exists, reuse it.
@@ -111,9 +114,9 @@ the branch, the docs and the code, and nothing else. Before stopping:
 
 Resuming is step 1 with the same `<WTTN>`. The worktree already exists so step 2
 reuses it, and the session starts from that §A section rather than from the
-branch's diff. Run `npm ci` and `npm run build-atlas` anyway — `node_modules/`
-and `build/` are gitignored — and start a dev server of your own; the port the
-last session reported is not yours.
+branch's diff. Run `npm ci`, `npm run build-atlas` and `npm run parse-towers`
+anyway — `node_modules/` and `build/` are gitignored — and start a dev server
+of your own; the port the last session reported is not yours.
 
 `[F]` If that `npm ci` fails `EPERM` or `EBUSY` on a `.node` or an `.exe`, a
 previous session left its server running. **Ask iestyn to kill it** rather than

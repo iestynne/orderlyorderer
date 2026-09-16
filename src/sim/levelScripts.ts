@@ -3,7 +3,7 @@
 // game.lua:525 runs a per-tower script immediately after loading level data,
 // and 13 of the 16 towers have one. They inject entities and edit walls based
 // on ACCOUNT state, so a tower's initial state is a function of
-// (map file, unlock flags, per-tower crown tier) and `data/towers/` holds only
+// (map file, unlock flags, per-tower crown tier) and the tower JSON holds only
 // the first.
 //
 // Transcribed from the Lua rather than derived. Note the game indexes

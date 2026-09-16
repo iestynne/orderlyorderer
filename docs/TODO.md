@@ -46,13 +46,13 @@ confirmed by eye.** The top of this list needs a browser, and so needs iestyn:
    file", which the code no longer does. Specs are frozen once tests exist, so
    it waits for the new spec rather than being edited. The live docs
    (DESIGN §2.4, `UI.md`, `SAVE_FORMAT.md` §8) are already correct.
-3h. `[D]` **Tower JSON moves into the bundle, and out of the repo.** iestyn,
-   2026-09-11, "for safety", following makiki's preference for compiling map
-   data in. The text form stays as **gitignored build output** so it is still
-   there to debug against. `[O]` Its own task, and it is **not done**: iestyn
-   believed on 2026-09-15 that it already was. `data/towers/v0.7-455/` is 17
-   files, 1.6 MB, committed and pushed. Only the *sprites* build from
-   `../local/`. See §A11.
+3h. `[F]` **Done, 2026-09-15: tower JSON is built, not committed.**
+   `npm run parse-towers` writes `build/towers/`, which is gitignored, and
+   `tools/paths.ts` is the one place the location is named. The **parser stays
+   in the repository**, so anyone who owns the game can build their own copy —
+   `[I]` iestyn wants that possible, and streamlining it is a much-later
+   consideration if ever. `[O]` It is still in the *pushed* history; only a new
+   push removes it from the tip.
 3i. `[D]` **A misbehaving `.sav` reaches iestyn through a paste service, not
    as a file.** 2026-09-11: pastebin is convenient and safe, and **raw bytes
    are essential** — a novel failure is the one a summary would not describe.
@@ -149,9 +149,10 @@ defaults to `/` and a project site needs `/<repo>/`, or every asset 404s.
 
 1. Push `main`. It is safe as it stands: `build/` and `../local/` are
    gitignored, and derived artifacts are ours to publish (D14b).
-2. A workflow that runs `npm ci`, `npm run build-atlas`, `npm run build` with
-   `BASE_PATH=/<repo>/`, and deploys `dist/`. `[O]` **`build-atlas` needs the
-   game archive**, which is in `../local/` and will never be on a runner
+2. A workflow that runs `npm ci`, `npm run build-atlas`, `npm run parse-towers`,
+   `npm run build` with
+   `BASE_PATH=/<repo>/`, and deploys `dist/`. `[O]` **`build-atlas` and `parse-towers` both need
+   the game archive**, which is in `../local/` and will never be on a runner
    (D14b, D29). So either the build runs locally and only `dist/` is pushed,
    or the atlas is committed — which D14b forbids. **Resolve this first; it
    decides the shape of everything else.**
@@ -162,14 +163,9 @@ defaults to `/` and a project site needs `/<repo>/`, or every asset 404s.
 
 ### Two things to decide while there
 
-- `[O]` **`data/towers/`** — 1.6 MB of committed JSON that §A.3h says should
-  be gitignored build output instead. Doing it here is tempting and would
-  conflict with spec-gold-analysis; doing it after is safer.
-- `[O]` **`data/saves/` is 2.3 MB of iestyn's own savegames, committed and
-  public.** `[F]` `test/sav/helpers.ts` says they "live outside git (D14b)"
-  and skip when absent — the skip is real, the claim is not. Decide whether
-  publishing them is intended, and fix the comment either way. Not a licensing
-  question; they are his files.
+- `[F]` **Both settled, 2026-09-15.** The tower JSON is built rather than
+  committed (§A.3h, done); the save corpus stays committed on purpose, because
+  it is useful example data, and `helpers.ts` no longer claims otherwise.
 
 ## A7. The editing UI, by eye — thirteen fixed, none confirmed
 

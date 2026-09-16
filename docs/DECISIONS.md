@@ -225,10 +225,18 @@ stage**, which came from the open-source game-jam version.
 Derived artifacts we generate — tower JSON, sprite hashes, mechanics
 documentation in our own words — are ours to publish. The originals are not.
 
-Tower JSON is committed and public. It is a text summary of what any player sees
-in game, its diff history is genuinely useful when a tower is edited, and the
-audience for the tool has already played these towers. Spoiler risk is not a
-real concern. Confirmation from the developer is still outstanding as a
+`[F]` **Tower JSON is no longer committed.** 2026-09-15: makiki prefers map
+data compiled into the bundle over published as files (D14b-1), so it is built
+into `build/towers/` by `npm run parse-towers` like the atlas, and the parser
+that makes it stays in the repository so anyone who owns the game can build
+their own. `[F]` **The save corpus is still committed, deliberately** — those
+are iestyn's own files and they are the example data every oracle runs on.
+
+The argument for committing the tower JSON, kept because it is still true and
+is what would be reinstated if the preference changed: it is a text summary of
+what any player sees in game, its diff history is genuinely useful when a tower
+is edited, and the audience has already played these towers. Spoiler risk is
+not a real concern. Confirmation from the developer was outstanding as a
 courtesy — see `TODO.md` C2 — but this is the working assumption.
 
 The game archive lives outside the repository entirely (D14d); `.gitignore`

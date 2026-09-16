@@ -15,10 +15,10 @@ import { parseSaveFile } from "../../src/sav/savefile";
 import { routeFromRecord } from "../../src/sav/route";
 import { simulate } from "../../src/sim/simulate";
 import type { TowerJSON } from "../../tools/maps/types";
+import { TOWER_DIR } from "../../tools/paths";
 
 const MAPS = join(process.cwd(), "data", "reference", "maps", "tests");
 const SAVES = join(process.cwd(), "data", "saves", "iestyn.2026.08.28");
-const TOWERS = join(process.cwd(), "data", "towers", "v0.7-455");
 
 /** `<tower-id>.<save name>.png`, so the fixture names its own inputs. */
 interface Fixture {
@@ -48,7 +48,7 @@ d("map export golden oracle", () => {
 
   for (const fx of found) {
     describe(`${fx.towerId} — "${fx.record}"`, () => {
-      const tower = JSON.parse(readFileSync(join(TOWERS, `${fx.towerId}.json`), "utf8")) as TowerJSON;
+      const tower = JSON.parse(readFileSync(join(TOWER_DIR, `${fx.towerId}.json`), "utf8")) as TowerJSON;
       const png = decodePng(new Uint8Array(readFileSync(join(MAPS, fx.file))));
       const rec = parseSaveFile(new Uint8Array(readFileSync(join(SAVES, `${fx.towerId}.sav`)))).records.find((r) => r.name === fx.record);
       if (rec === undefined) throw new Error(`no save record "${fx.record}" in ${fx.towerId}.sav`);

@@ -23,6 +23,7 @@ import { ordFile } from "../../src/sim/route/ordfile";
 import { RouteSession } from "../../src/ui/session";
 import type { TowerJSON } from "../../src/sim/types";
 import { haveSaves } from "../sav/helpers";
+import { TOWER_DIR } from "../../tools/paths";
 
 const HAVE_BROWSER = browsersInstalled();
 const browserIt = HAVE_BROWSER ? it : it.skip;
@@ -108,7 +109,7 @@ describe("SPEC-009 §5 — confinement and scenarios", () => {
       // A fixture is a test stem, or `<corpus dir>/<tower>` for the full corpus.
       const path = s.fixture.includes("/") ? s.fixture : `tests/${s.fixture}`;
       expect(existsSync(`data/saves/${path}.sav`), `${s.name}: ${path}.sav`).toBe(true);
-      expect(existsSync(`data/towers/v0.7-455/${towerOfFixture(s.fixture)}.json`)).toBe(true);
+      expect(existsSync(join(TOWER_DIR, `${towerOfFixture(s.fixture)}.json`))).toBe(true);
       expect(s.record).toBeGreaterThanOrEqual(0);
       expect(s.stop).toBeGreaterThanOrEqual(0);
       expect(s.shows.length).toBeGreaterThan(20);
@@ -442,7 +443,7 @@ describe("SPEC-009 §4 — every failure scenario still shows the failure it nam
 /** A `RouteSession` for a scenario's fixture and record, as the app builds it. */
 function sessionFor(s: (typeof SCENARIOS)[number]): RouteSession {
   const towerId = towerOfFixture(s.fixture);
-  const tower = JSON.parse(readFileSync(`data/towers/v0.7-455/${towerId}.json`, "utf8")) as TowerJSON;
+  const tower = JSON.parse(readFileSync(join(TOWER_DIR, `${towerId}.json`), "utf8")) as TowerJSON;
   const path = s.fixture.includes("/") ? s.fixture : `tests/${s.fixture}`;
   const record = parseSaveFile(new Uint8Array(readFileSync(`data/saves/${path}.sav`))).records[s.record]!;
   const route = importRoute({

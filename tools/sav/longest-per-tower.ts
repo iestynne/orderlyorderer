@@ -14,8 +14,8 @@ import { hasOrbMoves, routeFromRecord } from "../../src/sav/route";
 import { simulate } from "../../src/sim/simulate";
 import { CellState } from "../../src/sim/types";
 import type { TowerJSON } from "../../tools/maps/types";
+import { TOWER_DIR } from "../paths";
 
-const TOWER_DIR = join(process.cwd(), "data", "towers", "v0.7-455");
 const MAPS_DIR = join(process.cwd(), "data", "reference", "maps", "tests");
 
 function main(): void {

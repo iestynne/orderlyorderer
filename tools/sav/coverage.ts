@@ -9,8 +9,8 @@ import { hasOrbMoves, routeFromRecord } from "../../src/sav/route";
 import { simulate } from "../../src/sim/simulate";
 import { coords, towerCell, isEntity } from "../../src/sim/grid";
 import type { TowerJSON } from "../../tools/maps/types";
+import { TOWER_DIR } from "../paths";
 
-const TOWER_DIR = join(process.cwd(), "data", "towers", "v0.7-455");
 
 function main(): void {
   const dir = process.argv[2]!;

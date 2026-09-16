@@ -26,6 +26,7 @@ import { buildAtlas, type AtlasManifest } from "../../tools/atlas/build";
 import { TOWER_IDS } from "../../tools/maps/types";
 import { haveSaves, loadAllSaves } from "../sav/helpers";
 import { existsSync } from "node:fs";
+import { TOWER_DIR } from "../../tools/paths";
 
 const STACK_MAX_GAP_PX = 2;
 
@@ -254,7 +255,7 @@ d("stage 3 — the draw path runs over real records", () => {
     const panel = sliderGeometry(layout).h;
     for (const id of TOWER_IDS) {
       const depth = JSON.parse(
-        readFileSync(join(process.cwd(), "data", "towers", "v0.7-455", `${id}.json`), "utf8"),
+        readFileSync(join(TOWER_DIR, `${id}.json`), "utf8"),
       ).floors.length as number;
       expect(stackHeight(depth, panel), `${id} (${depth} floors)`).toBeLessThanOrEqual(panel);
       const pitch = stackPitch(depth, panel);
@@ -296,7 +297,7 @@ d("stage 3 — the draw path runs over real records", () => {
 
   it("hides the rows the game hides", () => {
     const ex3 = JSON.parse(
-      readFileSync(join(process.cwd(), "data", "towers", "v0.7-455", "EX-3.json"), "utf8"),
+      readFileSync(join(TOWER_DIR, "EX-3.json"), "utf8"),
     ) as TowerJSON;
     const player = {
       z: 1, x: 1, y: 1, power: 1284900, gold: 0, lightKeys: -3, darkKeys: 0, pickaxes: 2,

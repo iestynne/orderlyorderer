@@ -14,9 +14,9 @@ import { ICONS } from "../../tools/atlas/icons";
 import { readImageFont, textWidth, type Rgba } from "../../src/ui/imagefont";
 import { buildAtlas, parseEntitySprites, FONTS, SHEET_SPRITES, type AtlasManifest } from "../../tools/atlas/build";
 import { TOWER_IDS, type TowerJSON } from "../../tools/maps/types";
+import { TOWER_DIR } from "../../tools/paths";
 
 const GAME_DIR = process.env["TOS_GAME_DIR"] ?? join(process.cwd(), "..", "local", "game", "v0.7-455");
-const TOWER_DIR = join(process.cwd(), "data", "towers", "v0.7-455");
 const haveGame = existsSync(join(GAME_DIR, "res"));
 const d = haveGame ? describe : describe.skip;
 
