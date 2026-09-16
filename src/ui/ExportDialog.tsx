@@ -25,6 +25,7 @@
 import type React from "react";
 import { useState } from "react";
 import type { Backup, Exported } from "../store/savefolder";
+import { md } from "./md";
 import { EG, EXPORT, type Step } from "./text";
 
 export type ExportChoice = "pick" | "download";
@@ -34,8 +35,8 @@ function Steps({ list }: { list: readonly Step[] }): React.ReactElement {
     <ol className="protocol">
       {list.map(([step, why]) => (
         <li key={step}>
-          <strong>{step}</strong>
-          <span>{why}</span>
+          <strong>{md(step)}</strong>
+          {why !== undefined && <span>{md(why)}</span>}
         </li>
       ))}
     </ol>
@@ -48,7 +49,7 @@ function Restore({ folder }: { folder: string }): React.ReactElement {
       <summary>{EXPORT.restoreSummary}</summary>
       <ul>
         {EXPORT.restore(folder).map((line) => (
-          <li key={line}>{line}</li>
+          <li key={line}>{md(line)}</li>
         ))}
       </ul>
     </details>
@@ -90,7 +91,7 @@ export function ExportDialog(props: Props): React.ReactElement {
       return (
         <>
           <p className="lede">
-            {EXPORT.wrote(out.name, out.accumulated, `${out.folder}/${props.towerId}.sav`, out.records, out.towers.join(", "))}
+            {md(EXPORT.wrote(out.name, out.accumulated, `${out.folder}/${props.towerId}.sav`, out.records, out.towers.join(", ")))}
           </p>
           <h2>{EXPORT.deployHeading}</h2>
           <Steps list={EXPORT.deploy(out.folder)} />
@@ -106,9 +107,9 @@ export function ExportDialog(props: Props): React.ReactElement {
     if (props.backups !== null) {
       return (
         <>
-          <p className="lede">{EXPORT.which}</p>
-          {props.isSnapshot && <p className="warn">{EXPORT.pickedSnapshot}</p>}
-          {props.backups.length === 0 && !props.isSnapshot && <p className="hint">{EXPORT.nothingToBuildFrom}</p>}
+          <p className="lede">{md(EXPORT.which)}</p>
+          {props.isSnapshot && <p className="warn">{md(EXPORT.pickedSnapshot)}</p>}
+          {props.backups.length === 0 && !props.isSnapshot && <p className="hint">{md(EXPORT.nothingToBuildFrom)}</p>}
           <ul className="backups">
             {props.backups.map((b) => {
               const why = refusal(b, props.towerId);
@@ -119,14 +120,14 @@ export function ExportDialog(props: Props): React.ReactElement {
                   </button>
                   <span>
                     {EXPORT.saves(b.towers.length)}
-                    {why === null ? "" : ` — ${why}`}
+                    {why === null ? "" : <> — {md(why)}</>}
                     {b.newest && <strong className="latest">{EXPORT.latest}</strong>}
                   </span>
                 </li>
               );
             })}
           </ul>
-          <p className="hint">{EXPORT.gathers}</p>
+          <p className="hint">{md(EXPORT.gathers)}</p>
           <div className="towers">
             <button disabled={props.busy} onClick={props.onCancel}>{EXPORT.cancel}</button>
           </div>
@@ -138,22 +139,22 @@ export function ExportDialog(props: Props): React.ReactElement {
     return (
       <>
         <p className="lede">
-          {EXPORT.lede(props.recordName, props.towerId)}
-          <strong>{EXPORT.ledeEmphasis}</strong>
+          {md(EXPORT.lede(props.recordName, props.towerId))}
+          <strong>{md(EXPORT.ledeEmphasis)}</strong>
         </p>
 
-        {props.gems > 0 && <p className="hint">{EXPORT.gems(props.gems)}</p>}
+        {props.gems > 0 && <p className="hint">{md(EXPORT.gems(props.gems))}</p>}
 
         <h2>{EXPORT.prepareHeading}</h2>
         <Steps list={EXPORT.prepare} />
-        <p className="hint">{EXPORT.thenPick}</p>
+        <p className="hint">{md(EXPORT.thenPick)}</p>
 
         {/* Stage 1 has no real folder yet, so the worked example stands in. */}
         <Restore folder={EG} />
 
         <label className="understood">
           <input type="checkbox" checked={understood} onChange={(e) => setUnderstood(e.target.checked)} />
-          {EXPORT.understood}
+          {md(EXPORT.understood)}
         </label>
 
         <div className="towers">
@@ -171,7 +172,7 @@ export function ExportDialog(props: Props): React.ReactElement {
           <button disabled={props.busy} onClick={props.onCancel}>{EXPORT.cancel}</button>
         </div>
 
-        {!props.canPick && <p className="hint">{EXPORT.noPicker}</p>}
+        {!props.canPick && <p className="hint">{md(EXPORT.noPicker)}</p>}
       </>
     );
   };
