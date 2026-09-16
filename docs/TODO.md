@@ -123,6 +123,40 @@ file are over too, with §A7 and §A8 living here until the branch merges.
 `[D]` **No browser, no network** (CLAUDE.md). Screenshots come from the app's
 own capture control: press `S` or the button, share the PNG.
 
+## A12. `spec-gold-analysis` — this branch's own
+
+`[D]` Delete this section when the branch merges. Nothing here is built: the
+branch is two spec documents, one canonical doc, D47, and a six-line change to
+`vite.config.ts`.
+
+1. **SPEC-011 and SPEC-012 have had no eye but iestyn's in chat.** SPEC-011 is
+   draft 1 and deliberately partial — §3 is a stub. SPEC-012 is **draft 2**, a
+   rewrite: draft 1 was written in linear-programming vocabulary and could not
+   be read, and two of its recommendations were wrong. `[F]` Getting its central
+   idea across took most of a session, which is the evidence for its §8.1 — the
+   bar chart exists because the number could not be explained.
+2. `[D]` **SPEC-011 oracle 1 stays unspecified until SPEC-011 is built.** Its
+   expected values come from a hand-authored 2-1 document, and iestyn cannot
+   author one until the editing surface exists. Named, not specified, and
+   correctly so — inventing the numbers would be inventing the route.
+3. `[O]` **The solver was prototyped, not built.** A dense simplex written in a
+   scratchpad produced SPEC-012 §9's worked example and found two real faults —
+   the missing epoch exclusivity (§5.2) and the missing epoch dual (§5.1).
+   Nothing of it is in `src/`; the numbers in §9 and §11 are reproducible but
+   are not currently reproduced by anything in the tree.
+4. `[F]` **SPEC-012's named cases were measured before tower JSON moved.** They
+   came from the then-committed `data/towers/v0.7-455/2-1.json`; the same
+   figures now need `npm run parse-towers` first (`tools/paths.ts`). The values
+   are unaffected — the parser is byte-exact — but a session that finds no file
+   should build one rather than doubt the numbers.
+5. `[O]` **`local/serve-main.cmd` is untested.** Written, never run — `../git/`
+   was clean and on `main`, so neither refusal path has fired. It lives outside
+   the repository, so it survived this branch's rebase and is not in the diff.
+6. `[O]` **SPEC-012 §8.1's multi-resource split is decided but untried** —
+   proportional to quantity x resource value, with bars hatched where another
+   resource blocks them. `[I]` iestyn will judge whether the hatching is needed
+   or is noise when he uses it.
+
 ## A11. `pages-deploy` — publish the app so makiki can open a URL
 
 `[I]` iestyn, 2026-09-15: he wants makiki looking at the MVP **now**, before

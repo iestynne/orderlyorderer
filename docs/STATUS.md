@@ -33,6 +33,7 @@ it, and is the analysis still to come.
 | `GAME_MECHANICS.md` | Game rules: enemies, terrain, gates, held items, scoring, reachability |
 | `SAVE_FORMAT.md` | Savegame container and payload, fully reverse-engineered |
 | `DECISIONS.md` | Every settled decision, with rationale |
+| `NOTATION.md` | iestyn's shorthand for resources, trades and routes. One notation, not several. |
 | `RESULTS.md` | Outcomes of savegame validation experiments |
 | `TODO.md` | Outstanding actions |
 | `UI.md` | What the app currently does, in natural language. Mutable; 150-line budget (D31) |
@@ -87,6 +88,8 @@ path (`TODO.md` §C).
 | SPEC-009 visual harness | **implemented**, draft 2. 19 scenarios, every golden blessed by eye, the whole contract green. `npm run shots` to check, `npm run bless` to review what moved. |
 | SPEC-013 export | **implemented, unspecced.** Export injects a route into a copy of the player's `.sav`; the spec is owed (`TODO.md` §A.3g). `SAVE_FORMAT.md` §8 holds the facts. |
 | SPEC-010 log oracle | **draft 1**, not started. Validates the simulator's event *ordering* against the game's own `log1.txt`. Manual pass through the game; everything either side scripted. |
+| SPEC-011 segment editing | **draft 1, partial**, not started. §2 (`.ord` durability) is buildable now and comes first; §3, the editing surface, is a stub that resolves by eye. |
+| SPEC-012 gold analysis | **draft 2**, not started. Says what each candidate trade is worth, in power. Primary display is a bar chart per resource — diminishing returns, with stock and goal lines. Built against 2-1 first. |
 | SPEC-003 headless Lua harness | stub. **Do not build:** its gate required manual verification to have become the bottleneck, and the replay sweep is that oracle instead. |
 | SPEC-001 overlay detector | **cancelled**, in `specs/obsolete/`. Overlays are declared in the level data, not inferred. |
 
@@ -158,6 +161,13 @@ and the game loads it. `[F]` Verified in game by iestyn over 12 cases,
    List** is what it has to judge. `docs/UI.md` §7 names what is open.
 2. **Floor entry thresholds — the *number*.** Skippable segments are the
    predicate and they work; what is left is a search over it.
+2a. **Gold analysis — SPEC-012, specced 2026-09-09.** The sibling analysis, and
+   the one with a real tower waiting: 2-1 *Tower of Loot* has 76 Gold Gates
+   costing 6 794 and at most 3 166 gold in it, so the tower **is** the choice of
+   which trades to make. Priced by LP duality; the player selects, the tool
+   never does. It depends on SPEC-011, whose `.ord` durability half comes first
+   because exercising SPEC-012 means hours of hand-authored segmentation that
+   has to survive a session.
 3. **The two open pieces of editing UX** — `TODO.md` §A6.
 4. **Perf is deferred**, by decision (`TODO.md` §A5): long-range slider drags
    are still slow, short-range is fine, and no baseline until the harness's own
